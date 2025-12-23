@@ -76,6 +76,9 @@ def linspace(start: Point, stop: Point, delta: float) -> Generator[Point, None, 
 def line_of_sight_distance(
     lat1: float, lon1: float, h1: float, lat2: float, lon2: float, h2: float
 ) -> float:
+    """
+    Calculate the line-of-sight distance between two (lat, lon, h) tuples in meters.
+    """
     p1 = CoordinateTransformations.geodetic_to_cartesian(lat1, lon1, h1)
     p2 = CoordinateTransformations.geodetic_to_cartesian(lat2, lon2, h2)
     dist = np.linalg.norm(np.array(p1) - np.array(p2))
