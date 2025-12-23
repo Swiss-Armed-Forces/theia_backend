@@ -33,7 +33,7 @@ def burstvincentydistance(
 @numba.jit
 def haversine(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
     """
-    Calculate the great circle distance in kilometers between two points
+    Calculate the great circle distance in meters between two points
     on the earth (specified in decimal degrees)
     """
     # convert decimal degrees to radians
@@ -44,7 +44,7 @@ def haversine(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
     dlat = lat2 - lat1
     a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
     c = 2 * np.asin(np.sqrt(a))
-    r = R_EARTH  # Radius of earth in kilometers. Use 3956 for miles. Determines return value units.
+    r = R_EARTH
     return c * r
 
 
