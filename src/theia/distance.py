@@ -6,10 +6,11 @@ import numpy as np
 from numpy import radians
 import pyproj
 
+from theia.coordinates import CoordinateTransformations
 from theia.types import Point
 
 
-R_EARTH = 6_371_000 * 1.333  # [m]
+R_EARTH = 6_371_000  # [m]
 
 
 def burstvincentydistance(
@@ -61,7 +62,7 @@ def linspace(start: Point, stop: Point, delta: float) -> Generator[Point, None, 
     bearing = calculate_bearing(start.lon, start.lat, stop.lon, stop.lat)
     n = int(d_max // delta) - 1
     for d in np.linspace(0, d_max, n)[1:]:
-        point = distance(meters=d).destination(
+        point = geopy.distance.distance(meters=d).destination(
             point=(start.lat, start.lon, start.alt),
             bearing=bearing,
         )
@@ -70,3 +71,12 @@ def linspace(start: Point, stop: Point, delta: float) -> Generator[Point, None, 
             lon=point.longitude,
             alt=start.alt + (stop.alt - start.alt) / d_max * d,
         )
+
+
+def line_of_sight_distance(
+    lat1: float, lon1: float, h1: float, lat2: float, lon2: float, h2: float
+) -> float:
+    p1 = CoordinateTransformations.geodetic_to_cartesian(lat1, lon1, h1)
+    p2 = CoordinateTransformations.geodetic_to_cartesian(lat2, lon2, h2)
+    dist = np.linalg.norm(np.array(p1) - np.array(p2))
+    return dist
