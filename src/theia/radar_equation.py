@@ -24,7 +24,7 @@ def radar_eq_max_dist(radar: Radar, target_rcs: float) -> float:
     """
     trans_pwr = radar.power
     antenna_diam = radar.diameter
-    frequency = radar.frequency
+    frequency = radar.frequency / 1000.
     pulse_width = radar.pulse_width
     cpi_pulses = radar.cpi_pulses
     bandwidth = radar.bandwidth
