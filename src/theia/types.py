@@ -18,26 +18,42 @@ class Polarization(enum.Enum):
 
 
 class Point(pydantic.BaseModel):
-    lat: float  # [°]
-    lon: float  # [°]
-    alt: float  # [m]
+    lat: float
+    """Latitude [decimal °]"""
+    lon: float
+    """Longitude [decimal °]"""
+    alt: float
+    """Altitude (meters above sea level) [m]"""
 
 
 class Radar(pydantic.BaseModel):
     id: int
+    """Unique ID"""
     point: Point
-    power: int  # [W]
-    erp: float  # [W] effective radiated power
-    antenna_height: float  # [m]
-    diameter: float  # antenna diameter [m]
-    frequency: float  # [MHz]
-    pulse_width: float  # [us]
+    """Coordinates of the transmitter/receiver"""
+    power: int
+    """Power [W]"""
+    erp: float
+    """Effective radiated power [W]"""
+    antenna_height: float
+    """Antenna height [m]"""
+    diameter: float
+    """Antenna diameter [m]"""
+    frequency: float
+    """Signal frequency [MHz]"""
+    pulse_width: float
+    """Pulse width [us]"""
     cpi_pulses: int
-    bandwidth: int  # [MHz]
+    bandwidth: int
+    """Band width [MHz]"""
     pfa: float
-    min_elevation: float  # [°]
-    max_elevation: float  # [°]
-    rotation_time: float  # [s]
+    """Probability of false alarm (in [0, 1])"""
+    min_elevation: float
+    """Minimum elevation [°]"""
+    max_elevation: float
+    """Maximum elevation [°]"""
+    rotation_time: float
+    """Rotation time [s]"""
     polarization: Polarization
 
     @property
