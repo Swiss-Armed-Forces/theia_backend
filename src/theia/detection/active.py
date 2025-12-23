@@ -4,18 +4,24 @@ import numpy as np
 import scipy.constants as sc
 from scipy import integrate
 from theia.distance import line_of_sight_distance
+from theia.doppler import monostatic_doppler
 from theia.line_of_sight import has_line_of_sight
 from theia.radar_equation import marcum_q_fn
 from theia.types import Radar, Target
 
 
-def get_rad_pd(radar: Radar, target: Target, distance_step: float = 30.0) -> float:
+def get_rad_pd(
+    radar: Radar,
+    target: Target,
+    distance_step: float = 30.0,
+    doppler_shift_threshold_hz: float = 5.0,
+) -> float:
     rad_lat = radar.lat
     rad_lon = radar.lon
     rad_height = radar.alt
     power = radar.power
     antenna_diam = radar.diameter
-    # The rest of the code assumes GHz. (taken from openBURST)
+    # The rest of the code except Doppler assumes GHz. (taken from openBURST)
     freq = radar.frequency / 1000.0
     pulse_width = radar.pulse_width
     cpi_pulses = radar.cpi_pulses
@@ -40,6 +46,21 @@ def get_rad_pd(radar: Radar, target: Target, distance_step: float = 30.0) -> flo
 
     if not los_ok:
         return 0.0
+    else:
+        doppler = monostatic_doppler(
+            radar.frequency,  # yes, it is MHz here!
+            rad_lat,
+            rad_lon,
+            radar.alt,
+            tgt_lat,
+            tgt_lon,
+            target.alt,
+            target.vlon,
+            target.vlat,
+            target.vz,
+        )
+        if doppler <= doppler_shift_threshold_hz:
+            return 0.0
 
     got_pd = radar_detection_given_with_splat(
         power,
