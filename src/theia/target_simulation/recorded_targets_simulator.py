@@ -61,6 +61,12 @@ class RecordedTargetsSimulator(TargetSimulator):
                     )
                 )
         return targets
+    
+    def get_minimum_time(self) -> datetime.datetime:
+        return np.min([t.times[0] for t in self._trajectories])
+    
+    def get_maximum_time(self) -> datetime.datetime:
+        return np.max([t.times[-1] for t in self._trajectories])
 
     # def get_targets(self, time: datetime.datetime) -> Iterable[Target]:
     #     targets: list[Target] = []
