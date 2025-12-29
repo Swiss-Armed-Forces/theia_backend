@@ -1,4 +1,7 @@
+import abc
+import datetime
 import enum
+from typing import Iterable, Self
 import pydantic
 
 
@@ -88,3 +91,46 @@ class Target(pydantic.BaseModel):
     @property
     def alt(self) -> float:
         return self.point.alt
+
+
+class Trajectory(pydantic.BaseModel):
+    target_id: int
+    times: list[datetime.datetime]
+    """Ordered list of times at which the trajectory is sampled."""
+    lats: list[float]
+    """Latitude coordinates [°]"""
+    lons: list[float]
+    """Longitude coordinates [°]"""
+    alts: list[float]
+    """Altitude coordinates [m above sea level]"""
+    vlats: list[float]
+    """Velocity along latitude [m / s]"""
+    vlons: list[float]
+    """Velocity along longitude [m / s]"""
+    vzs: list[float]
+    """Velocity in altitude [m / s]"""
+    cross_sections: list[float]
+    """Target cross sections [m^2]"""
+
+    @pydantic.model_validator(mode="after")
+    def check_same_length(self) -> Self:
+        if (
+            len(self.times) != len(self.lats)
+            or len(self.times) != len(self.lons)
+            or len(self.times) != len(self.alts)
+            or len(self.times) != len(self.vlats)
+            or len(self.times) != len(self.vlons)
+            or len(self.times) != len(self.vzs)
+            or len(self.times) != len(self.cross_sections)
+        ):
+            raise ValueError("Properties are not of same length")
+        return self
+
+    @pydantic.model_validator(mode="after")
+    def check_times_ordered(self) -> Self:
+        if len(self.times) <= 1:
+            return self
+        for i in range(1, len(self.times)):
+            if self.times[i - 1] > self.times[i]:
+                raise ValueError("Time steps are not ordered")
+        return self
