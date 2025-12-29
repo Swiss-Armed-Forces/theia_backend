@@ -134,3 +134,9 @@ class Trajectory(pydantic.BaseModel):
             if self.times[i - 1] > self.times[i]:
                 raise ValueError("Time steps are not ordered")
         return self
+
+class TargetSimulator(abc.ABC):
+    @abc.abstractmethod
+    def get_targets(self, time: datetime.datetime) -> Iterable[Target]:
+        """Return an iterator over targets at the given time."""
+        raise NotImplementedError()
