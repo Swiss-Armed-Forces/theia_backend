@@ -135,8 +135,17 @@ class Trajectory(pydantic.BaseModel):
                 raise ValueError("Time steps are not ordered")
         return self
 
+
 class TargetSimulator(abc.ABC):
     @abc.abstractmethod
     def get_targets(self, time: datetime.datetime) -> Iterable[Target]:
         """Return an iterator over targets at the given time."""
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def get_minimum_time(self) -> datetime.datetime:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def get_maximum_time(self) -> datetime.datetime:
         raise NotImplementedError()

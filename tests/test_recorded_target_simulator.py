@@ -157,6 +157,42 @@ class RecordedTargetSimulatorTest(unittest.TestCase):
         self.assertEqual(len(targets), 2)
         self.assertEqual(targets, expected)
 
+    def test_min_max_time(self):
+        self.assertEqual(
+            self.simulator.get_minimum_time(),
+            datetime.datetime(
+                year=2022,
+                month=6,
+                day=27,
+                hour=4,
+                minute=2,
+                second=23,
+            ),
+        )
+        self.assertEqual(
+            self.simulator.get_maximum_time(),
+            datetime.datetime(
+                year=2022,
+                month=7,
+                day=23,
+                hour=6,
+                minute=19,
+                second=37,
+            ),
+        )
+
+        self.assertEqual(
+            self.simulator2.get_maximum_time(),
+            datetime.datetime(
+                year=2022,
+                month=6,
+                day=27,
+                hour=4,
+                minute=15,
+                second=0,
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
