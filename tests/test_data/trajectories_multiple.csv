@@ -1,0 +1,6 @@
+icao24,time,lat,lon,alt,vlat,vlon,vz,cross_section,callsign,manufacturerIcao,model
+aaaaaa,2022-06-27 04:02:23,46.6155,7.2784,500,0,100,20,10,HELLO,CDE,The Best
+aaaaaa,2022-06-27 04:03:23,46.6155,7.3567,620,0,100,0,10,HELLO,CDE,The Best
+bbbbbb,2022-07-23 06:14:07,47.7024,8.6078,1000,100,-50,-13,100,HOHOHO,CDE Gold,The Worst
+bbbbbb,2022-07-23 06:15:07,46.6638,7.3135,987,100,0,-13,100,HOHOHO,CDE Gold,The Worst
+bbbbbb,2022-07-23 06:19:37,46.6195,7.2784,928.5,100,0,0,100,HOHOHO,CDE Gold,The Worst
