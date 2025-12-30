@@ -169,3 +169,10 @@ class RadarSimulator(abc.ABC):
     @abc.abstractmethod
     def get_maximum_time(self) -> datetime.datetime:
         raise NotImplementedError()
+
+
+class ActiveRadarDetection(pydantic.BaseModel):
+    detection_id: int
+    time: datetime.datetime
+    radar: Radar
+    target: Target
