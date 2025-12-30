@@ -1,3 +1,5 @@
 *.pyc
 *.html
 *.geojson
+*.svg
+*.csv
