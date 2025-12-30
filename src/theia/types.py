@@ -149,3 +149,23 @@ class TargetSimulator(abc.ABC):
     @abc.abstractmethod
     def get_maximum_time(self) -> datetime.datetime:
         raise NotImplementedError()
+
+
+class RadarSimulator(abc.ABC):
+    @abc.abstractmethod
+    def get_all_radars(self) -> list[Radar]:
+        """Return a list of all radars that might be active at some point."""
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def get_radars(self, time: datetime.datetime) -> Iterable[Radar]:
+        """Return an iterator over radars at the given time."""
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def get_minimum_time(self) -> datetime.datetime:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def get_maximum_time(self) -> datetime.datetime:
+        raise NotImplementedError()
