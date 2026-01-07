@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 
 from theia.data_loading import load_trajectory_file
@@ -63,6 +64,13 @@ radar_simulator = ConstantRadarSimulator(
 )
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/targets/{time}")
