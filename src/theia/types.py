@@ -61,14 +61,17 @@ class Radar(pydantic.BaseModel):
 
     @property
     def lat(self) -> float:
+        """Latitude [decimal °]"""
         return self.point.lat
 
     @property
     def lon(self) -> float:
+        """Longitude [decimal °]"""
         return self.point.lon
 
     @property
     def alt(self) -> float:
+        """Altitude (meters above sea level) [m]"""
         return self.point.alt
 
 
