@@ -1,5 +1,4 @@
 import base64
-import enum
 from io import BytesIO
 import json
 import re
@@ -13,27 +12,7 @@ import requests
 import shapely
 from websockets.sync.client import connect
 
-from theia.types import Radar
-
-
-class RadioClimate(enum.Enum):
-    EQUATORIAL = 1
-    CONTINENTAL_SUBTROPICAL = 2
-    MARITIME_TROPICAL = 3
-    DESERT = 4
-    CONTINENTAL_TEMPERATE = 5
-    MARITIME_TEMPERATE_OVER_LAND = 6
-    MARITIME_TEMPERATE_OVER_SEA = 7
-
-
-class Target(pydantic.BaseModel):
-    lat: float  # [°]
-    lon: float  # [°]
-    alt: float  # [m]
-    cross_section: float  # [m^2] ?
-    vlon: float  # [m / s]
-    vlat: float  # [m / s]
-    vz: float  # [m / s]
+from theia.types import Radar, RadioClimate, Target
 
 
 class PclReceiver(pydantic.BaseModel):
@@ -436,7 +415,7 @@ class OpenburstClient:
         )
 
         return float(response.text)
-    
+
 
 def radar_to_openburst_json(radar: Radar) -> str:
     r = radar.model_dump()
