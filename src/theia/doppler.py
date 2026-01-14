@@ -1,8 +1,14 @@
+import math
 import numpy as np
 import scipy.constants as sc
 
 from theia.coordinates import get_azimuth_between_locs
-from theia.distance import haversine
+from theia.distance import (
+    burstvincentydistance,
+    get_2d_distance_between_locs_heights,
+    haversine,
+)
+from theia.types import Radar, Target
 
 
 def monostatic_doppler(
@@ -89,3 +95,110 @@ def project_vector_u_on_v(u, v):
 def calc_angle_from_vecs(v1, v2):
     """returns the inner angle between two vectors"""
     return np.atan2(np.linalg.norm(np.cross(v1, v2)), np.dot(v1, v2))
+
+
+def calculate_bistatic_doppler(
+    rx: Radar,
+    tgt: Target,
+    tx: Radar,
+    dt: float = 1e-6,
+):
+    """Calculate bistatic Doppler in Hz.
+
+    Parameters
+    ----------
+    rx: Radar
+        Receiver.
+    tgt: Target
+        Target.
+    tx: Radar
+        Transmitter.
+    dt: float
+        Time step to use for the finite difference calculation. The target's
+        velocity vector is assumed to be constant between the current time t
+        and time t + dt.
+
+    Returns
+    -------
+    float
+        Doppler shift in [Hz]. This value can be negative, depending on the
+        velocity vector of the target.
+
+    Notes
+    -----
+    The bistatic Doppler shift is computed from the rate of change (R_t + R_r)
+    divided by the wavelength of tx signal. Finite forward differences are used
+    to calculate the Doppler shift.
+    """
+
+    rr1 = (
+        get_2d_distance_between_locs_heights(
+            tgt.lat,
+            tgt.lon,
+            tgt.alt,
+            rx.lat,
+            rx.lon,
+            rx.alt + rx.antenna_height,
+        )
+        * 1000.0
+    )
+    rt1 = (
+        get_2d_distance_between_locs_heights(
+            tx.lat,
+            tx.lon,
+            tx.alt + tx.antenna_height,
+            tgt.lat,
+            tgt.lon,
+            tgt.alt,
+        )
+        * 1000.0
+    )
+
+    tgt_total_vel = tgt.speed
+    tgt_xy_vel = math.sqrt(tgt_total_vel * tgt_total_vel - tgt.vz * tgt.vz)  # [m/s]
+    alpha = math.degrees(math.atan2(tgt.vlon, tgt.vlat))
+    if alpha < 0:
+        alpha = 360 + alpha  # now alpha is in degrees from north
+
+    # Move the target along the bearing given by the velocity vectors with the
+    # given velocity to calculate the change of the target position.
+    new_lat_lon = burstvincentydistance(
+        (tgt.lat, tgt.lon), (tgt_xy_vel * dt), alpha
+    )
+    # This is the predicted target position with the given velocity.
+    new_lat = new_lat_lon.latitude
+    new_lon = new_lat_lon.longitude
+    new_z = tgt.alt + dt * tgt.vz
+
+    # Now compute bistatic range components R_T and R_R for the new target position.
+    rr2 = (
+        get_2d_distance_between_locs_heights(
+            new_lat,
+            new_lon,
+            new_z,
+            rx.lat,
+            rx.lon,
+            rx.alt + rx.antenna_height,
+        )
+        * 1000.0
+    )
+    rt2 = (
+        get_2d_distance_between_locs_heights(
+            tx.lat,
+            tx.lon,
+            tx.alt + tx.antenna_height,
+            new_lat,
+            new_lon,
+            new_z,
+        )
+        * 1000.0
+    )
+
+    # Compute the rate of change for R_T (tx to target range) and R_R (tgt to rx range).
+    rt_rate_of_change = (rt2 - rt1) / dt
+    rr_rate_of_change = (rr2 - rr1) / dt
+
+    wavelength = sc.speed_of_light / (tx.frequency * 1000000)  # m
+    doppler_shift = (rt_rate_of_change + rr_rate_of_change) / wavelength  # [Hz]
+
+    return doppler_shift

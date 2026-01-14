@@ -54,8 +54,8 @@ class PclEmitter(pydantic.BaseModel):
     erp_h: float | Literal["UNDEFINED"]
     erp_v: float | Literal["UNDEFINED"]
     type: Literal["directional", "OMNI"]
-    horiz_diagr_att: list[float] | int
-    vert_diagr_att: list[float] | Literal["UNDEFINED"]
+    horiz_diagr_att: list[float] | float
+    vert_diagr_att: list[float] | float | Literal["UNDEFINED"]
     pol: Literal["H", "V"]
     signal_type: Literal["FM"]
     losrxids: list[int]
