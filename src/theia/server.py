@@ -8,15 +8,25 @@ import numpy as np
 from theia.data_loading import load_trajectory_file
 from theia.target_simulation.constant_radar_simulator import ConstantRadarSimulator
 from theia.target_simulation.recorded_targets_simulator import RecordedTargetsSimulator
-from theia.types import ActiveRadarDetection, Point, Polarization, Radar, Target
+from theia.types import ActiveRadarDetection, Radar, Target
 
 
-trajectories_file = os.environ["THEIA_TRAJECTORY_FILE"]
-detections_file = os.environ.get("THEIA_DETECTIONS_FILE", None)
+data_dir = os.environ["THEIA_DIR"]
+
+radars_file = f"{data_dir}/radars.json"
+trajectories_file = f"{data_dir}/trajectories.csv"
+detections_file = f"{data_dir}/detections.json"
+
+# Load radars.
+radars = []
+if os.path.exists(radars_file):
+    with open(radars_file, "r") as file:
+        objects = json.load(file)
+    radars = [Radar.model_validate(o) for o in objects]
 
 # Load detections.
 detections = []
-if detections_file is not None:
+if os.path.exists(detections_file):
     with open(detections_file, "r") as file:
         objects = json.load(file)
     detections = [ActiveRadarDetection.model_validate(o) for o in objects]
@@ -34,31 +44,8 @@ for trajectory in trajectories:
 trajectories = [trajectory for trajectory in trajectories if len(trajectory.times) > 1]
 target_simulator = RecordedTargetsSimulator(trajectories)
 
-# Load radar positions.
-# TODO: Do not hardcode!
-radar = Radar(
-    id=585,
-    point=Point(
-        lat=47.36700085728634,
-        lon=8.537724304199216,
-        alt=408,
-    ),
-    power=20000,
-    erp=800,
-    antenna_height=10.0,
-    diameter=2.0,
-    frequency=1000.0,
-    pulse_width=1,
-    cpi_pulses=1,
-    bandwidth=1,
-    pfa=1e-6,
-    min_elevation=-20.0,
-    max_elevation=60.0,
-    rotation_time=10.0,
-    polarization=Polarization.HORIZONTAL,
-)
 radar_simulator = ConstantRadarSimulator(
-    [radar],
+    radars,
     target_simulator.get_minimum_time(),
     target_simulator.get_maximum_time(),
 )
