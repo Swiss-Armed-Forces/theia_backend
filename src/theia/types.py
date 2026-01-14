@@ -41,7 +41,7 @@ class AttenuationModel(pydantic.BaseModel):
 
         Parameters
         -----------
-        theta: np.ArrayLike
+        theta: np.typing.ArrayLike
             Elevation angle [rad] (0rad == horizontal plane)
 
         Returns
@@ -59,18 +59,18 @@ class AttenuationModel(pydantic.BaseModel):
 
         return attenuation_factor_db
 
-    def __call__(self, angles: np.ArrayLike) -> float:
+    def __call__(self, angles: np.typing.ArrayLike) -> float:
         """
         Interpolate the attenuation table linearly at the given angle.
 
         Parameters
         ----------
-        angles: np.ArrayLike
+        angles: np.typing.ArrayLike
             Angles in [0, 2 pi] at which to evaluate the attenuation table [rad]
 
         Returns
         -------
-        attenuation: np.ArrayLike
+        attenuation: np.typing.ArrayLike
             Attenuation values at the given angles [dB];
             has same shape as ``angles``
         """
@@ -126,8 +126,8 @@ class Radar(pydantic.BaseModel):
     maximum coherent integration time in [s]
     (use appropriate values for different signals)
     """
-    vertical_attenuation: Optional[AttenuationModel]
-    horizontal_attenuation: Optional[AttenuationModel]
+    vertical_attenuation: Optional[AttenuationModel] = None
+    horizontal_attenuation: Optional[AttenuationModel] = None
 
     @property
     def lat(self) -> float:
