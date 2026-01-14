@@ -1,7 +1,8 @@
 import abc
 import datetime
 import enum
-from typing import Iterable, Self
+from typing import Iterable, Optional, Self
+import numpy as np
 import pydantic
 
 
@@ -27,6 +28,62 @@ class Point(pydantic.BaseModel):
     """Longitude [decimal °]"""
     alt: float
     """Altitude (meters above sea level) [m]"""
+
+
+class AttenuationModel(pydantic.BaseModel):
+    attenuation_table_angles: list[float]
+    attenuation_table_values: list[float]
+
+    @staticmethod
+    def _vertical_attenuation_half_wave_dipole(theta):
+        """
+        Calculate the vertical attenuation of a half-wave dipole antenna.
+
+        Parameters
+        -----------
+        theta: np.ArrayLike
+            Elevation angle [rad] (0rad == horizontal plane)
+
+        Returns
+        -------
+            Vertical attenuation at the given elevation angle [dB]
+        """
+        if abs(abs(theta) - np.pi / 2) < 1e-5:
+            attenuation_factor_db = 100
+        else:
+            rad_power_factor = np.square(
+                np.cos(np.pi / 2 * np.cos(np.pi / 2 + theta))
+                / np.sin(np.pi / 2 + theta)
+            )
+            attenuation_factor_db = -10.0 * np.log10(rad_power_factor)
+
+        return attenuation_factor_db
+
+    def __call__(self, angles: np.ArrayLike) -> float:
+        """
+        Interpolate the attenuation table linearly at the given angle.
+
+        Parameters
+        ----------
+        angles: np.ArrayLike
+            Angles in [0, 2 pi] at which to evaluate the attenuation table [rad]
+
+        Returns
+        -------
+        attenuation: np.ArrayLike
+            Attenuation values at the given angles [dB];
+            has same shape as ``angles``
+        """
+        if len(self.attenuation_table_angles) == 0:
+            return self._vertical_attenuation_half_wave_dipole(angles)
+        else:
+            return np.interp(
+                angles,
+                self.attenuation_table_angles,
+                self.attenuation_table_values,
+                left=np.nan,
+                right=np.nan,
+            )
 
 
 class Radar(pydantic.BaseModel):
@@ -58,6 +115,19 @@ class Radar(pydantic.BaseModel):
     rotation_time: float
     """Rotation time [s]"""
     polarization: Polarization
+    gain: float = 0
+    """Antenna gain [dB]"""
+    losses: float = 0
+    """antenna to receiver input [dB]"""
+    noise_temperature: float = 300.0
+    """Receiving system noise temperature [K]"""
+    max_coherent_integration_time: float = 0.5
+    """
+    maximum coherent integration time in [s]
+    (use appropriate values for different signals)
+    """
+    vertical_attenuation: Optional[AttenuationModel]
+    horizontal_attenuation: Optional[AttenuationModel]
 
     @property
     def lat(self) -> float:
@@ -74,14 +144,25 @@ class Radar(pydantic.BaseModel):
         """Altitude (meters above sea level) [m]"""
         return self.point.alt
 
+    @property
+    def processing_gain(self) -> float:
+        """Processing gain [dB]"""
+        return 10 * np.log10(self.max_coherent_integration_time_fm * self.bandwidth)
+
 
 class Target(pydantic.BaseModel):
     id: int
+    """Unique identifier"""
     point: Point
-    cross_section: float  # [m^2] ?
-    vlon: float  # [m / s]
-    vlat: float  # [m / s]
-    vz: float  # [m / s]
+    """Coordinates"""
+    cross_section: float
+    """Radar cross section [m^2]"""
+    vlon: float
+    """Velocity in latitude direction [m / s]"""
+    vlat: float
+    """Velocity in longitude direction [m / s]"""
+    vz: float
+    """Velocity in radial direction [m / s]"""
 
     @property
     def lat(self) -> float:
@@ -95,11 +176,16 @@ class Target(pydantic.BaseModel):
     def alt(self) -> float:
         return self.point.alt
 
+    @property
+    def speed(self) -> float:
+        """Magnitude of velocity vector [m / s]"""
+        return np.sqrt(np.square(self.vlat) + np.square(self.vlon) + np.square(self.vz))
+
 
 class Trajectory(pydantic.BaseModel):
     target_id: int
     times: list[datetime.datetime]
-    """Ordered list of times at which the trajectory is sampled."""
+    """Ordered list of times at which the trajectory's waypoints are defined."""
     lats: list[float]
     """Latitude coordinates [°]"""
     lons: list[float]
@@ -178,4 +264,12 @@ class ActiveRadarDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
     radar: Radar
+    target: Target
+
+
+class PassiveRadarDetection(pydantic.BaseModel):
+    detection_id: int
+    time: datetime.datetime
+    transmitter: Radar
+    receiver: Radar
     target: Target

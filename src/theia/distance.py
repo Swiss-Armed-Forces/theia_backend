@@ -1,3 +1,4 @@
+import math
 from typing import Generator
 import geopy
 from geopy.distance import distance
@@ -83,3 +84,130 @@ def line_of_sight_distance(
     p2 = CoordinateTransformations.geodetic_to_cartesian(lat2, lon2, h2)
     dist = np.linalg.norm(np.array(p1) - np.array(p2))
     return dist
+
+
+def get_2d_distance_between_locs_heights(
+    lat1: float,
+    lon1: float,
+    h1: float,
+    lat2: float,
+    lon2: float,
+    h2: float,
+) -> float:
+    """
+    Calculate distance between two lat lons and heights using ecef cartesian transformation [km].
+
+    Parameters
+    ----------
+    lat1: float
+        Latitude  of point 1 [°]
+    lon1: float:
+        Longitude of point 1 [°]
+    h1: float
+        Altitude (meters above sea level) of point 1 [m].
+    lat1: float
+        Latitude  of point 2 [°]
+    lon1: float:
+        Longitude of point 2 [°]
+    h1: float
+        Altitude (meters above sea level) of point 2 [m].
+
+    Returns
+    -------
+    float
+        Distance between point 1 and point 2 along line-of-sight in Cartesian coordinates.
+    """
+    p1 = CoordinateTransformations.geodetic_to_cartesian(lat1, lon1, h1)
+    p2 = CoordinateTransformations.geodetic_to_cartesian(lat2, lon2, h2)
+    dist = np.linalg.norm(np.array(p1) - np.array(p2))
+    return dist / 1000.0  # [km]
+
+
+def get_bistatic_range(
+    tx_latlonalt: tuple[float, float, float],
+    rx_latlonalt: tuple[float, float, float],
+    tgt_latlonalt: tuple[float, float, float],
+):
+    """
+    Calculate bistatic range [km],  tgt_rx_range [km], tgt_tx_range [km], baseline_range [km])
+    for given Tx, Rx and Target
+    input Tx: lat, lon, alt[masl] + antenna height [magl]
+    input Rx: lat, lon, alt[masl] + antenna height [magl]
+    input tgt: lat, lon, alt[masl]
+    definition bistatic range [km]  = distance(Tx -> Tgt -> Rx ) - distance(Rx->Tx)
+
+    Calculate bistatic range and its components [km].
+
+    Returns
+    -------
+        bistatic_range: float
+            Distance(Tx - target - Rx) - distance(Tx - Rx) [km]
+        tgt_rx_range: float
+            Line-of-sight distance(target - Rx) [km]
+        tgt_tx_range: float
+            Line-of-sight distance(between Tx - target) [km]
+        baseline_range: float
+            Line-of-sight distance(between Rx - Tx) [km]
+    """
+
+    tx_tgt_range = get_2d_distance_between_locs_heights(
+        tx_latlonalt[0],
+        tx_latlonalt[1],
+        tx_latlonalt[2],
+        tgt_latlonalt[0],
+        tgt_latlonalt[1],
+        tgt_latlonalt[2],
+    )
+    tgt_rx_range = get_2d_distance_between_locs_heights(
+        rx_latlonalt[0],
+        rx_latlonalt[1],
+        rx_latlonalt[2],
+        tgt_latlonalt[0],
+        tgt_latlonalt[1],
+        tgt_latlonalt[2],
+    )
+    tx_rx_range = get_2d_distance_between_locs_heights(
+        tx_latlonalt[0],
+        tx_latlonalt[1],
+        tx_latlonalt[2],
+        rx_latlonalt[0],
+        rx_latlonalt[1],
+        rx_latlonalt[2],
+    )
+
+    return (
+        tx_tgt_range + tgt_rx_range - tx_rx_range,
+        tgt_rx_range,
+        tx_tgt_range,
+        tx_rx_range,
+    )
+
+
+def get_elev_angle(
+    tgt_z: float,
+    antenna_z: float,
+    dist_tgt_antenna: float,
+) -> float:
+    """
+    Calculate the elevation angle.
+
+    Parameters
+    ----------
+    tgt_z: float
+        Altitude of target [m]
+    antenna_z: float
+        z position of antenna (altitude + antenna height) above sea level [m]
+    dist_tgt_antenna: float
+        distance between target and antenna on XY plane [m]
+
+    Returns
+    -------
+    elev_angle: float
+        Elevation angle in [-pi/2, pi/2] [rad]
+    """
+
+    try:
+        elev_angle = math.asin((tgt_z - antenna_z) / dist_tgt_antenna)
+        return elev_angle
+    except ValueError as e:
+        raise RuntimeError("functions.py get_elev_angle Exception: ", e)
