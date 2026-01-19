@@ -63,6 +63,8 @@ class Ellipsoid:
         p2: np.typing.ArrayLike,
         bistatic_range: float,
     ):
+        p1 = np.asarray(p1)
+        p2 = np.asarray(p2)
         assert p1.shape == (3,) and p2.shape == (3,)
         d2: float = (
             np.square(p1[0] - p2[0])
@@ -107,16 +109,58 @@ class Ellipsoid:
     def is_on_surface(
         self,
         point: tuple[float, float, float],
-        tol: float = 1e-3,
-        point_in_world_coord: bool = False,
+        tol: float = 1e-2,
+        point_in_world_coord: bool = True,
     ) -> bool:
+        r"""
+        Test whether the point in Cartesian coordinates lies approximately on
+        the ellipsoid's surface.
+
+        The ``tol`` parameter controls how much relative deviation is still accepted
+        (after transformation so that the major axis lies on the x-axis and is
+        centered at the origin):
+
+        .. math::
+
+            \frac{x^2}{a^2} + \frac{y^2}{b^2} + \frac{z^2}{b^2} - 1 \leq tol.
+
+        Parameters
+        ----------
+        point: tuple[float, float, float]
+            Point in Cartesian coordinates for which to check whether it lies on
+            the ellipsoid surface.
+        tol: float, default 1e-2
+            Relative tolerance (see :ref:`notes`)
+        point_in_world_coord: bool, default True
+            Whether the point is given in world coordinates or in standardised
+            (major axis x-axis aligned, centered at origin) coordinates.
+            Most probably only needed for debugging.
+
+        .. _notes:
+
+        Notes
+        -----
+        The parameter ``tol`` indicates the tolerance in distance test!
+        In the special case of a sphere (``r = a = b``), the tolerance criterion
+        for x to lie on the sphere with radius ``r`` is
+
+        .. math::
+
+            \frac{x}{r}^2 + \frac{y}{r}^2 - 1 \leq tol
+
+        Therefore, a tolerance value of ``0.01`` means that the point's
+        corresponding radius deviates less than 1% from the sphere's radius.
+        """
         p = self._transform_world_to_standard(point) if point_in_world_coord else point
-        return np.isclose(
-            np.square(p[0] / self._a)
-            + np.square(p[1] / self._b)
-            + np.square(p[2] / self._b),
-            1.0,
-            atol=tol,
+
+        return (
+            np.abs(
+                np.square(p[0] / self._a)
+                + np.square(p[1] / self._b)
+                + np.square(p[2] / self._b)
+                - 1.0
+            )
+            <= tol
         )
 
     def sample_surface(
