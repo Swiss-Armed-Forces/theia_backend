@@ -12,7 +12,29 @@ import requests
 import shapely
 from websockets.sync.client import connect
 
+from theia.grids import LatLonHeightGrid
 from theia.types import Radar, RadioClimate, Target
+
+
+def grid_to_openburst(grid: LatLonHeightGrid) -> dict[str, float]:
+    return {
+            "lat_start": grid.lat_start,
+            "lat_stop": grid.lat_stop,
+            "lon_start": grid.lon_start,
+            "lon_stop": grid.lon_stop,
+            "min_x": grid.lon_start,
+            "max_x": grid.lon_stop,
+            "min_y": grid.lat_start,
+            "max_y": grid.lat_stop,
+            "min_z": grid.height_start,
+            "max_z": grid.height_stop,
+            "res_x": grid.lon_res,
+            "res_y": grid.lat_res,
+            "res_z": grid.height_res,
+            "amt_pts_x": grid.n_points_lon,
+            "amt_pts_y": grid.n_points_lat,
+            "amt_pts_z": grid.n_points_height,
+        }
 
 
 class PclReceiver(pydantic.BaseModel):
@@ -61,94 +83,6 @@ class PclEmitter(pydantic.BaseModel):
     losrxids: list[int]
     status: Literal[1]
     power: float
-
-
-class LatLonHeightGrid(pydantic.BaseModel):
-    lat_start: float
-    lat_stop: float
-    lat_res: float
-
-    lon_start: float
-    lon_stop: float
-    lon_res: float
-
-    height_start: float
-    height_stop: float
-    height_res: float
-
-    def __init__(self, *a, **kw):
-        super().__init__(*a, **kw)
-
-        # Correct stop values to match the resolution.
-        n_points_lat = int(np.ceil((self.lat_stop - self.lat_start) / self.lat_res)) + 1
-        n_points_lon = int(np.ceil((self.lon_stop - self.lon_start) / self.lon_res)) + 1
-        n_points_height = (
-            int(np.ceil((self.height_stop - self.height_start) / self.height_res)) + 1
-        )
-
-        self.lat_stop = self.lat_start + (n_points_lat - 1) * self.lat_res
-        self.lon_stop = self.lon_start + (n_points_lon - 1) * self.lon_res
-        self.height_stop = self.height_start + (n_points_height - 1) * self.height_res
-
-    @property
-    def n_points_lat(self) -> int:
-        return int(np.round((self.lat_stop - self.lat_start) / self.lat_res)) + 1
-
-    @property
-    def n_points_lon(self) -> int:
-        return int(np.round((self.lon_stop - self.lon_start) / self.lon_res)) + 1
-
-    @property
-    def n_points_height(self) -> int:
-        return (
-            int(np.round((self.height_stop - self.height_start) / self.height_res)) + 1
-        )
-
-    @property
-    def n_points(self) -> tuple[int, int, int]:
-        return (self.n_points_lat, self.n_points_lon, self.n_points_height)
-
-    def to_openburst(self) -> dict[str, float]:
-        return {
-            "lat_start": self.lat_start,
-            "lat_stop": self.lat_stop,
-            "lon_start": self.lon_start,
-            "lon_stop": self.lon_stop,
-            "min_x": self.lon_start,
-            "max_x": self.lon_stop,
-            "min_y": self.lat_start,
-            "max_y": self.lat_stop,
-            "min_z": self.height_start,
-            "max_z": self.height_stop,
-            "res_x": self.lon_res,
-            "res_y": self.lat_res,
-            "res_z": self.height_res,
-            "amt_pts_x": self.n_points_lon,
-            "amt_pts_y": self.n_points_lat,
-            "amt_pts_z": self.n_points_height,
-        }
-
-    @property
-    def center(self) -> tuple[float, float, float]:
-        return (
-            0.5 * (self.lat_stop + self.lat_start),
-            0.5 * (self.lon_stop + self.lon_start),
-            0.5 * (self.height_stop + self.height_start),
-        )
-
-    @property
-    def points(self) -> np.ndarray:
-        n = self.n_points[0] * self.n_points[1] * self.n_points[2]
-        points = np.empty((n, 3), dtype=np.float32)
-        i = 0
-        for lat in np.linspace(self.lat_start, self.lat_stop, self.n_points_lat):
-            for lon in np.linspace(self.lon_start, self.lon_stop, self.n_points_lon):
-                for height in np.linspace(
-                    self.height_start, self.height_stop, self.n_points_height
-                ):
-                    points[i, :] = lat, lon, height
-                    i += 1
-        return points
 
 
 class OpenburstClient:
