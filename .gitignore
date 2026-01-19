@@ -5,3 +5,4 @@
 *.csv
 *.json
 doc/build/
+.coverage
