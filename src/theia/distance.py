@@ -115,7 +115,7 @@ def get_2d_distance_between_locs_heights(
     Returns
     -------
     float
-        Distance between point 1 and point 2 along line-of-sight in Cartesian coordinates.
+        Distance between point 1 and point 2 along line-of-sight in Cartesian coordinates [km].
     """
     p1 = CoordinateTransformations.geodetic_to_cartesian(lat1, lon1, h1)
     p2 = CoordinateTransformations.geodetic_to_cartesian(lat2, lon2, h2)
