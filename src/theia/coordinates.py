@@ -40,7 +40,18 @@ class CoordinateTransformations:
     ) -> tuple[float, float, float]:
         # the parameter sequence should be lon, lat, alt!
         x, y, z = cls.t.transform(lon, lat, alt, radians=False)
-        return [x, y, z]
+        return float(x), float(y), float(z)
+
+    @classmethod
+    def cartesian_to_geodetic(
+        cls,
+        x: float,
+        y: float,
+        z: float,
+    ) -> tuple[float, float, float]:
+        """Convert (x, y, z) to (lat, lon, alt)."""
+        lon, lat, alt = cls.t.transform(x, y, z, radians=False, direction="INVERSE")
+        return float(lat), float(lon), float(alt)
 
 
 # Taken from openBURST.
