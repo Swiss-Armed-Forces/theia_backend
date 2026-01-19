@@ -6,7 +6,7 @@ import numpy as np
 import numba
 import pandas as pd
 from theia.config import ELEVATION_DATA_DIR
-from theia.types import Trajectory
+from theia.types import AttenuationModel, Point, Polarization, Radar, Trajectory
 
 
 @functools.cache
@@ -110,3 +110,63 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
         ID += 1
 
     return trajectories, callsign_map
+
+
+def _load_transmitter_of_opportunity(series):
+    assert series["polar"] in ["V", "H"]
+
+    erp = series["erp_v_w"]
+    if series["polar"] == "H":
+        erp = series["erp_h_w"]
+    polarization = Polarization.VERTICAL
+    if series["polar"] == "H":
+        polarization = Polarization.HORIZONTAL
+
+    horizontal_attenuation_model = None
+    if type(series["attn_h_h"]) is str:
+        values = [float(v) for v in series["attn_h_h"].replace("VECTOR", "").split()]
+        horizontal_angles = np.linspace(0, 2 * np.pi, len(values))
+        horizontal_attenuation_model = AttenuationModel(
+            attenuation_table_angles=horizontal_angles,
+            attenuation_table_values=values,
+        )
+
+    vertical_attenuation_model = None
+    if type(series["attn_h_v"]) is str:
+        values = [float(v) for v in series["attn_h_v"].replace("VECTOR", "").split()]
+        vertical_angles = np.linspace(-np.pi / 2, np.pi / 2, len(values))
+        vertical_attenuation_model = AttenuationModel(
+            attenuation_table_angles=vertical_angles,
+            attenuation_table_values=values,
+        )
+
+    return Radar(
+        id=-1,
+        point=Point(
+            lat=series["Latitude"],
+            lon=series["Longitude"],
+            alt=series["site_alt"],
+        ),
+        power=erp,
+        frequency=series["frq_assign"],
+        erp=erp,  # Is this correct or do I need some unit conversion???
+        antenna_height=series["hgt_agl"],
+        diameter=2.0,  # not really needed
+        pulse_width=1.0,  # not really needed
+        cpi_pulses=1,  # not really needed
+        bandwidth=series["bdwdth"],
+        pfa=1e-6,  # not really needed?
+        min_elevation=-20.0,  # not really needed
+        max_elevation=60.0,  # not really needed
+        rotation_time=10.0,  # not really needed
+        polarization=polarization,
+        horizontal_attenuation=horizontal_attenuation_model,
+        vertical_attenuation_model=vertical_attenuation_model,
+    )
+
+
+def load_transmitters_of_opportunity(file: str) -> dict[str, Radar]:
+    df = pd.read_csv(file, delimiter=";").set_index("site_name")
+    return {
+        name: _load_transmitter_of_opportunity(series) for name, series in df.iterrows()
+    }
