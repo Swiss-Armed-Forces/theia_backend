@@ -130,7 +130,9 @@ class Radar(pydantic.BaseModel):
     (use appropriate values for different signals)
     """
     vertical_attenuation: Optional[AttenuationModel] = None
+    """Interpolate the attenuation diagram for elevation angles in [-pi/2, pi/2] given in [rad]."""
     horizontal_attenuation: Optional[AttenuationModel] = None
+    """Interpolate the attenuation diagram for azimuth angles in [0, 2pi] given in [rad]."""
 
     @property
     def lat(self) -> float:
