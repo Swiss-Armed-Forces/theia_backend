@@ -2,6 +2,31 @@ import numpy as np
 import pyproj
 from geographiclib.geodesic import Geodesic
 
+from theia.data_loading import elevationAt
+from theia.types import Point
+
+
+LATLON_BOUNDS = {
+    "CH": {"lat": [45.7, 45.9], "lon": [5.7, 10.6]},
+}
+
+POSITIONS_OF_INTEREST = {
+    "CH_CENTER": {"lat": 46.801111, "lon": 8.226667},
+}
+
+
+def sample_location(
+    rng: np.random.Generator,
+    lat_min: float,
+    lat_max: float,
+    lon_min: float,
+    lon_max: float,
+) -> Point:
+    lat = rng.uniform(lat_min, lat_max)
+    lon = rng.uniform(lon_min, lon_max)
+    alt = elevationAt(lat, lon)
+    return Point(lat=lat, lon=lon, alt=alt)
+
 
 class CoordinateTransformations:
     t = pyproj.Transformer.from_proj(
