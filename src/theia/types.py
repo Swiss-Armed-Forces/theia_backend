@@ -29,6 +29,9 @@ class Point(pydantic.BaseModel):
     alt: float
     """Altitude (meters above sea level) [m]"""
 
+    def as_tuple(self):
+        return (self.lat, self.lon, self.alt)
+
 
 class AttenuationModel(pydantic.BaseModel):
     attenuation_table_angles: list[float]
