@@ -2,7 +2,7 @@ import folium
 from shapely.geometry.polygon import Polygon
 
 from theia.coordinates import POSITIONS_OF_INTEREST
-from theia.types import Radar, Target
+from theia.types import Radar, Target, Trajectory
 
 
 class RadarMap:
@@ -11,10 +11,12 @@ class RadarMap:
         radars: dict[str, Radar] = {},
         targets: dict[str, Target] = {},
         polygons: dict[str, Polygon] = {},
+        trajectories: dict[str, Trajectory] = {},
     ):
         self.radars = radars
         self.targets = targets
         self.polygons = polygons
+        self.trajectories = trajectories
 
     def to_map(self) -> folium.folium.Map:
         map = folium.Map(
@@ -42,6 +44,12 @@ class RadarMap:
         for name, polygon in self.polygons.items():
             folium.GeoJson(
                 polygon,
+                tooltip=name,
+            ).add_to(map)
+        
+        for name, trajectory in self.trajectories.items():
+            folium.GeoJson(
+                trajectory.to_geojson(),
                 tooltip=name,
             ).add_to(map)
 
