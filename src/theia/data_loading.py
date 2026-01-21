@@ -1,3 +1,4 @@
+import datetime
 import os
 import math
 import functools
@@ -170,3 +171,50 @@ def load_transmitters_of_opportunity(file: str) -> dict[str, Radar]:
     return {
         name: _load_transmitter_of_opportunity(series) for name, series in df.iterrows()
     }
+
+
+def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajectory]:
+    cols = [
+        "DateTimeIndex",
+        "millisecs",
+        "converted_integer_id",
+        "lat",
+        "lon",
+        "heading[0 = north\n180 = south\n360 = north]",
+        "speed [km / h]",
+        "altitude[m]",
+        "track_quality",
+        "milli_secs_after_midnight",
+        "tgt_vx [vel m/s on lon axis]",
+        "tgt_vy [vel m/s on lat axis]",
+        "tgt_vz [vel m/s on z axis]",
+    ]
+
+    df = pd.DataFrame(np.load(path, allow_pickle=True), columns=cols)
+
+    assert len(df.loc[:, "DateTimeIndex"].unique() == 1)
+    t0 = df.loc[:, "DateTimeIndex"].unique()[0]
+
+    times = [
+        (t0 + datetime.timedelta(microseconds=ms)).to_pydatetime()
+        for ms in df.loc[:, "milli_secs_after_midnight"]
+    ]
+
+    trajectories = []
+    for ID, df_target in df.groupby("converted_integer_id"):
+        df_target.sort_values("milli_secs_after_midnight", inplace=True)
+        trajectories.append(
+            Trajectory(
+                target_id=ID,
+                times=times,
+                lats=df_target.loc[:, "lat"],
+                lons=df_target.loc[:, "lon"],
+                alts=df_target.loc[:, "altitude[m]"],
+                vlats=df_target.loc[:, "tgt_vy [vel m/s on lat axis]"],
+                vlons=df_target.loc[:, "tgt_vx [vel m/s on lon axis]"],
+                vzs=df_target.loc[:, "tgt_vz [vel m/s on z axis]"],
+                cross_sections=[rcs for _ in range(df_target.shape[0])],
+            )
+        )
+
+    return trajectories
