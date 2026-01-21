@@ -59,6 +59,18 @@ def calculate_bearing(lon1: float, lat1: float, lon2: float, lat2) -> float:
 
 
 def linspace(start: Point, stop: Point, delta: float) -> Generator[Point, None, None]:
+    """
+    Sample points with uniform spacing (geodesic distance).
+
+    Parameters
+    ----------
+    start: Point
+        Start point.
+    stop: Point
+        End point.
+    delta: float
+        Spacing between points in geodesic distance [m].
+    """
     d_max = haversine(start.lon, start.lat, stop.lon, stop.lat)
     bearing = calculate_bearing(start.lon, start.lat, stop.lon, stop.lat)
     n = int(d_max // delta) - 1
