@@ -1,5 +1,5 @@
 import folium
-from shapely.geometry.polygon import Polygon
+from shapely.geometry import Polygon, LineString
 
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.types import Radar, Target, Trajectory
@@ -11,11 +11,13 @@ class RadarMap:
         radars: dict[str, Radar] = {},
         targets: dict[str, Target] = {},
         polygons: dict[str, Polygon] = {},
+        paths: dict[str, LineString] = {},
         trajectories: dict[str, Trajectory] = {},
     ):
         self.radars = radars
         self.targets = targets
         self.polygons = polygons
+        self.paths = paths
         self.trajectories = trajectories
 
     def to_map(self) -> folium.folium.Map:
@@ -39,6 +41,12 @@ class RadarMap:
                 location=(target.lat, target.lon),
                 tooltip=name,
                 icon=folium.Icon(color="red"),
+            ).add_to(map)
+
+        for name, path in self.paths.items():
+            folium.GeoJson(
+                path,
+                tooltip=name,
             ).add_to(map)
 
         for name, polygon in self.polygons.items():
