@@ -120,9 +120,9 @@ class Radar(pydantic.BaseModel):
     """Rotation time [s]"""
     polarization: Polarization
     gain: float = 0
-    """Antenna gain [dB]"""
+    """Antenna gain [dBi]"""
     losses: float = 0
-    """antenna to receiver input [dB]"""
+    """losses from antenna to receiver input [dB]"""
     noise_temperature: float = 300.0
     """Receiving system noise temperature [K]"""
     max_coherent_integration_time: float = 0.5

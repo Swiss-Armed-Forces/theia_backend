@@ -124,6 +124,14 @@ theia.types module
    :show-inheritance:
    :undoc-members:
 
+theia.util module
+-----------------
+
+.. automodule:: theia.util
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 Module contents
 ---------------
 
