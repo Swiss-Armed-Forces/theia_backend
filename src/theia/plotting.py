@@ -18,7 +18,7 @@ def plot_profile(
 
     points = list(linspace(p1, p2, resolution))
     distances = [
-        line_of_sight_distance(p1.lat, p1.lon, p1.alt, p.lat, p.lon, p.alt)
+        line_of_sight_distance(p1.lat, p1.lon, p1.alt, p.lat, p.lon, p.alt) / 1000.
         for p in points
     ]
     elevations = np.clip([elevationAt(p.lat, p.lon) for p in points], 0, np.inf)
@@ -31,14 +31,14 @@ def plot_profile(
     ax.annotate(
         p1_label,
         (distances[0], p1.alt),
-        xytext=(2 * resolution, p1.alt + 2 * resolution),
+        xytext=(2 * resolution / 1000., p1.alt + 2 * resolution),
         color=colors[1],
         fontweight="bold",
     )
     ax.annotate(
         p2_label,
         (distances[-1], p2.alt),
-        xytext=(distances[-1] - 4 * resolution, p2.alt),
+        xytext=(distances[-1] - 4 * resolution / 1000., p2.alt),
         horizontalalignment="right",
         color=colors[2],
         fontweight="bold",
@@ -49,7 +49,7 @@ def plot_profile(
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.set_ylabel("Altitude (MASL) [m]", size=16)
-    ax.set_xlabel("Geodetic Distance [m]", size=16)
+    ax.set_xlabel("Geodetic Distance [km]", size=16)
     ax.grid(True)
 
     return fig, ax
