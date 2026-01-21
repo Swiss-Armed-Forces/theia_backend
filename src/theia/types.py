@@ -4,6 +4,7 @@ import enum
 from typing import Iterable, Optional, Self
 import numpy as np
 import pydantic
+import shapely
 
 
 class RadioClimate(enum.Enum):
@@ -94,7 +95,7 @@ class Radar(pydantic.BaseModel):
     """Unique ID"""
     point: Point
     """Coordinates of the transmitter/receiver"""
-    power: int
+    power: float
     """Power [W]"""
     erp: float
     """Effective radiated power [W]"""
@@ -106,8 +107,8 @@ class Radar(pydantic.BaseModel):
     """Signal frequency [MHz]"""
     pulse_width: float
     """Pulse width [us]"""
-    cpi_pulses: int
-    bandwidth: int
+    cpi_pulses: float
+    bandwidth: float
     """Band width [MHz]"""
     pfa: float
     """Probability of false alarm (in [0, 1])"""
@@ -152,7 +153,7 @@ class Radar(pydantic.BaseModel):
     @property
     def processing_gain(self) -> float:
         """Processing gain [dB]"""
-        return 10 * np.log10(self.max_coherent_integration_time_fm * self.bandwidth)
+        return 10 * np.log10(self.max_coherent_integration_time * self.bandwidth)
 
 
 class Target(pydantic.BaseModel):
@@ -229,6 +230,12 @@ class Trajectory(pydantic.BaseModel):
                 raise ValueError("Time steps are not ordered")
         return self
 
+    def to_geojson(self) -> shapely.geometry.LineString:
+        points = []
+        for lat, lon in zip(self.lats, self.lons, strict=True):
+            points.append((lon, lat))
+        return shapely.geometry.LineString(points)
+
 
 class TargetSimulator(abc.ABC):
     @abc.abstractmethod
@@ -278,3 +285,5 @@ class PassiveRadarDetection(pydantic.BaseModel):
     transmitter: Radar
     receiver: Radar
     target: Target
+    bistatic_range: float
+    doppler_shift: float

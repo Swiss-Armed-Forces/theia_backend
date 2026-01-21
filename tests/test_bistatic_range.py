@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 
 from theia.coordinates import LATLON_BOUNDS, CoordinateTransformations, sample_location
+from theia.data_loading_testing import load_pcl_reference_data
 from theia.distance import get_bistatic_range
 from theia.ellipsoid import Ellipsoid
 from theia.types import Point, Target
@@ -75,6 +76,22 @@ class BistaticRangeTest(unittest.TestCase):
             )
 
             n += 1
+
+    def test_bistatic_range_against_reference(self):
+        detections = load_pcl_reference_data()
+        for detection in detections:
+            bistatic_range_ref = detection.bistatic_range
+            bistatic_range_calculated, _, _, _ = get_bistatic_range(
+                detection.transmitter.point.as_tuple(),
+                detection.receiver.point.as_tuple(),
+                detection.target.point.as_tuple(),
+            )
+            self.assertLess(
+                abs(bistatic_range_ref - bistatic_range_calculated)
+                / bistatic_range_ref
+                * 100,
+                0.3,
+            )
 
 
 if __name__ == "__main__":
