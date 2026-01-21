@@ -11,6 +11,7 @@ from theia.types import (
     Radar,
     Target,
 )
+from theia.util import erp_to_power
 
 
 def load_pcl_reference_data(
@@ -107,6 +108,15 @@ def load_pcl_reference_data(
             attenuation_table_values=values,
         )
 
+        # Default values...
+        losses = 0.
+        gain = 0.
+        antenna_diameter = 2.
+        pulse_width = 1.
+        cpi_pulses = 1
+        pfa = 1e-6
+        rotation_time = 1
+
         transmitters.append(
             Radar(
                 id=row["tx_id"],
@@ -115,18 +125,18 @@ def load_pcl_reference_data(
                     lon=row["lon"],
                     alt=row["masl"],
                 ),
-                power=0,
+                power=erp_to_power(erp, losses, gain),
                 erp=erp,
                 antenna_height=row["ahmagl"],
-                diameter=np.nan,
+                diameter=antenna_diameter,
                 frequency=row["freq"],
-                pulse_width=np.nan,
-                cpi_pulses=0,
+                pulse_width=pulse_width,
+                cpi_pulses=cpi_pulses,
                 bandwidth=row["bandwidth"] / 1000.0,  # convert kHz -> MHz
-                pfa=np.nan,
+                pfa=pfa,
                 min_elevation=np.nan,
                 max_elevation=np.nan,
-                rotation_time=np.nan,
+                rotation_time=rotation_time,
                 polarization=Polarization.HORIZONTAL,  # dummy value
                 vertical_attenuation=empty_attenuation_model
                 if is_horizontal
