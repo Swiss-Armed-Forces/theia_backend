@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+import scipy.constants as sc
 
 from theia.coordinates import get_azimuth_between_locs
 from theia.distance import (
@@ -89,8 +90,10 @@ def calculate_bistatic_detection(
         tgt,
         baseline_range,
         snr_thresh,
-        just_los,
+        just_los=just_los,
     )
+
+    print(snr)
 
     # This means that the target with set bistatic RCS cannot be detected
     # with SNR above SNR_threshold.
@@ -147,7 +150,7 @@ def _calculate_snr(
     Returns
     -------
     rcs: float
-        Bistatic radar cross section
+        Minimum detectable bistatic radar cross section.
     snr: float
         Signal-to-noise ratio
     """
@@ -174,22 +177,12 @@ def _calculate_snr(
     else:
         raise NotImplementedError("Propagation is not implemented yet!")
 
-    if not tgt_rx_los or not tgt_tx_los:
-        return 0.0
+    # if not tgt_rx_los or not tgt_tx_los:
+    #     print("No line of sight")
+    #     return 0.0, 0.0
 
     ## Setting & Calculating of some constants which are independent of target position
-    k = 1.38064852 * 1e-23  # Boltzmann constant in m^2 kg s^-2 K^-1
     c = 299792458.0  # speed of light
-
-    # for usage with splat! propagation losses, we remove all the factors of free space loss for this snr_const
-    snr_const_splat = (
-        tx.erp
-        + 2.15
-        + tx.processing_gain
-        + rx.gain
-        - abs(rx.losses)
-        - 10 * math.log10(k * rx.noise_temperature * rx.bandwidth * 1000)
-    )
 
     # dist_delay_limit [m], delay_thresh [us], baseline_range in [km] * 1000 in [m]
     dist_delay_limit = delay_thresh * c / 1e6 + (baseline_range * 1000)
@@ -198,7 +191,6 @@ def _calculate_snr(
         tgt.point,
         rx,
         tx,
-        snr_const_splat,
         snr_thresh,
         dist_delay_limit,
         static_rcs,
@@ -208,11 +200,154 @@ def _calculate_snr(
     return rcs, snr
 
 
+def calculate_minimum_detectable_rcs(
+    Rx: Radar,
+    Tx: Radar,
+    point_of_interest: Point,
+    dist_delay_limit: float,
+    snr_threshold: float
+):
+    r"""
+    Calculate the minimum radar cross section (RCS) that can be detected for the given geometry.
+
+    Parameters
+    ----------
+    Rx: Radar
+        Receiver.
+    Tx: Radar
+        Transmitter.
+    point_of_interest: Point
+        Position at which we'd like to query the minimum detectable RCS.
+    dist_delay_limit: float
+        Distance limit for the delay. The bistatic regime is left if the delay
+        distance is below this limit, which will raise a ``ValueError``.
+    snr_threshold: float
+        Signal-to-noise-threshold [dB], i. e. the minimum SNR to have for a detection.
+
+    Raises
+    ------
+    ValueError
+        If the setup is not in the bistatic regime (e. g. the forward scattering)
+
+    Notes
+    -----
+    The principle is described in the unpublished master thesis with the
+    title "Passive Radar - From Quality Criteria to Coverage Optimization".
+    Since the bistatic RCS :math:`\sigma_B` is unknown, the original expression
+    for the SNR is reformulated and only the term :math:`SNR / \sigma_B` is used.
+
+    .. math::
+
+       RCS_{min} = 10^{(SNR_{B, threshold} - SNR / \sigma_B) / 10},
+    
+    where :math:`SNR_{B, threshold}` is the bistatic signal-to-noise ratio (SNR) threshold [dB],
+    :math:`SNR` is the actual SNR [dB] and  is the unknown bistatic RCS.
+
+    The SNR is calculated according to the radar equation
+
+    .. math::
+
+        \frac{SNR}{\sigma_B} = \frac{P_{T, EIRP} G_R G_p \lambda^2 F_T^2 F_R^2}{(4 \pi)^3 k_B T_S B_n L_T L_R} \frac{1}{R_T^2 R_R^2},
+
+    where :math:`P{T, EIRP}` is the transmitter's EIRP,
+    :math:`G_R, G_P` are the receiving antenna and processing gain,
+    :math:`\lambda` is the signal wavelength, :math:`k_T T_S B_n` is the effective
+    input noise power. The quantities :math:`F_T, F_R` are angle-dependent pattern
+    propagation factors.
+    
+    The quantities :math`R_T, R_R` represent the distance
+    between transmitter and point of interest as well as receiver and point of interest.
+
+    Finally, the quantities :math:`L_T, L_R` represent other losses,
+    including atmospheric absorption and line-feed losses between transmitter output
+    and transmitter antenna as well as between receiving antenna output to receiver input.
+
+    """
+    # Check whether the delay threshold is kept.
+    r_r = (
+        get_2d_distance_between_locs_heights(
+            Rx.lat,
+            Rx.lon,
+            Rx.alt + Rx.antenna_height,
+            point_of_interest.lat,
+            point_of_interest.lon,
+            point_of_interest.alt,
+        )
+        * 1000.0
+    )  # distance in meters
+
+    r_t = (
+        get_2d_distance_between_locs_heights(
+            Tx.lat,
+            Tx.lon,
+            Tx.alt + Tx.antenna_height,
+            point_of_interest.lat,
+            point_of_interest.lon,
+            point_of_interest.alt,
+        )
+        * 1000.0
+    )  # distance in meters
+
+    if r_r + r_t < dist_delay_limit:  # checks if delay threshold is valid
+        raise ValueError("Delay is too small; we are in the forward scattering regime")
+
+    # Evaluate attenuation for the angles of gaze.
+    theta_t_bearing = get_azimuth_between_locs(
+        Tx.lat,
+        Tx.lon,
+        point_of_interest.lat,
+        point_of_interest.lon,
+    )
+    theta_t_vert = get_elev_angle(
+        point_of_interest.alt,
+        Tx.alt + Tx.antenna_height,
+        r_t,
+    )
+    theta_r_bearing = get_azimuth_between_locs(
+        Rx.lat,
+        Rx.lon,
+        point_of_interest.lat,
+        point_of_interest.lon,
+    )
+    theta_r_vert = get_elev_angle(
+        point_of_interest.alt,
+        Rx.alt + Rx.antenna_height,
+        r_r,
+    )
+
+    tx_horiz_att = Tx.horizontal_attenuation(theta_t_bearing)
+    rx_horiz_att = Rx.horizontal_attenuation(theta_r_bearing)
+    tx_vert_att = Tx.vertical_attenuation(theta_t_vert)
+    rx_vert_att = Rx.vertical_attenuation(theta_r_vert)
+
+    attenuation = rx_horiz_att + tx_horiz_att + tx_vert_att + rx_vert_att
+
+    # Calculate minimum detectable RCS.
+
+    # TODO: Check formula!!!
+    # Where are the distance terms???
+    snr = (
+        Tx.erp # Watt or db???
+        + 2.15
+        + Tx.processing_gain # dB or dBi???
+        + Rx.gain # dB or dBi???
+        - abs(Rx.losses) # dB or dBi???
+        - 10 * math.log10(sc.Boltzmann * Rx.noise_temperature * Rx.bandwidth * 1000)
+    )
+
+    snr_extra = snr - snr_threshold - attenuation
+
+    rcs = 10.0 ** (-snr_extra / 10.0)
+
+    
+    return np.clip(rcs, a_min=1e-6)
+
+
+
 def calculate_min_rcs_without_los_single_pos(
     target_pos: Point,
     Rx: Radar,
     Tx: Radar,
-    snr_const_splat,
     snr_thresh,
     dist_delay_limit,
     static_rcs,
