@@ -154,18 +154,18 @@ def _calculate_snr(
     if just_los:
         tgt_rx_los = has_line_of_sight(
             Point(
-                rx.lat,
-                rx.lon,
-                rx.alt + rx.antenna_height,
+                lat=rx.lat,
+                lon=rx.lon,
+                alt=rx.alt + rx.antenna_height,
             ),
             tgt.point,
             spatial_res,
         )
         tgt_tx_los = has_line_of_sight(
             Point(
-                tx.lat,
-                tx.lon,
-                tx.alt + tx.antenna_height,
+                lat=tx.lat,
+                lon=tx.lon,
+                alt=tx.alt + tx.antenna_height,
             ),
             tgt.point,
             spatial_res,
@@ -195,9 +195,7 @@ def _calculate_snr(
     dist_delay_limit = delay_thresh * c / 1e6 + (baseline_range * 1000)
 
     rcs, snr = calculate_min_rcs_without_los_single_pos(
-        tgt.lon,
-        tgt.lat,
-        tgt.alt,
+        tgt.point,
         rx,
         tx,
         snr_const_splat,
@@ -222,6 +220,13 @@ def calculate_min_rcs_without_los_single_pos(
 ):
     """
     Calculate min_rcs and snr for one single target position.
+
+    Returns
+    -------
+    min_rcs: float
+        ??? [m^2]
+    snr: float
+        Signal-to-noise ratio
     """
     r_r = (
         get_2d_distance_between_locs_heights(
