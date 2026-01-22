@@ -2,11 +2,13 @@ import datetime
 import os
 import math
 import functools
+from typing import Optional
 
 import numpy as np
 import numba
 import pandas as pd
 from theia.config import ELEVATION_DATA_DIR
+from theia.target_simulation.recorded_targets_simulator import RecordedTargetsSimulator
 from theia.types import AttenuationModel, Point, Polarization, Radar, Trajectory
 
 
@@ -196,7 +198,7 @@ def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajecto
     t0 = df.loc[:, "DateTimeIndex"].unique()[0]
 
     times = [
-        (t0 + datetime.timedelta(microseconds=ms)).to_pydatetime()
+        (t0 + datetime.timedelta(microseconds=ms * 1000)).to_pydatetime()
         for ms in df.loc[:, "milli_secs_after_midnight"]
     ]
 
@@ -218,3 +220,62 @@ def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajecto
         )
 
     return trajectories
+
+
+def save_openburst_trajectory_file(
+    output_path: str,
+    trajectories: list[Trajectory],
+    start_time: Optional[datetime.datetime] = None,
+    stop_time: Optional[datetime.datetime] = None,
+    dt: datetime.timedelta = datetime.timedelta(seconds=10),
+):
+    sim = RecordedTargetsSimulator(trajectories)
+    if start_time is None:
+        start_time = sim.get_minimum_time()
+    if stop_time is None:
+        stop_time = sim.get_maximum_time()
+
+    dicts = []
+    time = start_time
+    while time <= stop_time:
+        targets = sim.get_targets(time)
+        for target in targets:
+            dicts.append(
+                {
+                    "DateTimeIndex": time,
+                    "millisecs": 0,
+                    "milli_secs_after_midnight": (time - start_time).total_seconds() * 1000,
+                    "converted_integer_id": target.id,
+                    "lat": target.lat,
+                    "lon": target.lon,
+                    "altitude[m]": target.alt,
+                    "track_quality": 1,
+                    "heading[0 = north\n180 = south\n360 = north]": 0,
+                    "speed [km / h]": target.speed * 1000 / 3600,
+                    "tgt_vx [vel m/s on lon axis]": target.vlon,
+                    "tgt_vy [vel m/s on lat axis]": target.vlat,
+                    "tgt_vz [vel m/s on z axis]": target.vz,
+                }
+            )
+        time = time + dt
+    df = pd.DataFrame(dicts)
+
+    cols = [
+        "DateTimeIndex",
+        "millisecs",
+        "converted_integer_id",
+        "lat",
+        "lon",
+        "heading[0 = north\n180 = south\n360 = north]",
+        "speed [km / h]",
+        "altitude[m]",
+        "track_quality",
+        "milli_secs_after_midnight",
+        "tgt_vx [vel m/s on lon axis]",
+        "tgt_vy [vel m/s on lat axis]",
+        "tgt_vz [vel m/s on z axis]",
+    ]
+
+    df = df.loc[:, cols]
+
+    np.save(output_path, df.values)
