@@ -37,6 +37,7 @@ class Point(pydantic.BaseModel):
 class AttenuationModel(pydantic.BaseModel):
     attenuation_table_angles: list[float]
     attenuation_table_values: list[float]
+    polarization: Polarization
 
     @staticmethod
     def _vertical_attenuation_half_wave_dipole(theta):
@@ -79,7 +80,10 @@ class AttenuationModel(pydantic.BaseModel):
             has same shape as ``angles``
         """
         if len(self.attenuation_table_angles) == 0:
-            return self._vertical_attenuation_half_wave_dipole(angles)
+            if self.polarization == Polarization.VERTICAL:
+                return self._vertical_attenuation_half_wave_dipole(angles)
+            else:
+                return 0.0
         else:
             return np.interp(
                 angles,
@@ -109,7 +113,7 @@ class Radar(pydantic.BaseModel):
     """Pulse width [us]"""
     cpi_pulses: float
     bandwidth: float
-    """Band width [MHz]"""
+    """Noise band width [MHz]"""
     pfa: float
     """Probability of false alarm (in [0, 1])"""
     min_elevation: float
@@ -153,7 +157,7 @@ class Radar(pydantic.BaseModel):
     @property
     def processing_gain(self) -> float:
         """Processing gain [dB]"""
-        return 10 * np.log10(self.max_coherent_integration_time * self.bandwidth)
+        return 10 * np.log10(self.max_coherent_integration_time * self.bandwidth * 1e6)
 
 
 class Target(pydantic.BaseModel):
@@ -282,8 +286,11 @@ class ActiveRadarDetection(pydantic.BaseModel):
 class PassiveRadarDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
+    """Date and time at which the detection takes place."""
     transmitter: Radar
     receiver: Radar
     target: Target
     bistatic_range: float
+    """Bistatic range [m]."""
     doppler_shift: float
+    """Doppler shift [Hz]."""
