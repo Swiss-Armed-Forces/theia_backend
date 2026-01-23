@@ -11,13 +11,13 @@ from theia.types import (
     Radar,
     Target,
 )
-from theia.util import erp_to_power
+from theia.util import erp_to_power, from_dB
 
 
 def load_pcl_reference_data(
     data_directory: str = f"{os.path.dirname(os.path.realpath(__file__))}/../../tests/test_data/pcl_detection",
     rcs: float = 1,
-) -> list[PassiveRadarDetection]:
+) -> list[tuple[PassiveRadarDetection, float]]:
     # Load detections.
     df_detections = pd.read_csv(f"{data_directory}/detections.csv")
 
@@ -44,9 +44,15 @@ def load_pcl_reference_data(
         )
 
     # Load receivers.
-    empty_attenuation_model = AttenuationModel(
+    empty_model_horizontal = AttenuationModel(
         attenuation_table_angles=[],
         attenuation_table_values=[],
+        polarization=Polarization.HORIZONTAL,
+    )
+    empty_model_vertical = AttenuationModel(
+        attenuation_table_angles=[],
+        attenuation_table_values=[],
+        polarization=Polarization.VERTICAL,
     )
 
     df_rx = pd.read_csv(f"{data_directory}/rx.csv")
@@ -76,8 +82,8 @@ def load_pcl_reference_data(
                 gain=row["gain"],
                 losses=row["losses"],
                 noise_temperature=row["temp_sys"],
-                vertical_attenuation=empty_attenuation_model,
-                horizontal_attenuation=empty_attenuation_model,
+                vertical_attenuation=empty_model_vertical,
+                horizontal_attenuation=empty_model_horizontal,
             )
         )
 
@@ -103,16 +109,26 @@ def load_pcl_reference_data(
             else np.linspace(-np.pi / 2, np.pi / 2, len(values))
         )
 
-        attenuation_model = AttenuationModel(
-            attenuation_table_angles=angles,
-            attenuation_table_values=values,
-        )
+        if is_horizontal:
+            horizontal_model = AttenuationModel(
+                attenuation_table_angles=angles,
+                attenuation_table_values=values,
+                polarization=Polarization.HORIZONTAL,
+            )
+            vertical_model = empty_model_vertical
+        else:
+            horizontal_model = empty_model_horizontal
+            vertical_model = AttenuationModel(
+                attenuation_table_angles=angles,
+                attenuation_table_values=values,
+                polarization=Polarization.VERTICAL
+            )
 
         # Default values...
-        losses = 0.
-        gain = 0.
-        antenna_diameter = 2.
-        pulse_width = 1.
+        losses = 0.0
+        gain = 0.0
+        antenna_diameter = 2.0
+        pulse_width = 1.0
         cpi_pulses = 1
         pfa = 1e-6
         rotation_time = 1
@@ -126,7 +142,7 @@ def load_pcl_reference_data(
                     alt=row["masl"],
                 ),
                 power=erp_to_power(erp, losses, gain),
-                erp=erp,
+                erp=from_dB(erp),
                 antenna_height=row["ahmagl"],
                 diameter=antenna_diameter,
                 frequency=row["freq"],
@@ -138,32 +154,31 @@ def load_pcl_reference_data(
                 max_elevation=np.nan,
                 rotation_time=rotation_time,
                 polarization=Polarization.HORIZONTAL,  # dummy value
-                vertical_attenuation=empty_attenuation_model
-                if is_horizontal
-                else attenuation_model,
-                horizontal_attenuation=attenuation_model
-                if is_horizontal
-                else empty_attenuation_model,
+                vertical_attenuation=vertical_model,
+                horizontal_attenuation=horizontal_model,
             )
         )
 
     # Detections.
     df_detections = df_detections.loc[
-        :, ["rx_id", "tx_id", "targ_id", "recording_time", "doppler", "range"]
+        :, ["rx_id", "tx_id", "targ_id", "recording_time", "doppler", "range", "snr"]
     ]
 
     detections = []
     id = 0
     for _, row in df_detections.iterrows():
         detections.append(
-            PassiveRadarDetection(
-                detection_id=id,
-                time=datetime.datetime.fromtimestamp(row["recording_time"]),
-                transmitter=next(t for t in transmitters if t.id == row["tx_id"]),
-                receiver=next(r for r in receivers if r.id == row["rx_id"]),
-                target=next(t for t in targets if t.id == row["targ_id"]),
-                bistatic_range=row["range"],
-                doppler_shift=row["doppler"],
+            (
+                PassiveRadarDetection(
+                    detection_id=id,
+                    time=datetime.datetime.fromtimestamp(row["recording_time"]),
+                    transmitter=next(t for t in transmitters if t.id == row["tx_id"]),
+                    receiver=next(r for r in receivers if r.id == row["rx_id"]),
+                    target=next(t for t in targets if t.id == row["targ_id"]),
+                    bistatic_range=row["range"],
+                    doppler_shift=row["doppler"],
+                ),
+                row["snr"],
             )
         )
         id += 1

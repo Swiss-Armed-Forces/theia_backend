@@ -206,7 +206,7 @@ def get_elev_angle(
     Parameters
     ----------
     tgt_z: float
-        Altitude of target [m]
+        Altitude of target above sea level [m]
     antenna_z: float
         z position of antenna (altitude + antenna height) above sea level [m]
     dist_tgt_antenna: float
@@ -217,9 +217,5 @@ def get_elev_angle(
     elev_angle: float
         Elevation angle in [-pi/2, pi/2] [rad]
     """
-
-    try:
-        elev_angle = math.asin((tgt_z - antenna_z) / dist_tgt_antenna)
-        return elev_angle
-    except ValueError as e:
-        raise RuntimeError("functions.py get_elev_angle Exception: ", e)
+    elev_angle = math.asin((tgt_z - antenna_z) / dist_tgt_antenna)
+    return elev_angle
