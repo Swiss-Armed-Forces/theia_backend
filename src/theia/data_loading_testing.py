@@ -1,8 +1,10 @@
 import datetime
+import logging
 import os
 import numpy as np
 import pandas as pd
 
+from theia.data_loading import load_openburst_trajectory_file
 from theia.types import (
     AttenuationModel,
     PassiveRadarDetection,
@@ -10,6 +12,7 @@ from theia.types import (
     Polarization,
     Radar,
     Target,
+    Trajectory,
 )
 from theia.util import erp_to_power, from_dB
 
@@ -17,31 +20,13 @@ from theia.util import erp_to_power, from_dB
 def load_pcl_reference_data(
     data_directory: str = f"{os.path.dirname(os.path.realpath(__file__))}/../../tests/test_data/pcl_detection",
     rcs: float = 1,
-) -> list[tuple[PassiveRadarDetection, float]]:
+) -> tuple[list[Trajectory], list[tuple[PassiveRadarDetection, float]]]:
+    # Load trajectories.
+    trajectories = load_openburst_trajectory_file(f"{data_directory}/replay.npy")
+    t_min = min([t.times[0] for t in trajectories])
+
     # Load detections.
     df_detections = pd.read_csv(f"{data_directory}/detections.csv")
-
-    df_target = df_detections.loc[
-        :, ["targ_id", "tgt_lat", "tgt_lon", "tgt_height", "vx", "vy", "vz"]
-    ]
-    df_target.drop_duplicates(inplace=True)
-
-    targets = []
-    for _, row in df_target.iterrows():
-        targets.append(
-            Target(
-                id=row["targ_id"],
-                point=Point(
-                    lat=row["tgt_lat"],
-                    lon=row["tgt_lon"],
-                    alt=row["tgt_height"],
-                ),
-                cross_section=rcs,
-                vlon=row["vx"],
-                vlat=row["vy"],
-                vz=row["vz"],
-            )
-        )
 
     # Load receivers.
     empty_model_horizontal = AttenuationModel(
@@ -121,7 +106,7 @@ def load_pcl_reference_data(
             vertical_model = AttenuationModel(
                 attenuation_table_angles=angles,
                 attenuation_table_values=values,
-                polarization=Polarization.VERTICAL
+                polarization=Polarization.VERTICAL,
             )
 
         # Default values...
@@ -161,21 +146,54 @@ def load_pcl_reference_data(
 
     # Detections.
     df_detections = df_detections.loc[
-        :, ["rx_id", "tx_id", "targ_id", "recording_time", "doppler", "range", "snr"]
+        :,
+        [
+            "rx_id",
+            "tx_id",
+            "targ_id",
+            "recording_time",
+            "doppler",
+            "range",
+            "snr",
+            "tgt_lat",
+            "tgt_lon",
+            "tgt_height",
+            "vx",
+            "vy",
+            "vz",
+        ],
     ]
+    df_detections.drop_duplicates(inplace=True)
 
     detections = []
     id = 0
     for _, row in df_detections.iterrows():
+        if row["recording_time"] == 0:
+            logging.info("Skipping first detection because its velocities are zero.")
+            assert np.isclose(row["vx"], 0)
+            assert np.isclose(row["vy"], 0)
+            assert np.isclose(row["vz"], 0)
+            continue
         detections.append(
             (
                 PassiveRadarDetection(
                     detection_id=id,
-                    time=datetime.datetime.fromtimestamp(row["recording_time"]),
+                    time=t_min + datetime.timedelta(milliseconds=row["recording_time"]),
                     transmitter=next(t for t in transmitters if t.id == row["tx_id"]),
                     receiver=next(r for r in receivers if r.id == row["rx_id"]),
-                    target=next(t for t in targets if t.id == row["targ_id"]),
-                    bistatic_range=row["range"],
+                    target=Target(
+                        id=int(row["targ_id"]),
+                        point=Point(
+                            lat=row["tgt_lat"],
+                            lon=row["tgt_lon"],
+                            alt=row["tgt_height"],
+                        ),
+                        cross_section=rcs,
+                        vlon=row["vx"],
+                        vlat=row["vy"],
+                        vz=row["vz"],
+                    ),
+                    bistatic_range=row["range"] * 1000,
                     doppler_shift=row["doppler"],
                 ),
                 row["snr"],
@@ -183,4 +201,4 @@ def load_pcl_reference_data(
         )
         id += 1
 
-    return detections
+    return trajectories, detections

@@ -2,8 +2,11 @@ import abc
 import datetime
 import enum
 from typing import Iterable, Optional, Self
+from matplotlib import pyplot as plt
+import matplotlib
 import numpy as np
 import pydantic
+from scipy.interpolate import CubicSpline
 import shapely
 
 
@@ -211,6 +214,8 @@ class Trajectory(pydantic.BaseModel):
     cross_sections: list[float]
     """Target cross sections [m^2]"""
 
+    _spline: CubicSpline = pydantic.PrivateAttr()
+
     @pydantic.model_validator(mode="after")
     def check_same_length(self) -> Self:
         if (
@@ -233,6 +238,72 @@ class Trajectory(pydantic.BaseModel):
             if self.times[i - 1] > self.times[i]:
                 raise ValueError("Time steps are not ordered")
         return self
+
+    @pydantic.model_validator(mode="after")
+    def _init_spline(self):
+        # runs after field validation, but before the final model is returned
+        x = [t.timestamp() for t in self.times]
+        y = np.stack(
+            [
+                self.lats,
+                self.lons,
+                self.alts,
+                self.vlats,
+                self.vlons,
+                self.vzs,
+                self.cross_sections,
+            ],
+            axis=1,
+        )
+        self._spline = CubicSpline(x, y, extrapolate=False)
+        return self
+
+    def __call__(self, t: datetime.datetime) -> Target | None:
+        y = self._spline(t.timestamp())
+        if np.isnan(y).any():
+            return None
+        lat, lon, alt, vlat, vlon, vz, rcs = y
+        return Target(
+            id=self.target_id,
+            point=Point(
+                lat=lat,
+                lon=lon,
+                alt=alt,
+            ),
+            cross_section=rcs,
+            vlat=vlat,
+            vlon=vlon,
+            vz=vz,
+        )
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Trajectory):
+            return NotImplemented
+        return (
+            (self.target_id == other.target_id)
+            and (self.times == other.times)
+            and (self.lats == other.lats)
+            and (self.lons == other.lons)
+            and (self.alts == other.alts)
+            and (self.vlats == other.vlats)
+            and (self.vlons == other.vlons)
+            and (self.vzs == other.vzs)
+            and (self.cross_sections == other.cross_sections)
+        )
+
+    def plot_velocities(self):
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+        ax.plot(self.times, self.vlats, label="lat")
+        ax.plot(self.times, self.vlons, label="lon")
+        ax.plot(self.times, self.vzs, label="z")
+        ax.legend()
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.grid(True)
+        ax.tick_params(axis="x", rotation=30)
+        ax.set_xlabel("Time", fontsize=16)
+        ax.set_ylabel("Velocity [m / s]", fontsize=16)
+        return fig, ax
 
     def to_geojson(self) -> shapely.geometry.LineString:
         points = []

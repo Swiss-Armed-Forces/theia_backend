@@ -71,12 +71,14 @@ def get_azimuth_between_locs(lat1, lon1, lat2, lon2):
 
     Returns
     -------
-    : tmp : azimuth in degrees
+    : tmp : azimuth in radians in (0, 2pi)
 
     References
     ----------
     https://geographiclib.sourceforge.io/2009-03/geodesic.html
 
     """
-    tmp = Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2)
-    return np.radians(tmp["azi1"])
+    # Inverse() returns angles in (-180, 180), but we need (0, 360).
+    tmp = Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2)["azi1"]
+    tmp = (tmp + 360) % 360
+    return np.radians(tmp)

@@ -6,3 +6,4 @@
 *.json
 doc/build/
 .coverage
+bistatic_range_*.png
