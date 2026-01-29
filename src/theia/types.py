@@ -3,7 +3,6 @@ import datetime
 import enum
 from typing import Iterable, Optional, Self
 from matplotlib import pyplot as plt
-import matplotlib
 import numpy as np
 import pydantic
 from scipy.interpolate import CubicSpline
