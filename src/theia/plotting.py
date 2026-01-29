@@ -1,7 +1,11 @@
 from matplotlib import pyplot as plt
 import numpy as np
+from scipy.spatial import ConvexHull
+import shapely
+from theia.coordinates import CoordinateTransformations
 from theia.data_loading import elevationAt
 from theia.distance import line_of_sight_distance, linspace
+from theia.ellipsoid import Ellipsoid
 from theia.types import Point
 
 
@@ -53,3 +57,40 @@ def plot_profile(
     ax.grid(True)
 
     return fig, ax
+
+
+def detection_ellipse(
+    Tx_position: Point,
+    Rx_position: Point,
+    bistatic_range: float,
+    target_altititude: float,
+    altitude_slice_thickness: float = 100,
+) -> shapely.geometry.LineString:
+    ellipsoid = Ellipsoid(
+        CoordinateTransformations.geodetic_to_cartesian(*Tx_position.as_tuple()),
+        CoordinateTransformations.geodetic_to_cartesian(*Rx_position.as_tuple()),
+        bistatic_range
+        + line_of_sight_distance(
+            Tx_position.lat,
+            Tx_position.lon,
+            Tx_position.alt,
+            Rx_position.lat,
+            Rx_position.lon,
+            Rx_position.alt,
+        ),
+    )
+
+    points = ellipsoid.sample_surface(n_phi=360, n_theta=360)
+    points = [CoordinateTransformations.cartesian_to_geodetic(*p) for p in points]
+    points_at_target_alt = [
+        p[:2]
+        for p in points
+        if abs(p[2] - target_altititude) < 0.5 * altitude_slice_thickness
+    ]
+
+    hull = ConvexHull(points_at_target_alt)
+    points_at_target_alt = hull.points[hull.vertices]
+    ellipse = shapely.geometry.LineString(
+        [(p[1], p[0]) for p in points_at_target_alt]
+    )
+    return ellipse

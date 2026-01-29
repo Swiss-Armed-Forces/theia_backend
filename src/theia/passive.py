@@ -22,7 +22,7 @@ def calculate_bistatic_detection(
     tgt: Target,
     snr_thresh: float = 15.0,
     doppler_thresh: float = 2.0,
-    delay_thresh: float = 1.0,  # us
+    delay_thresh: float = 1.0,
 ) -> PassiveRadarDetection | None:
     """sets PCL live detections
 
@@ -38,6 +38,16 @@ def calculate_bistatic_detection(
         Signal-to-noise threshold [dB]
     doppler_thresh: float, default 2.0
         Doppler threshold [Hz]
+    delay_thresh: float, default 1.0
+        Delay threshold [us]. If the delay
+        (signal propagation time deviation from straight line between Tx and Rx)
+        is smaller than this value, the geometry is considered to fall into the
+        forward scattering domain and a ValueError is raised.
+
+    Raises
+    ------
+    ValueError
+        If the setup is not in the bistatic regime (e. g. the forward scattering)
 
     Returns
     -------
@@ -66,10 +76,7 @@ def calculate_bistatic_detection(
     snr = calculate_snr(tx, rx, tgt.point, dist_delay_limit)
     min_detectable_rcs = calculate_minimum_detectable_rcs(snr, snr_thresh)
 
-    print(snr)
-    print(min_detectable_rcs)
-
-    assert min_detectable_rcs > 0.
+    assert min_detectable_rcs > 0.0
 
     # Doppler shift was good enough if we reached this far, see above.
     # So just check the rcs_thresholds.
@@ -80,7 +87,7 @@ def calculate_bistatic_detection(
             transmitter=tx,
             receiver=rx,
             target=tgt,
-            bistatic_range=bistatic_range_km * 1000.,
+            bistatic_range=bistatic_range_km * 1000.0,
             doppler_shift=doppler,
         )
     else:
@@ -221,12 +228,6 @@ def calculate_snr(
         )
         * 1000.0
     )  # distance in meters
-    print(f"Rx.lat = {Rx.lat}")
-    print(f"Rx.lon = {Rx.lon}")
-    print(f"Rx.alt + Rx.antenna_height = {Rx.alt + Rx.antenna_height}")
-    print(f"point_of_interest.lat = {point_of_interest.lat}")
-    print(f"point_of_interest.lon = {point_of_interest.lon}")
-    print(f"point_of_interest.alt = {point_of_interest.alt}")
 
     r_t = (
         get_2d_distance_between_locs_heights(
@@ -274,33 +275,25 @@ def calculate_snr(
 
     beam_shape_loss_dB = rx_horiz_att + tx_horiz_att + tx_vert_att + rx_vert_att
     eirp_dBW = to_dB(Tx.erp) + 2.15
+    rx_thermal_noise_loss_dB = 10 * np.log10(
+        sc.Boltzmann * Rx.noise_temperature * Rx.bandwidth * 1e6
+    )
     atmospheric_loss_dB = get_clear_sky_attenuation(Tx.frequency) * (
         (r_t + r_r) / 1000.0
     )
     free_space_loss_dB = 20 * np.log10(r_t * r_r)
-    rx_thermal_noise_loss_dB = 10 * np.log10(
-        sc.Boltzmann * Rx.noise_temperature * Rx.bandwidth * 1e6
-    )
     wavelength_squared_dB = 20 * np.log10(sc.speed_of_light / (Tx.frequency * 1e6))
 
-    print(f"r_r = {r_r}")
-    print(f"r_t = {r_t}")
-    print(f"theta_t_vert = {theta_t_vert}")
-    print(f"theta_r_vert = {theta_r_vert}")
-    print(f"tx_horiz_att = {tx_horiz_att}")
-    print(f"rx_horiz_att = {rx_horiz_att}")
-    print(f"tx_vert_att = {tx_vert_att}")
-    print(f"rx_vert_att = {rx_vert_att}")
-    print("[" + ','.join(np.array([eirp_dBW, Rx.gain, wavelength_squared_dB, Tx.processing_gain, Rx.losses, atmospheric_loss_dB, rx_thermal_noise_loss_dB, free_space_loss_dB,beam_shape_loss_dB]).astype(str)) + "]")
+    # print("[" + ','.join(np.array([eirp_dBW, Rx.gain, wavelength_squared_dB, Tx.processing_gain, Rx.losses, atmospheric_loss_dB, rx_thermal_noise_loss_dB, free_space_loss_dB,beam_shape_loss_dB]).astype(str)) + "]")
 
     return (
         eirp_dBW
         + Rx.gain
-        # + wavelength_squared_dB
         + Tx.processing_gain
         - abs(Rx.losses)
-        # - atmospheric_loss_dB
         - rx_thermal_noise_loss_dB
+        - beam_shape_loss_dB
+        # + wavelength_squared_dB
+        # - atmospheric_loss_dB
         # - free_space_loss_dB
-        + beam_shape_loss_dB
     )

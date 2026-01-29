@@ -22,49 +22,18 @@ class RecordedTargetsSimulator(TargetSimulator):
 
     def __init__(self, trajectories: list[Trajectory]):
         self._trajectories = copy.deepcopy(trajectories)
-        self._interpolants = []
-        for trajectory in trajectories:
-            x = [t.timestamp() for t in trajectory.times]
-            y = np.stack(
-                [
-                    trajectory.lats,
-                    trajectory.lons,
-                    trajectory.alts,
-                    trajectory.vlats,
-                    trajectory.vlons,
-                    trajectory.vzs,
-                    trajectory.cross_sections,
-                ],
-                axis=1,
-            )
-            self._interpolants.append(CubicSpline(x, y, extrapolate=False))
 
     def get_targets(self, time: datetime.datetime) -> Iterable[Target]:
         targets: list[Target] = []
-        for trajectory, f in zip(self._trajectories, self._interpolants):
-            y = f(time.timestamp())
-            if not np.isnan(y).any():
-                assert len(y) == 7
-                lat, lon, alt, vlat, vlon, vz, crs = y
-                targets.append(
-                    Target(
-                        id=trajectory.target_id,
-                        point=Point(
-                            lat=lat,
-                            lon=lon,
-                            alt=alt,
-                        ),
-                        cross_section=crs,
-                        vlat=vlat,
-                        vlon=vlon,
-                        vz=vz,
-                    )
-                )
+        for trajectory in self._trajectories:
+            target = trajectory(time)
+            if target is not None:
+                targets.append(target)
         return targets
-    
+
     def get_minimum_time(self) -> datetime.datetime:
         return np.min([t.times[0] for t in self._trajectories])
-    
+
     def get_maximum_time(self) -> datetime.datetime:
         return np.max([t.times[-1] for t in self._trajectories])
 

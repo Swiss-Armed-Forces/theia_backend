@@ -1,0 +1,31 @@
+import unittest
+
+from theia.data_loading_testing import load_pcl_reference_data
+from theia.passive import calculate_bistatic_detection
+
+
+class BistaticDetectionTest(unittest.TestCase):
+    def test_against_reference(self):
+        trajectories, detections = load_pcl_reference_data()
+        for detection_ref, snr in detections:
+            # print("ID = ", detection_ref.detection_id)
+            bistatic_range_ref = detection_ref.bistatic_range
+            bistatic_doppler_ref = detection_ref.doppler_shift
+            detection = calculate_bistatic_detection(
+                detection_ref.receiver,
+                detection_ref.transmitter,
+                detection_ref.target,
+            )
+
+            self.assertIsNot(detection, None)
+
+            self.assertAlmostEqual(bistatic_range_ref, detection.bistatic_range)
+            self.assertAlmostEqual(
+                bistatic_doppler_ref,
+                detection.doppler_shift,
+                delta=0.2,
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()
