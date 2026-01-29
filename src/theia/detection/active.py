@@ -16,17 +16,17 @@ def get_rad_pd(
     distance_step: float = 30.0,
     doppler_shift_threshold_hz: float = 5.0,
 ) -> float:
-    rad_lat = radar.lat
-    rad_lon = radar.lon
-    rad_height = radar.alt
-    power = radar.power
-    antenna_diam = radar.diameter
+    rad_lat = radar.transmitter.lat
+    rad_lon = radar.transmitter.lon
+    rad_height = radar.transmitter.alt
+    power = radar.transmitter.power
+    antenna_diam = radar.receiver.diameter
     # The rest of the code except Doppler assumes GHz. (taken from openBURST)
-    freq = radar.frequency / 1000.0
-    pulse_width = radar.pulse_width
-    cpi_pulses = radar.cpi_pulses
-    bandwidth = radar.bandwidth
-    pfa = radar.pfa
+    freq = radar.transmitter.frequency / 1000.0
+    pulse_width = radar.transmitter.pulse_width
+    cpi_pulses = radar.receiver.cpi_pulses
+    bandwidth = radar.transmitter.bandwidth
+    pfa = radar.receiver.pfa
 
     tgt_lat = target.lat
     tgt_lon = target.lon
@@ -42,16 +42,16 @@ def get_rad_pd(
     )
 
     # TODO: Adjust to use splat!
-    los_ok = has_line_of_sight(radar.point, target.point, distance_step)
+    los_ok = has_line_of_sight(radar.transmitter.point, target.point, distance_step)
 
     if not los_ok:
         return 0.0
     else:
         doppler = monostatic_doppler(
-            radar.frequency,  # yes, it is MHz here!
+            radar.transmitter.frequency,  # yes, it is MHz here!
             rad_lat,
             rad_lon,
-            radar.alt,
+            radar.transmitter.alt,
             tgt_lat,
             tgt_lon,
             target.alt,

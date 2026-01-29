@@ -28,7 +28,7 @@ class ScenarioSimulator:
 
     def _get_simulated_times(self) -> list[datetime.datetime]:
         all_radars = self.radar_simulator.get_all_radars()
-        rotation_times = set([radar.rotation_time for radar in all_radars])
+        rotation_times = set([radar.receiver.rotation_time for radar in all_radars])
         timestamps = []
         for t in rotation_times:
             timestamps.extend(
@@ -48,7 +48,7 @@ class ScenarioSimulator:
                 r
                 for r in radars
                 if np.isclose(
-                    (t.timestamp() - self._start_timestamp) % r.rotation_time,
+                    (t.timestamp() - self._start_timestamp) % r.receiver.rotation_time,
                     0,
                 )
             ]

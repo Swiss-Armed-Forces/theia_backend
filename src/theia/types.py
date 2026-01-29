@@ -169,14 +169,14 @@ class Receiver(pydantic.BaseModel):
     """Maximum elevation [°]"""
     rotation_time: float
     """Rotation time [s]"""
+    bandwidth: float
+    """Noise band width [MHz]"""
     gain: float = 0
     """Antenna gain [dBi]"""
     losses: float = 0
     """losses from antenna to receiver input [dB]"""
     noise_temperature: float = 300.0
     """Receiving system noise temperature [K]"""
-    bandwidth: float
-    """Noise band width [MHz]"""
     vertical_attenuation: Optional[AttenuationModel] = None
     """
     Interpolate the attenuation diagram for elevation angles in [-pi/2, pi/2]
