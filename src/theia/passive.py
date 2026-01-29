@@ -1,5 +1,4 @@
 import datetime
-import math
 
 import numpy as np
 import scipy.constants as sc
@@ -11,7 +10,6 @@ from theia.distance import (
     get_elev_angle,
 )
 from theia.doppler import calculate_bistatic_doppler
-from theia.line_of_sight import has_line_of_sight
 from theia.types import PassiveRadarDetection, Point, Radar, Target
 from theia.util import to_dB
 
