@@ -96,50 +96,39 @@ class AttenuationModel(pydantic.BaseModel):
             )
 
 
-class Radar(pydantic.BaseModel):
+class Transmitter(pydantic.BaseModel):
     id: int
     """Unique ID"""
     point: Point
-    """Coordinates of the transmitter/receiver"""
+    """Coordinates"""
     power: float
     """Power [W]"""
     erp: float
     """Effective radiated power [W]"""
     antenna_height: float
     """Antenna height [m]"""
-    diameter: float
-    """Antenna diameter [m]"""
     frequency: float
     """Signal frequency [MHz]"""
     pulse_width: float
     """Pulse width [us]"""
-    cpi_pulses: float
+    polarization: Polarization
     bandwidth: float
     """Noise band width [MHz]"""
-    pfa: float
-    """Probability of false alarm (in [0, 1])"""
-    min_elevation: float
-    """Minimum elevation [°]"""
-    max_elevation: float
-    """Maximum elevation [°]"""
-    rotation_time: float
-    """Rotation time [s]"""
-    polarization: Polarization
-    gain: float = 0
-    """Antenna gain [dBi]"""
-    losses: float = 0
-    """losses from antenna to receiver input [dB]"""
-    noise_temperature: float = 300.0
-    """Receiving system noise temperature [K]"""
     max_coherent_integration_time: float = 0.5
     """
     maximum coherent integration time in [s]
     (use appropriate values for different signals)
     """
     vertical_attenuation: Optional[AttenuationModel] = None
-    """Interpolate the attenuation diagram for elevation angles in [-pi/2, pi/2] given in [rad]."""
+    """
+    Interpolate the attenuation diagram for elevation angles in [-pi/2, pi/2]
+    given in [rad].
+    """
     horizontal_attenuation: Optional[AttenuationModel] = None
-    """Interpolate the attenuation diagram for azimuth angles in [0, 2pi] given in [rad]."""
+    """
+    Interpolate the attenuation diagram for azimuth angles in [0, 2pi]
+    given in [rad].
+    """
 
     @property
     def lat(self) -> float:
@@ -160,6 +149,64 @@ class Radar(pydantic.BaseModel):
     def processing_gain(self) -> float:
         """Processing gain [dB]"""
         return 10 * np.log10(self.max_coherent_integration_time * self.bandwidth * 1e6)
+
+
+class Receiver(pydantic.BaseModel):
+    id: int
+    """Unique ID"""
+    point: Point
+    """Coordinates"""
+    antenna_height: float
+    """Antenna height [m]"""
+    diameter: float
+    """Antenna diameter [m]"""
+    cpi_pulses: float
+    pfa: float
+    """Probability of false alarm (in [0, 1])"""
+    min_elevation: float
+    """Minimum elevation [°]"""
+    max_elevation: float
+    """Maximum elevation [°]"""
+    rotation_time: float
+    """Rotation time [s]"""
+    gain: float = 0
+    """Antenna gain [dBi]"""
+    losses: float = 0
+    """losses from antenna to receiver input [dB]"""
+    noise_temperature: float = 300.0
+    """Receiving system noise temperature [K]"""
+    bandwidth: float
+    """Noise band width [MHz]"""
+    vertical_attenuation: Optional[AttenuationModel] = None
+    """
+    Interpolate the attenuation diagram for elevation angles in [-pi/2, pi/2]
+    given in [rad].
+    """
+    horizontal_attenuation: Optional[AttenuationModel] = None
+    """
+    Interpolate the attenuation diagram for azimuth angles in [0, 2pi]
+    given in [rad].
+    """
+
+    @property
+    def lat(self) -> float:
+        """Latitude [decimal °]"""
+        return self.point.lat
+
+    @property
+    def lon(self) -> float:
+        """Longitude [decimal °]"""
+        return self.point.lon
+
+    @property
+    def alt(self) -> float:
+        """Altitude (meters above sea level) [m]"""
+        return self.point.alt
+
+
+class Radar(pydantic.BaseModel):
+    transmitter: Transmitter
+    receiver: Receiver
 
 
 class Target(pydantic.BaseModel):
@@ -357,8 +404,8 @@ class PassiveRadarDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
     """Date and time at which the detection takes place."""
-    transmitter: Radar
-    receiver: Radar
+    transmitter: Transmitter
+    receiver: Receiver
     target: Target
     bistatic_range: float
     """Bistatic range [m]."""

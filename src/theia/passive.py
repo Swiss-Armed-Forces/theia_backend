@@ -10,13 +10,13 @@ from theia.distance import (
     get_elev_angle,
 )
 from theia.doppler import calculate_bistatic_doppler
-from theia.types import PassiveRadarDetection, Point, Radar, Target
+from theia.types import PassiveRadarDetection, Point, Receiver, Target, Transmitter
 from theia.util import to_dB
 
 
 def calculate_bistatic_detection(
-    rx: Radar,
-    tx: Radar,
+    rx: Receiver,
+    tx: Transmitter,
     tgt: Target,
     snr_thresh: float = 15.0,
     doppler_thresh: float = 2.0,
@@ -26,9 +26,9 @@ def calculate_bistatic_detection(
 
     Parameters
     ----------
-    rx: Radar
+    rx: Receiver
         Receiver.
-    tx: Radar:
+    tx: Transmitter
         Transmitter.
     tgt: Target
         Target.
@@ -166,8 +166,8 @@ def get_clear_sky_attenuation(transmitter_freq: float) -> float:
 
 
 def calculate_snr(
-    Tx: Radar,
-    Rx: Radar,
+    Tx: Transmitter,
+    Rx: Receiver,
     point_of_interest: Point,
     dist_delay_limit: float,
 ):

@@ -22,13 +22,13 @@ def radar_eq_max_dist(radar: Radar, target_rcs: float) -> float:
     """! returns maximal distance [m] given the radar parameters and the target rcs.
     MAX RANGE IS SET TO 400kms, due to the HARD LIMIT in SPLAT! (see MAXPAFES in splatBurst.h)
     """
-    trans_pwr = radar.power
-    antenna_diam = radar.diameter
-    frequency = radar.frequency / 1000.
-    pulse_width = radar.pulse_width
-    cpi_pulses = radar.cpi_pulses
-    bandwidth = radar.bandwidth
-    pfa = radar.pfa
+    trans_pwr = radar.transmitter.power
+    antenna_diam = radar.receiver.diameter
+    frequency = radar.transmitter.frequency / 1000.
+    pulse_width = radar.transmitter.pulse_width
+    cpi_pulses = radar.receiver.cpi_pulses
+    bandwidth = radar.transmitter.bandwidth
+    pfa = radar.receiver.pfa
     rcsSM = target_rcs
 
 
