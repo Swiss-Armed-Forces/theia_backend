@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os
 import math
 import functools
@@ -96,6 +97,9 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
     callsign_map: dict[int, str] = {}
     ID = 0
     for callsign, rows in df.groupby("callsign"):
+        if rows.shape[0] < 2:
+            logging.warning(f"Skip callsign {callsign} because only one time stamp is available")
+            continue
         trajectories.append(
             Trajectory(
                 target_id=ID,
