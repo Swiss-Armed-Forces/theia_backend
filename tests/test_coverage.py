@@ -8,7 +8,7 @@ import shapely
 from theia.coverage import calculate_coverage
 from theia.data_loading import elevationAt
 from theia.radar_equation import radar_eq_max_dist
-from theia.types import Point, Polarization, Radar
+from theia.types import Point, Polarization, Radar, Receiver, Transmitter
 
 
 class CoverageTest(unittest.TestCase):
@@ -19,32 +19,43 @@ class CoverageTest(unittest.TestCase):
         ).iloc[0]["geometry"]
 
         # Calculate coverage.
+        p = Point(
+            lat=47.36700085728634,
+            lon=8.537724304199216,
+            alt=407.83600886023686,
+        )
+        ah = 10.0
+        bandwidth = 1
         radar = Radar(
-            id=585,
-            point=Point(
-                lat=47.36700085728634,
-                lon=8.537724304199216,
-                alt=407.83600886023686,
+            transmitter=Transmitter(
+                id=585,
+                point=p,
+                power=20000,
+                erp=800,
+                antenna_height=ah,
+                frequency=1000.0,
+                pulse_width=1,
+                bandwidth=bandwidth,
+                polarization=Polarization.HORIZONTAL,
             ),
-            power=20000,
-            erp=800,
-            antenna_height=10.0,
-            diameter=2.0,
-            frequency=1000.0,
-            pulse_width=1,
-            cpi_pulses=1,
-            bandwidth=1,
-            pfa=1e-6,
-            min_elevation=-20.0,
-            max_elevation=60.0,
-            rotation_time=10.0,
-            polarization=Polarization.HORIZONTAL,
+            receiver=Receiver(
+                id=585,
+                point=p,
+                antenna_height=ah,
+                diameter=2.0,
+                cpi_pulses=1,
+                pfa=1e-6,
+                min_elevation=-20.0,
+                max_elevation=60.0,
+                rotation_time=10.0,
+                bandwidth=bandwidth,
+            ),
         )
 
         start = Point(
-            lat=radar.lat,
-            lon=radar.lon,
-            alt=elevationAt(radar.lat, radar.lon),
+            lat=p.lat,
+            lon=p.lon,
+            alt=elevationAt(p.lat, p.lon),
         )
 
         target_cross_section: float = 2.0

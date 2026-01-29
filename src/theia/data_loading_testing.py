@@ -10,9 +10,10 @@ from theia.types import (
     PassiveRadarDetection,
     Point,
     Polarization,
-    Radar,
+    Receiver,
     Target,
     Trajectory,
+    Transmitter,
 )
 from theia.util import erp_to_power, from_dB
 
@@ -44,19 +45,15 @@ def load_pcl_reference_data(
     receivers = []
     for _, row in df_rx.iterrows():
         receivers.append(
-            Radar(
+            Receiver(
                 id=row["rx_id"],
                 point=Point(
                     lat=row["lat"],
                     lon=row["lon"],
                     alt=row["masl"],
                 ),
-                power=0,
-                erp=np.nan,
                 antenna_height=row["ahmagl"],
                 diameter=np.nan,
-                frequency=np.nan,
-                pulse_width=np.nan,
                 cpi_pulses=0,
                 bandwidth=row["bandwidth"] / 1000.0,  # convert kHz -> MHz
                 pfa=np.nan,
@@ -119,7 +116,7 @@ def load_pcl_reference_data(
         rotation_time = 1
 
         transmitters.append(
-            Radar(
+            Transmitter(
                 id=row["tx_id"],
                 point=Point(
                     lat=row["lat"],
@@ -129,16 +126,10 @@ def load_pcl_reference_data(
                 power=erp_to_power(erp, losses, gain),
                 erp=from_dB(erp),
                 antenna_height=row["ahmagl"],
-                diameter=antenna_diameter,
                 frequency=row["freq"],
                 pulse_width=pulse_width,
-                cpi_pulses=cpi_pulses,
-                bandwidth=row["bandwidth"] / 1000.0,  # convert kHz -> MHz
-                pfa=pfa,
-                min_elevation=np.nan,
-                max_elevation=np.nan,
-                rotation_time=rotation_time,
                 polarization=Polarization.HORIZONTAL,  # dummy value
+                bandwidth=row["bandwidth"] / 1000.0,  # convert kHz -> MHz
                 vertical_attenuation=vertical_model,
                 horizontal_attenuation=horizontal_model,
             )
