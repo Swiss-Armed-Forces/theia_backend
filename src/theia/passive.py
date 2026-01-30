@@ -207,7 +207,7 @@ def calculate_snr(
     input noise power. The quantities :math:`F_T, F_R` are angle- and frequency-dependent pattern
     propagation factors.
 
-    The quantities :math`R_T, R_R` represent the distance
+    The quantities :math:`R_T, R_R` represent the distance
     between transmitter and point of interest as well as receiver and point of interest.
 
     Finally, the quantities :math:`L_T, L_R` represent other losses,

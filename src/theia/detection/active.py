@@ -91,7 +91,7 @@ def calculate_snr(
     noise_figure: float,
     rf_loss: float,
 ) -> float:
-    """
+    r"""
     Calculate the signal-to-noise ratio (SNR) for given radar properties for free propagation.
 
     Parameters
@@ -129,6 +129,28 @@ def calculate_snr(
     - There is a direct line-of-sight.
     - No propagation losses.
     - No terrain losses.
+
+    Notes
+    -----
+    The following formula is implemented:
+
+    .. math::
+       SNR = \frac{P \lambda^2 G_{T} G_{R} G_{coherent integration} \sigma}{(4 \pi)^3 k_B T B R_T^2 R_R^2 F L},
+    
+    where :math:`P` is the transmitter power [W], :math:`\lambda` is the signal
+    wave length, :math:`G_{T}, G_{R}` are the transmitter and
+    receiver gains, :math:`G_{coherent integration}` is the gain from coherent integration,
+    :math:`\sigma` is the radar cross section of the target, :math:`T` is the
+    noise temperature, :math:`B` is the bandwidth, :math:`R_T, R_R` are the distance
+    between transmitter / receiver and the target, :math:`F` is the noise figure
+    and :math:`L` is a collective term for all other kinds of RF losses.
+
+    The antenna gain is assumed to be the same for the transmitter and receiver
+    and estimated using the formula
+
+    .. math::
+
+       G_{T} = G_{R} = 0.6 \cdot \pi (\frac{D}{2})^2 \frac{4 \pi}{\lambda^2}.
     """
     wavelength = sc.speed_of_light / (frequency * 1e9)
 
