@@ -6,7 +6,47 @@ from matplotlib import pyplot as plt
 import numpy as np
 import pydantic
 from scipy.interpolate import CubicSpline
+import scipy.constants as sc
 import shapely
+
+
+def calculate_antenna_gain(
+    antenna_diameter: float,
+    wavelength: float,
+    efficiency_value: float = 0.6,
+) -> float:
+    r"""
+    Calculate antenna gain [dB].
+
+    Parameters
+    ----------
+    antenna_diameter: float
+        Antenna diameter [m].
+    wavelength: float
+        Signal wavelength [m].
+    efficiency_value: float, default 0.6
+        Demensionless value in [0, 1] that indicates the fraction of the signal
+        power that is received by the antenna.
+
+    Notes
+    -----
+    The formula implemented is Equ. 2.49 in Skolnik 1980
+
+    .. math::
+       
+       G = \rho \frac{4 \pi A}{\lambda^2},
+    
+       where :math:`\rho` denotes the antenna efficiency value, :math:`A` the
+       aperture area of the antenna and :math:`\lambda` the signal wavelength.
+
+    References
+    ----------
+    Skolnik, M. I. (1980). Introduction to Radar Systems (2nd ed.). McGraw-Hill.
+    """
+    antenna_area = np.pi * antenna_diameter * antenna_diameter / 4
+    return 10 * np.log10(
+        efficiency_value * 4 * np.pi * antenna_area / (wavelength * wavelength)
+    )
 
 
 class RadioClimate(enum.Enum):
@@ -107,17 +147,24 @@ class Transmitter(pydantic.BaseModel):
     """Effective radiated power [W]"""
     antenna_height: float
     """Antenna height [m]"""
+    antenna_diameter: float
+    """Antenna diameter [m]"""
     frequency: float
     """Signal frequency [MHz]"""
     pulse_width: float
     """Pulse width [us]"""
     polarization: Polarization
+    """Signal polarization. Only important for PCL."""
     bandwidth: float
     """Noise band width [MHz]"""
     max_coherent_integration_time: float = 0.5
     """
     maximum coherent integration time in [s]
     (use appropriate values for different signals)
+    """
+    antenna_efficiency_value: float = 0.6
+    """
+    Fraction in [0, 1] of the transmission power radiated by the antenna.
     """
     vertical_attenuation: Optional[AttenuationModel] = None
     """
@@ -150,6 +197,20 @@ class Transmitter(pydantic.BaseModel):
         """Processing gain [dB]"""
         return 10 * np.log10(self.max_coherent_integration_time * self.bandwidth * 1e6)
 
+    @property
+    def antenna_gain(self) -> float:
+        """Antenna gain [dB]"""
+        return calculate_antenna_gain(
+            self.antenna_diameter,
+            sc.speed_of_light / (self.frequency * 1e6),
+            efficiency_value=self.antenna_efficiency_value,
+        )
+
+    @property
+    def pulse_compression_gain(self) -> float:
+        """Pulse compression gain [dB]"""
+        return 10 * np.log10(self.pulse_width * self.bandwidth)
+
 
 class Receiver(pydantic.BaseModel):
     id: int
@@ -170,13 +231,19 @@ class Receiver(pydantic.BaseModel):
     rotation_time: float
     """Rotation time [s]"""
     bandwidth: float
-    """Noise band width [MHz]"""
+    """Noise bandwidth of the receiver's predetection filter [MHz]"""
     gain: float = 0
     """Antenna gain [dBi]"""
     losses: float = 0
     """losses from antenna to receiver input [dB]"""
     noise_temperature: float = 300.0
     """Receiving system noise temperature [K]"""
+    noise_figure: float = 1.9
+    """Receiver LNA noise figure [dB]  (not known for specific radars, best guess)"""
+    antenna_efficiency_value: float = 0.6
+    """
+    Fraction in [0, 1] of the transmission power radiated by the antenna.
+    """
     vertical_attenuation: Optional[AttenuationModel] = None
     """
     Interpolate the attenuation diagram for elevation angles in [-pi/2, pi/2]
@@ -202,6 +269,26 @@ class Receiver(pydantic.BaseModel):
     def alt(self) -> float:
         """Altitude (meters above sea level) [m]"""
         return self.point.alt
+
+    def antenna_gain(self, frequency: float) -> float:
+        """
+        Calculate antenna gain [dB].
+
+        Parameters
+        ----------
+        frequency: float
+            Signal frequency [MHz]
+        """
+        return calculate_antenna_gain(
+            self.diameter,
+            sc.speed_of_light / (frequency * 1e6),
+            efficiency_value=self.antenna_efficiency_value,
+        )
+
+    @property
+    def coherent_integration_gain(self) -> float:
+        """Coherent integration gain [dB]."""
+        return 10 * np.log10(self.cpi_pulses)
 
 
 class Radar(pydantic.BaseModel):
