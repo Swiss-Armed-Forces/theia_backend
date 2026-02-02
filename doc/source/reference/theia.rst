@@ -44,6 +44,14 @@ theia.data\_loading module
    :show-inheritance:
    :undoc-members:
 
+theia.data\_loading\_testing module
+-----------------------------------
+
+.. automodule:: theia.data_loading_testing
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 theia.distance module
 ---------------------
 
@@ -84,6 +92,14 @@ theia.line\_of\_sight module
    :show-inheritance:
    :undoc-members:
 
+theia.mapping module
+--------------------
+
+.. automodule:: theia.mapping
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 theia.openburst\_client module
 ------------------------------
 
@@ -100,6 +116,14 @@ theia.passive module
    :show-inheritance:
    :undoc-members:
 
+theia.plotting module
+---------------------
+
+.. automodule:: theia.plotting
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 theia.radar\_equation module
 ----------------------------
 
@@ -112,6 +136,14 @@ theia.scenario\_simulator module
 --------------------------------
 
 .. automodule:: theia.scenario_simulator
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+theia.snr module
+----------------
+
+.. automodule:: theia.snr
    :members:
    :show-inheritance:
    :undoc-members:

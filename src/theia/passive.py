@@ -195,7 +195,7 @@ def calculate_snr(
 
     Notes
     -----
-    The SNR is calculated according to the radar equation
+    The SNR is calculated according to the bistatic radar equation (Skolnik 1980, Equ. 14.36), extended by a thermal noise term (Skolnik 1980, Equ. 2.2),
 
     .. math::
 
@@ -213,6 +213,10 @@ def calculate_snr(
     Finally, the quantities :math:`L_T, L_R` represent other losses,
     including atmospheric absorption and line-feed losses between transmitter output
     and transmitter antenna as well as between receiving antenna output to receiver input.
+
+    References
+    ----------
+    Skolnik, M. I. (1980). Introduction to Radar Systems (2nd ed.). McGraw-Hill.
     """
     # Check whether the delay threshold is kept.
     r_r = (

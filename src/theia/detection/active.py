@@ -132,7 +132,7 @@ def calculate_snr(
 
     Notes
     -----
-    The following formula is implemented:
+    The following formula is implemented (Skolnik 1980, Equ. 2.54):
 
     .. math::
        SNR = \frac{P \lambda^2 G_{T} G_{R} G_{coherent integration} \sigma}{(4 \pi)^3 k_B T B R_T^2 R_R^2 F L},
@@ -151,6 +151,10 @@ def calculate_snr(
     .. math::
 
        G_{T} = G_{R} = 0.6 \cdot \pi (\frac{D}{2})^2 \frac{4 \pi}{\lambda^2}.
+    
+    References
+    ----------
+    Skolnik, M. I. (1980). Introduction to Radar Systems (2nd ed.). McGraw-Hill.
     """
     wavelength = sc.speed_of_light / (frequency * 1e9)
 
