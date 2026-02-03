@@ -2,7 +2,7 @@ import datetime
 import math
 import numpy as np
 import scipy.constants as sc
-from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD
+from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, RF_LOSS
 from theia.distance import line_of_sight_distance
 from theia.doppler import monostatic_doppler
 from theia.line_of_sight import has_line_of_sight
@@ -15,8 +15,9 @@ def calculate_monostatic_detection(
     radar: Radar,
     target: Target,
     rng: np.random.Generator,
+    distance_step: float = 30.,
     doppler_shift_threshold_hz: float = ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD,
-    rf_loss: float = 12.0,
+    rf_loss: float = RF_LOSS,
 ) -> ActiveRadarDetection | None:
     """
     Calculate probabilistic active radar detection.
@@ -27,6 +28,8 @@ def calculate_monostatic_detection(
         Radar
     target: Target
         Target
+    rng: np.random.Generator
+        Random number generator to use during the detection (is modified)
     distance_step: float, default 30.0
         Distance stepping to be used for the line-of-sight test [m]
     doppler_shift_threshold_hz: float, default 5.0
@@ -41,6 +44,7 @@ def calculate_monostatic_detection(
     p = get_rad_pd(
         radar,
         target,
+        distance_step=distance_step,
         doppler_shift_threshold_hz=doppler_shift_threshold_hz,
         rf_loss=rf_loss,
     )

@@ -2,7 +2,8 @@ import datetime
 import itertools
 import numpy as np
 
-from theia.detection.active import get_rad_pd
+from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, RF_LOSS
+from theia.detection.active import calculate_monostatic_detection, get_rad_pd
 from theia.types import ActiveRadarDetection, RadarSimulator, TargetSimulator
 
 
@@ -12,10 +13,14 @@ class ScenarioSimulator:
         target_simulator: TargetSimulator,
         radar_simulator: RadarSimulator,
         rng: np.random.Generator,
+        doppler_shift_threshold: float = ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD,
+        rf_loss: float = RF_LOSS,
     ):
         self.target_simulator = target_simulator
         self.radar_simulator = radar_simulator
         self.rng = rng
+        self._doppler_shift_threshold = doppler_shift_threshold
+        self._rf_loss = rf_loss
 
         self._start_timestamp = min(
             self.target_simulator.get_minimum_time(),
@@ -54,16 +59,16 @@ class ScenarioSimulator:
             ]
             targets = self.target_simulator.get_targets(t)
             for radar, target in itertools.product(radars, targets):
-                probability_of_detection = get_rad_pd(radar, target)
-                # TODO: Include probability of false alarm as well.
-                if self.rng.random() <= probability_of_detection:
-                    detections.append(
-                        ActiveRadarDetection(
-                            detection_id=detection_id,
-                            time=t,
-                            radar=radar,
-                            target=target,
-                        )
-                    )
+                detection = calculate_monostatic_detection(
+                    radar,
+                    target,
+                    self.rng,
+                    doppler_shift_threshold_hz=self._doppler_shift_threshold,
+                    rf_loss=self._rf_loss,
+                )
+                if detection is not None:
+                    detection.detection_id = detection_id
+                    detection.time = t
+                    detections.append(detection)
                     detection_id += 1
         return detections

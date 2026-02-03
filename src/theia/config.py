@@ -10,3 +10,5 @@ Targets with less Doppler shift are not detected.
 """
 NOISE_TEMPERATURE = 300
 """Noise temperature [K]"""
+RF_LOSS = 12.0
+"""RF system hardware loss [dB]"""
