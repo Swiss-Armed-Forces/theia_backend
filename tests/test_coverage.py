@@ -26,6 +26,7 @@ class CoverageTest(unittest.TestCase):
         )
         ah = 10.0
         bandwidth = 1
+        diameter = 2.
         radar = Radar(
             transmitter=Transmitter(
                 id=585,
@@ -33,6 +34,7 @@ class CoverageTest(unittest.TestCase):
                 power=20000,
                 erp=800,
                 antenna_height=ah,
+                antenna_diameter=diameter,
                 frequency=1000.0,
                 pulse_width=1,
                 bandwidth=bandwidth,
