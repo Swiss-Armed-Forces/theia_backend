@@ -1,23 +1,12 @@
-import functools
 import math
 import numpy as np
 import scipy.constants as sc
-from scipy import integrate
-from scipy import special
-import geopy
 
 from theia.types import Radar
+from theia.util import marcum_q_function
 
 
 # Taken from OpenBurst.
-def marcum_q_fn(v, alpha):
-    """integrand function to evaluate the Marcum Q
-    function that provides the probability of detection for
-    a single pulse out of a quadrature detector.
-    """
-    return v * np.exp(-(v * v + alpha * alpha) / 2) * special.iv(0, alpha * v)
-
-
 def radar_eq_max_dist(radar: Radar, target_rcs: float) -> float:
     """! returns maximal distance [m] given the radar parameters and the target rcs.
     MAX RANGE IS SET TO 400kms, due to the HARD LIMIT in SPLAT! (see MAXPAFES in splatBurst.h)
@@ -115,14 +104,7 @@ def radar_eq_max_dist(radar: Radar, target_rcs: float) -> float:
             pd = np.concatenate([pd, [1.0]])
         else:
             alpha = pow(10, (snr[jj] + 3) / 20)
-            curr_pd = (
-                1
-                - integrate.quad(
-                    lambda x: marcum_q_fn(x, alpha),
-                    0,
-                    beta,
-                )[0]
-            )
+            curr_pd = marcum_q_function(alpha, beta)
             pd = np.concatenate([pd, [curr_pd]])
 
         jj = jj + 1
