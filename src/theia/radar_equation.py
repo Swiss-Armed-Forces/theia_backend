@@ -104,7 +104,7 @@ def radar_eq_max_dist(radar: Radar, target_rcs: float) -> float:
             pd = np.concatenate([pd, [1.0]])
         else:
             alpha = pow(10, (snr[jj] + 3) / 20)
-            curr_pd = marcum_q_function(alpha, beta)
+            curr_pd = 1 if alpha > 30 else marcum_q_function(alpha, beta)
             pd = np.concatenate([pd, [curr_pd]])
 
         jj = jj + 1

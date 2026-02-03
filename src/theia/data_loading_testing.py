@@ -126,6 +126,7 @@ def load_pcl_reference_data(
                 power=erp_to_power(erp, losses, gain),
                 erp=from_dB(erp),
                 antenna_height=row["ahmagl"],
+                antenna_diameter=np.nan,
                 frequency=row["freq"],
                 pulse_width=pulse_width,
                 polarization=Polarization.HORIZONTAL,  # dummy value
