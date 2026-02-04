@@ -33,7 +33,7 @@ def calculate_antenna_gain(
     The formula implemented is Equ. 2.49 in Skolnik 1980
 
     .. math::
-       
+
        G = \rho \frac{4 \pi A}{\lambda^2},
     
        where :math:`\rho` denotes the antenna efficiency value, :math:`A` the
@@ -483,8 +483,33 @@ class RadarSimulator(abc.ABC):
 class ActiveRadarDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
+    """Date and time at which the detection takes place."""
     radar: Radar
     target: Target
+    target_range: float
+    """Line-of-sight distance between radar and target [m]"""
+    elevation_angle: float
+    """Elevation angle between radar (observer) and target in [-pi/2, pi/2) [rad]"""
+    azimuth_angle: float
+    """Azimuth between radar (observer) and target measured in [0, 2pi) from north [rad]"""
+
+    @pydantic.model_validator(mode="after")
+    def check_range_positivity(self) -> Self:
+        if self.target_range < 0:
+            raise ValueError(f"Range {self.target_range} < 0")
+        return self
+
+    @pydantic.model_validator(mode="after")
+    def check_elevation_bounds(self) -> Self:
+        if not -np.pi / 2 <= self.elevation_angle < np.pi / 2:
+            raise ValueError(f"Elevation {self.elevation_angle} not in [-pi/2, pi/2)")
+        return self
+
+    @pydantic.model_validator(mode="after")
+    def check_azimuth_bounds(self) -> Self:
+        if not 0 <= self.azimuth_angle < 2 * np.pi:
+            raise ValueError(f"Azimuth {self.azimuth_angle} not in [0, 2pi)")
+        return self
 
 
 class PassiveRadarDetection(pydantic.BaseModel):

@@ -3,6 +3,7 @@ import math
 import numpy as np
 import scipy.constants as sc
 from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, RF_LOSS
+from theia.coordinates import calculate_azimuth_angle, calculate_elevation_angle
 from theia.distance import line_of_sight_distance
 from theia.doppler import monostatic_doppler
 from theia.line_of_sight import has_line_of_sight
@@ -15,7 +16,7 @@ def calculate_monostatic_detection(
     radar: Radar,
     target: Target,
     rng: np.random.Generator,
-    distance_step: float = 30.,
+    distance_step: float = 30.0,
     doppler_shift_threshold_hz: float = ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD,
     rf_loss: float = RF_LOSS,
 ) -> ActiveRadarDetection | None:
@@ -54,6 +55,18 @@ def calculate_monostatic_detection(
             time=datetime.datetime.fromtimestamp(0),
             radar=radar,
             target=target,
+            target_range=line_of_sight_distance(
+                *radar.transmitter.point.as_tuple(),
+                *target.point.as_tuple(),
+            ),
+            elevation_angle=calculate_elevation_angle(
+                radar.transmitter.point,
+                target.point,
+            ),
+            azimuth_angle=calculate_azimuth_angle(
+                radar.transmitter.point,
+                target.point,
+            ),
         )
     else:
         return None
