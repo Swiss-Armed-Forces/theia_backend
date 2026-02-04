@@ -1,7 +1,7 @@
 import unittest
 
 from theia.data_loading_testing import load_pcl_reference_data
-from theia.passive import calculate_bistatic_detection
+from theia.detection.passive import calculate_bistatic_detection
 
 
 class BistaticDetectionTest(unittest.TestCase):
