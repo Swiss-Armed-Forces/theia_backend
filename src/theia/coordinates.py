@@ -55,7 +55,7 @@ class CoordinateTransformations:
 
 
 # The following function is taken from openBURST.
-def get_azimuth_between_locs(p_observer: Point, p_target: Point) -> float:
+def calculate_azimuth_angle(p_observer: Point, p_target: Point) -> float:
     """
     Calculate azimuth angle between an observer and a target [rad].
 

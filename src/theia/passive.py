@@ -3,7 +3,7 @@ import datetime
 import numpy as np
 import scipy.constants as sc
 
-from theia.coordinates import get_azimuth_between_locs
+from theia.coordinates import calculate_azimuth_angle
 from theia.distance import (
     get_2d_distance_between_locs_heights,
     get_bistatic_range,
@@ -247,7 +247,7 @@ def calculate_snr(
         raise ValueError("Delay is too small; we are in the forward scattering regime")
 
     # Evaluate attenuation for the angles of gaze.
-    theta_t_bearing = get_azimuth_between_locs(
+    theta_t_bearing = calculate_azimuth_angle(
         p_observer=Tx.point,
         p_target=point_of_interest,
     )
@@ -256,7 +256,7 @@ def calculate_snr(
         Tx.alt + Tx.antenna_height,
         r_t,
     )
-    theta_r_bearing = get_azimuth_between_locs(
+    theta_r_bearing = calculate_azimuth_angle(
         p_observer=Rx.point,
         p_target=point_of_interest,
     )

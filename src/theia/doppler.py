@@ -2,7 +2,7 @@ import math
 import numpy as np
 import scipy.constants as sc
 
-from theia.coordinates import get_azimuth_between_locs
+from theia.coordinates import calculate_azimuth_angle
 from theia.distance import (
     burstvincentydistance,
     get_2d_distance_between_locs_heights,
@@ -59,7 +59,7 @@ def monostatic_doppler(
     if (tgt_vx == 0) and (tgt_vy == 0) and (tgt_vz == 0):
         return np.nan
 
-    az = get_azimuth_between_locs(
+    az = calculate_azimuth_angle(
         p_observer=Point(lat=rad_lat, lon=rad_lon, alt=rad_alt),
         p_target=Point(lat=tgt_lat, lon=tgt_lon, alt=tgt_alt),
     )  # radians
