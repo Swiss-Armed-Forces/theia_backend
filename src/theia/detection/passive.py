@@ -3,6 +3,11 @@ import datetime
 import numpy as np
 import scipy.constants as sc
 
+from theia.config import (
+    DELAY_THRESHOLD_PCL,
+    DOPPLER_SHIFT_THRESHOLD_PCL,
+    SNR_THRESHOLD_PCL,
+)
 from theia.coordinates import calculate_azimuth_angle
 from theia.distance import (
     get_2d_distance_between_locs_heights,
@@ -18,9 +23,9 @@ def calculate_bistatic_detection(
     rx: Receiver,
     tx: Transmitter,
     tgt: Target,
-    snr_thresh: float = 15.0,
-    doppler_thresh: float = 2.0,
-    delay_thresh: float = 1.0,
+    snr_thresh: float = SNR_THRESHOLD_PCL,
+    doppler_thresh: float = DOPPLER_SHIFT_THRESHOLD_PCL,
+    delay_thresh: float = DELAY_THRESHOLD_PCL,
 ) -> PassiveRadarDetection | None:
     """sets PCL live detections
 
@@ -32,11 +37,11 @@ def calculate_bistatic_detection(
         Transmitter.
     tgt: Target
         Target.
-    snr_thresh: float, default 15.0
+    snr_thresh: float, default theia.config.SNR_THRESHOLD_PCL
         Signal-to-noise threshold [dB]
-    doppler_thresh: float, default 2.0
+    doppler_thresh: float, default theia.config.DOPPLER_SHIFT_THRESHOLD_PCL
         Doppler threshold [Hz]
-    delay_thresh: float, default 1.0
+    delay_thresh: float, default theia.config.DELAY_THRESHOLD_PCL
         Delay threshold [us]. If the delay
         (signal propagation time deviation from straight line between Tx and Rx)
         is smaller than this value, the geometry is considered to fall into the
@@ -68,10 +73,55 @@ def calculate_bistatic_detection(
     if abs(doppler) < doppler_thresh:
         return None
 
+    # Check whether we are in the bistatic regime. Otherwise raise an exception.
     # dist_delay_limit [m], delay_thresh [us], baseline_range in [km] * 1000 in [m]
     dist_delay_limit = delay_thresh * sc.speed_of_light / 1e6 + (baseline_range * 1000)
 
-    snr = calculate_snr(tx, rx, tgt.point, dist_delay_limit)
+    r_r = (
+        get_2d_distance_between_locs_heights(
+            rx.lat,
+            rx.lon,
+            rx.alt + rx.antenna_height,
+            tgt.lat,
+            tgt.lon,
+            tgt.alt,
+        )
+        * 1000.0
+    )  # distance in meters
+
+    r_t = (
+        get_2d_distance_between_locs_heights(
+            tx.lat,
+            tx.lon,
+            tx.alt + tx.antenna_height,
+            tgt.lat,
+            tgt.lon,
+            tgt.alt,
+        )
+        * 1000.0
+    )  # distance in meters
+
+    if r_r + r_t < dist_delay_limit:  # checks if delay threshold is valid
+        raise ValueError("Delay is too small; we are in the forward scattering regime")
+
+    snr = calculate_snr(
+        erp=tx.erp,
+        wavelength=sc.speed_of_light / (tx.frequency * 1e6),
+        distance_receiver_target=r_r,
+        distance_transmitter_target=r_t,
+        antenna_pattern_loss=calculate_antenna_pattern(
+            rx,
+            tx,
+            tgt.point,
+            r_t,
+            r_r,
+        ),
+        noise_temperature=rx.noise_temperature,
+        antenna_gain_receiver=rx.gain,
+        transmitter_processing_gain=tx.processing_gain,
+        receiver_losses=rx.losses,
+        bandwidth=rx.bandwidth,
+    )
     min_detectable_rcs = calculate_minimum_detectable_rcs(snr, snr_thresh)
 
     assert min_detectable_rcs > 0.0
@@ -165,37 +215,84 @@ def get_clear_sky_attenuation(transmitter_freq: float) -> float:
     return atten_db
 
 
-def calculate_snr(
-    Tx: Transmitter,
+def calculate_antenna_pattern(
     Rx: Receiver,
+    Tx: Transmitter,
     point_of_interest: Point,
-    dist_delay_limit: float,
+    distance_transmitter_target: float,
+    distance_receiver_target: float,
+) -> float:
+    """
+    Calculate antenna pattern attenuation [dB] for the given geometry.
+    """
+    theta_t_bearing = calculate_azimuth_angle(
+        p_observer=Tx.point,
+        p_target=point_of_interest,
+    )
+    theta_t_vert = get_elev_angle(
+        point_of_interest.alt,
+        Tx.alt + Tx.antenna_height,
+        distance_transmitter_target,
+    )
+    theta_r_bearing = calculate_azimuth_angle(
+        p_observer=Rx.point,
+        p_target=point_of_interest,
+    )
+    theta_r_vert = get_elev_angle(
+        point_of_interest.alt,
+        Rx.alt + Rx.antenna_height,
+        distance_receiver_target,
+    )
+
+    tx_horiz_att = Tx.horizontal_attenuation(theta_t_bearing)
+    rx_horiz_att = Rx.horizontal_attenuation(theta_r_bearing)
+    tx_vert_att = Tx.vertical_attenuation(theta_t_vert)
+    rx_vert_att = Rx.vertical_attenuation(theta_r_vert)
+
+    return tx_horiz_att + rx_horiz_att + tx_vert_att + rx_vert_att
+
+
+def calculate_snr(
+    erp: float,
+    wavelength: float,
+    distance_receiver_target: float,
+    distance_transmitter_target: float,
+    antenna_pattern_loss: float,
+    noise_temperature: float,
+    antenna_gain_receiver: float,
+    transmitter_processing_gain: float,
+    receiver_losses: float,
+    bandwidth: float,
 ):
     r"""
     Calculate the signal-to-noise ratio (SNR) [dB].
 
     Parameters
     ----------
-    Rx: Radar
-        Receiver.
-    Tx: Radar
-        Transmitter.
-    point_of_interest: Point
-        Position at which we'd like to query the minimum detectable RCS.
-    dist_delay_limit: float
-        Distance limit for the delay. The bistatic regime is left if the delay
-        distance is below this limit, which will raise a ``ValueError``.
-    snr_threshold: float
-        Signal-to-noise-threshold [dB], i. e. the minimum SNR to have for a detection.
-
-    Raises
-    ------
-    ValueError
-        If the setup is not in the bistatic regime (e. g. the forward scattering)
+    erp: float
+        Effective Radiated Power [W]
+    wavelength: float
+        Wavelength [m]
+    distance_receiver_target: float
+        Distance between the receiver and the target [m]
+    distance_transmitter_target: float
+        Distance between the transmitter and the target [m]
+    antenna_pattern_loss: float
+        Loss due to the antenna pattern [dB]
+    noise_temperature: float
+        Noise temperature of the receiver [K]
+    antenna_gain_receiver: float
+        Antenna of the receiver [dBi]
+    transmitter_processing_gain: float
+        Processing gain of the transmitter [dBi]
+    bandwidth: float
+        Noise bandwidth of the receiver [MHz]
+    receiver_losses: float
+        Other losses of the receiver [dB]
 
     Notes
     -----
-    The SNR is calculated according to the bistatic radar equation (Skolnik 1980, Equ. 14.36), extended by a thermal noise term (Skolnik 1980, Equ. 2.2),
+    The SNR is calculated according to the bistatic radar equation (Skolnik 1980, Equ. 14.36), extended by a thermal noise term (Skolnik 1980, Equ. 2.2) and a generic antenna pattern loss term,
 
     .. math::
 
@@ -218,80 +315,30 @@ def calculate_snr(
     ----------
     Skolnik, M. I. (1980). Introduction to Radar Systems (2nd ed.). McGraw-Hill.
     """
-    # Check whether the delay threshold is kept.
-    r_r = (
-        get_2d_distance_between_locs_heights(
-            Rx.lat,
-            Rx.lon,
-            Rx.alt + Rx.antenna_height,
-            point_of_interest.lat,
-            point_of_interest.lon,
-            point_of_interest.alt,
-        )
-        * 1000.0
-    )  # distance in meters
-
-    r_t = (
-        get_2d_distance_between_locs_heights(
-            Tx.lat,
-            Tx.lon,
-            Tx.alt + Tx.antenna_height,
-            point_of_interest.lat,
-            point_of_interest.lon,
-            point_of_interest.alt,
-        )
-        * 1000.0
-    )  # distance in meters
-
-    if r_r + r_t < dist_delay_limit:  # checks if delay threshold is valid
-        raise ValueError("Delay is too small; we are in the forward scattering regime")
-
     # Evaluate attenuation for the angles of gaze.
-    theta_t_bearing = calculate_azimuth_angle(
-        p_observer=Tx.point,
-        p_target=point_of_interest,
-    )
-    theta_t_vert = get_elev_angle(
-        point_of_interest.alt,
-        Tx.alt + Tx.antenna_height,
-        r_t,
-    )
-    theta_r_bearing = calculate_azimuth_angle(
-        p_observer=Rx.point,
-        p_target=point_of_interest,
-    )
-    theta_r_vert = get_elev_angle(
-        point_of_interest.alt,
-        Rx.alt + Rx.antenna_height,
-        r_r,
-    )
 
-    tx_horiz_att = Tx.horizontal_attenuation(theta_t_bearing)
-    rx_horiz_att = Rx.horizontal_attenuation(theta_r_bearing)
-    tx_vert_att = Tx.vertical_attenuation(theta_t_vert)
-    rx_vert_att = Rx.vertical_attenuation(theta_r_vert)
-
-    beam_shape_loss_dB = rx_horiz_att + tx_horiz_att + tx_vert_att + rx_vert_att
-    eirp_dBW = to_dB(Tx.erp) + 2.15
+    # Calculate SNR components in dB.
+    eirp_dBW = to_dB(erp) + 2.15
     rx_thermal_noise_loss_dB = 10 * np.log10(
-        sc.Boltzmann * Rx.noise_temperature * Rx.bandwidth * 1e6
+        (4 * np.pi)**3 * sc.Boltzmann * noise_temperature * bandwidth * 1e6
     )
-    atmospheric_loss_dB = get_clear_sky_attenuation(Tx.frequency) * (
-        (r_t + r_r) / 1000.0
+    # frequency = sc.speed_of_light / wavelength
+    # atmospheric_loss_dB = get_clear_sky_attenuation(frequency / 1e6) * (
+    #     (distance_receiver_target + distance_transmitter_target) / 1000.0
+    # )
+    free_space_loss_dB = 20 * np.log10(
+        distance_receiver_target * distance_transmitter_target
     )
-    free_space_loss_dB = 20 * np.log10(r_t * r_r)
-    wavelength_squared_dB = 20 * np.log10(sc.speed_of_light / (Tx.frequency * 1e6))
-
-    # print("[" + ','.join(np.array([eirp_dBW, Rx.gain, wavelength_squared_dB, Tx.processing_gain, Rx.losses, atmospheric_loss_dB, rx_thermal_noise_loss_dB, free_space_loss_dB,beam_shape_loss_dB]).astype(str)) + "]")
+    wavelength_squared_dB = 20 * np.log10(wavelength)
 
     return (
         eirp_dBW
-        + Rx.gain
-        + Tx.processing_gain
-        - abs(Rx.losses)
+        + antenna_gain_receiver
+        + transmitter_processing_gain
+        + wavelength_squared_dB
+        - receiver_losses
         - rx_thermal_noise_loss_dB
-        - beam_shape_loss_dB
-        # + wavelength_squared_dB
+        - antenna_pattern_loss
         # - atmospheric_loss_dB
-        # - free_space_loss_dB
+        - free_space_loss_dB
     )

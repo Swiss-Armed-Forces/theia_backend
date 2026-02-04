@@ -26,9 +26,9 @@ def calculate_snr(
     wavelength: float
         Signal wavelength [m]
     antenna_gain_transmitter: float
-        Antenna gain of the transmitter [dB]
+        Antenna gain of the transmitter [dBi]
     antenna_gain_receiver: float
-        Antenna gain of the receiver [dB]
+        Antenna gain of the receiver [dBi]
     radar_cross_section: float
         Radar cross section of the target [m^2]
     tgt_rad_dist: float
