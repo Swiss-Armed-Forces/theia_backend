@@ -3,7 +3,7 @@ import itertools
 import numpy as np
 
 from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, RF_LOSS
-from theia.detection.active import calculate_monostatic_detection, get_rad_pd
+from theia.detection.active import calculate_monostatic_detection
 from theia.types import ActiveRadarDetection, RadarSimulator, TargetSimulator
 
 
