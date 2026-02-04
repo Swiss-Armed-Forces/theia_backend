@@ -8,7 +8,7 @@ from theia.distance import (
     get_2d_distance_between_locs_heights,
     haversine,
 )
-from theia.types import Radar, Target
+from theia.types import Point, Radar, Target
 
 
 def monostatic_doppler(
@@ -59,7 +59,10 @@ def monostatic_doppler(
     if (tgt_vx == 0) and (tgt_vy == 0) and (tgt_vz == 0):
         return np.nan
 
-    az = get_azimuth_between_locs(rad_lat, rad_lon, tgt_lat, tgt_lon)  # radians
+    az = get_azimuth_between_locs(
+        p_observer=Point(lat=rad_lat, lon=rad_lon, alt=rad_alt),
+        p_target=Point(lat=tgt_lat, lon=tgt_lon, alt=tgt_alt),
+    )  # radians
     xy_dist = haversine(rad_lat, rad_lon, tgt_lat, tgt_lon)
     # (gx,gy,gz) will be the vector looking at the target from the radar
     gx = xy_dist * np.cos(az)  # [m]
@@ -162,9 +165,7 @@ def calculate_bistatic_doppler(
 
     # Move the target along the bearing given by the velocity vectors with the
     # given velocity to calculate the change of the target position.
-    new_lat_lon = burstvincentydistance(
-        (tgt.lat, tgt.lon), (tgt_xy_vel * dt), alpha
-    )
+    new_lat_lon = burstvincentydistance((tgt.lat, tgt.lon), (tgt_xy_vel * dt), alpha)
     # This is the predicted target position with the given velocity.
     new_lat = new_lat_lon.latitude
     new_lon = new_lat_lon.longitude

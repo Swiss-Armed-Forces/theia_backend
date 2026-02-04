@@ -248,10 +248,8 @@ def calculate_snr(
 
     # Evaluate attenuation for the angles of gaze.
     theta_t_bearing = get_azimuth_between_locs(
-        Tx.lat,
-        Tx.lon,
-        point_of_interest.lat,
-        point_of_interest.lon,
+        p_observer=Tx.point,
+        p_target=point_of_interest,
     )
     theta_t_vert = get_elev_angle(
         point_of_interest.alt,
@@ -259,10 +257,8 @@ def calculate_snr(
         r_t,
     )
     theta_r_bearing = get_azimuth_between_locs(
-        Rx.lat,
-        Rx.lon,
-        point_of_interest.lat,
-        point_of_interest.lon,
+        p_observer=Rx.point,
+        p_target=point_of_interest,
     )
     theta_r_vert = get_elev_angle(
         point_of_interest.alt,
