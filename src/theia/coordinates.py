@@ -54,24 +54,25 @@ class CoordinateTransformations:
         return float(lat), float(lon), float(alt)
 
 
-# Taken from openBURST.
-def get_azimuth_between_locs(lat1, lon1, lat2, lon2):
+# The following function is taken from openBURST.
+def get_azimuth_between_locs(p_observer: Point, p_target: Point) -> float:
     """
+    Calculate azimuth angle between an observer and a target [rad].
 
-    returns azimuth (clockwise from north between point1 and point2 given in lat lon) in radians
-    The shortest path between two points on the ellipsoid at (lat1, lon1) and (lat2, lon2) is called the geodesic.
-    Its length is s12 and the geodesic from point 1 to point 2 has azimuths azi1 and azi2 at the two end points.
-    (The azimuth is the heading measured clockwise from north. azi2 is the "forward" azimuth, i.e.,
-    the heading that takes you beyond point 2 not back to point 1.)
+    The azimuth is defined as the clockwise angle from north between the observer
+    and the target, i. e. the angle that goes from the observer towards the target.
 
     Parameters
     ----------
-    lat1, lon1 : source position
-    lat2, lon2 : destination position
+    p_observer: Point
+        Position of the observer
+    p_target: Point
+        Position of the target
 
     Returns
     -------
-    : tmp : azimuth in radians in (0, 2pi)
+    float
+        azimuth [rad] in the interval (0, 2pi)
 
     References
     ----------
@@ -79,12 +80,18 @@ def get_azimuth_between_locs(lat1, lon1, lat2, lon2):
 
     """
     # Inverse() returns angles in (-180, 180), but we need (0, 360).
-    tmp = Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2)["azi1"]
+    tmp = Geodesic.WGS84.Inverse(
+        p_observer.lat,
+        p_observer.lon,
+        p_target.lat,
+        p_target.lon,
+    )["azi1"]
     tmp = (tmp + 360) % 360
     return np.radians(tmp)
 
 
-# Generated using Claude AI Sonnet 4.5, adapted by the author.
+# The following function was generated using Claude AI Sonnet 4.5
+# and adapted by the author.
 def calculate_elevation_angle(p_observer: Point, p_target: Point):
     """
     Calculate the elevation angle from observer to target [rad].
