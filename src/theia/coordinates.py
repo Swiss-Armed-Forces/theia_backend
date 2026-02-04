@@ -82,3 +82,44 @@ def get_azimuth_between_locs(lat1, lon1, lat2, lon2):
     tmp = Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2)["azi1"]
     tmp = (tmp + 360) % 360
     return np.radians(tmp)
+
+
+# Generated using Claude AI Sonnet 4.5, adapted by the author.
+def calculate_elevation_angle(p_observer: Point, p_target: Point):
+    """
+    Calculate the elevation angle from observer to target [rad].
+
+    This takes earth's curvature into account.
+
+    Parameters
+    ----------
+    p_observer: Point
+        Position of the observer.
+    p_target: Point
+        Position of the target.
+
+    Returns
+    -------
+    elevation_angle: float
+        elevation angle in [-pi/2, pi/2] in degrees.
+        Positive elevation means that the target is above the observer's horizon.
+        Negative elevation means that the target is below the observer's horizon.
+    """
+    p1_xyz = np.asarray(
+        CoordinateTransformations.geodetic_to_cartesian(*p_observer.as_tuple())
+    )
+    p2_xyz = np.asarray(
+        CoordinateTransformations.geodetic_to_cartesian(*p_target.as_tuple())
+    )
+
+    delta = p2_xyz - p1_xyz
+
+    # Local "up" vector at p1 (radial direction from Earth's center).
+    # This is simply the normalized position vector of p1.
+    up = p1_xyz / np.linalg.norm(p1_xyz)
+
+    # The elevation angle is 90° minus the angle between los and "up"
+    # Or equivalently: arcsin(dot_product / los_magnitude)
+    elevation_angle_rad = np.asin(np.dot(up, delta) / np.linalg.norm(delta))
+
+    return elevation_angle_rad
