@@ -12,3 +12,18 @@ NOISE_TEMPERATURE = 300
 """Noise temperature [K]"""
 RF_LOSS = 12.0
 """RF system hardware loss [dB]"""
+SNR_THRESHOLD_PCL = 15.0
+"""Signal-to-noise ratio threshold for passive coherent location [dB]"""
+DOPPLER_SHIFT_THRESHOLD_PCL = 2.0
+"""
+Doppler threshold [Hz] for PCL.
+
+Targets with less Doppler shift will not be detected.
+"""
+DELAY_THRESHOLD_PCL = 1.0
+"""
+Delay threshold for PCL [us].
+
+This is used to judge whether a given transmitter - target - receiver geometry
+is in the bistatic or the forward scattering regime.
+"""
