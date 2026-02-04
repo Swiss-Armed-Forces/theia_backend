@@ -12,6 +12,14 @@ theia.detection.active module
    :show-inheritance:
    :undoc-members:
 
+theia.detection.passive module
+------------------------------
+
+.. automodule:: theia.detection.passive
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 theia.detection.util module
 ---------------------------
 

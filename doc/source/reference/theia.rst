@@ -108,14 +108,6 @@ theia.openburst\_client module
    :show-inheritance:
    :undoc-members:
 
-theia.passive module
---------------------
-
-.. automodule:: theia.passive
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
 theia.plotting module
 ---------------------
 
