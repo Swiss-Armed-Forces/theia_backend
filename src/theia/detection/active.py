@@ -155,7 +155,11 @@ def get_rad_pd(
         cpi_pulses=radar.receiver.cpi_pulses,
         equivalent_temperature=radar.receiver.noise_temperature,
         noise_figure=radar.receiver.noise_figure,
-        rf_loss=rf_loss,
+        L_t=rf_loss,
+        L_a=0.,
+        polarization_factor=0.,
+        pattern_propagation_factor_receiver=0.,
+        pattern_propagation_factor_transmitter=0.,
     )
 
     # avoid segmentation fault in the besseli function for high snr values
