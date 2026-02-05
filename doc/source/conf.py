@@ -6,9 +6,9 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'theia'
-copyright = '2026, Jürg Huber'
-author = 'Jürg Huber'
+project = "theia"
+copyright = "2026, Jürg Huber"
+author = "Jürg Huber"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -16,15 +16,16 @@ author = 'Jürg Huber'
 extensions = [
     "sphinx_rtd_theme",
     "sphinx.ext.autodoc",
+    "sphinxcontrib.bibtex",
 ]
+bibtex_bibfiles = ["refs.bib"]
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = []
-
 
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_theme = "sphinx_rtd_theme"
+html_static_path = ["_static"]
