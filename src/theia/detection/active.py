@@ -8,7 +8,7 @@ from theia.distance import line_of_sight_distance
 from theia.doppler import monostatic_doppler
 from theia.line_of_sight import has_line_of_sight
 from theia.snr import calculate_snr
-from theia.types import ActiveRadarDetection, Radar, Target
+from theia.types import ActiveRadarDetection, ConstantRcsModel, Radar, RcsModel, Target
 from theia.util import marcum_q_function
 
 
@@ -45,6 +45,7 @@ def calculate_monostatic_detection(
     p = get_rad_pd(
         radar,
         target,
+        rcs_model=ConstantRcsModel(target.cross_section),
         distance_step=distance_step,
         doppler_shift_threshold_hz=doppler_shift_threshold_hz,
         rf_loss=rf_loss,
@@ -75,6 +76,7 @@ def calculate_monostatic_detection(
 def get_rad_pd(
     radar: Radar,
     target: Target,
+    rcs_model: RcsModel,
     distance_step: float,
     doppler_shift_threshold_hz,
     rf_loss,
@@ -88,6 +90,8 @@ def get_rad_pd(
         Radar
     target: Target
         Target
+    rcs_model: RcsModel
+        Model to be used to estimate the radar cross section
     distance_step: float
         Distance stepping to be used for the line-of-sight test [m]
     doppler_shift_threshold_hz: float
@@ -140,7 +144,11 @@ def get_rad_pd(
         wavelength=wavelength,
         antenna_gain_transmitter=radar.transmitter.antenna_gain,
         antenna_gain_receiver=radar.receiver.antenna_gain(radar.transmitter.frequency),
-        radar_cross_section=target.cross_section,
+        radar_cross_section=rcs_model(
+            transmitter=radar.transmitter,
+            receiver=radar.receiver,
+            target=target,
+        ),
         tgt_rad_dist=dist,
         transmission_power=radar.transmitter.power,
         bandwidth=radar.transmitter.bandwidth,
