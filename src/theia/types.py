@@ -35,7 +35,7 @@ def calculate_antenna_gain(
     .. math::
 
        G = \rho \frac{4 \pi A}{\lambda^2},
-    
+
        where :math:`\rho` denotes the antenna efficiency value, :math:`A` the
        aperture area of the antenna and :math:`\lambda` the signal wavelength.
 
@@ -523,3 +523,50 @@ class PassiveRadarDetection(pydantic.BaseModel):
     """Bistatic range [m]."""
     doppler_shift: float
     """Doppler shift [Hz]."""
+
+
+class RcsModel(abc.ABC):
+    """Abstract base class for a radar cross section model."""
+
+    @abc.abstractmethod
+    def __call__(
+        self,
+        transmitter: Transmitter,
+        receiver: Receiver,
+        target: Target,
+    ) -> float:
+        """
+        Calculate the radar cross section for the given transmitter, receiver
+        and target geometry.
+
+        Parameter
+        ---------
+        transmitter: Transmitter
+        receiver: Receiver
+        target: Target
+
+        Returns
+        -------
+        float
+            Radar cross section [m^2]
+        """
+        raise NotImplementedError()
+
+
+class ConstantRcsModel(RcsModel):
+    def __init__(self, rcs: float):
+        """
+        Parameters
+        ----------
+        rcs: float
+            Radar cross section [m^2] to be used for all geometries
+        """
+        self._rcs = rcs
+
+    def __call__(
+        self,
+        transmitter: Transmitter,
+        receiver: Receiver,
+        target: Target,
+    ) -> float:
+        return self._rcs

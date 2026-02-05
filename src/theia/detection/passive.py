@@ -15,7 +15,14 @@ from theia.distance import (
     get_elev_angle,
 )
 from theia.doppler import calculate_bistatic_doppler
-from theia.types import PassiveRadarDetection, Point, Receiver, Target, Transmitter
+from theia.types import (
+    PassiveRadarDetection,
+    Point,
+    RcsModel,
+    Receiver,
+    Target,
+    Transmitter,
+)
 from theia.util import to_dB
 
 
@@ -23,6 +30,7 @@ def calculate_bistatic_detection(
     rx: Receiver,
     tx: Transmitter,
     tgt: Target,
+    rcs_model: RcsModel,
     snr_thresh: float = SNR_THRESHOLD_PCL,
     doppler_thresh: float = DOPPLER_SHIFT_THRESHOLD_PCL,
     delay_thresh: float = DELAY_THRESHOLD_PCL,
@@ -37,6 +45,8 @@ def calculate_bistatic_detection(
         Transmitter.
     tgt: Target
         Target.
+    rcs_model: RcsModel
+        Model to be used to estimate the radar cross section
     snr_thresh: float, default theia.config.SNR_THRESHOLD_PCL
         Signal-to-noise threshold [dB]
     doppler_thresh: float, default theia.config.DOPPLER_SHIFT_THRESHOLD_PCL
@@ -128,7 +138,11 @@ def calculate_bistatic_detection(
 
     # Doppler shift was good enough if we reached this far, see above.
     # So just check the rcs_thresholds.
-    if min_detectable_rcs <= tgt.cross_section:
+    if min_detectable_rcs <= rcs_model(
+        transmitter=tx,
+        receiver=rx,
+        target=tgt,
+    ):
         return PassiveRadarDetection(
             detection_id=-1,
             time=datetime.datetime.fromtimestamp(0),
@@ -320,7 +334,7 @@ def calculate_snr(
     # Calculate SNR components in dB.
     eirp_dBW = to_dB(erp) + 2.15
     rx_thermal_noise_loss_dB = 10 * np.log10(
-        (4 * np.pi)**3 * sc.Boltzmann * noise_temperature * bandwidth * 1e6
+        (4 * np.pi) ** 3 * sc.Boltzmann * noise_temperature * bandwidth * 1e6
     )
     # frequency = sc.speed_of_light / wavelength
     # atmospheric_loss_dB = get_clear_sky_attenuation(frequency / 1e6) * (

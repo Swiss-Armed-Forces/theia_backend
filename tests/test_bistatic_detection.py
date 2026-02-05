@@ -1,7 +1,8 @@
 import unittest
 
 from theia.data_loading_testing import load_pcl_reference_data
-from theia.detection.passive import calculate_bistatic_detection, calculate_snr
+from theia.detection.passive import calculate_bistatic_detection
+from theia.types import ConstantRcsModel
 
 
 class BistaticDetectionTest(unittest.TestCase):
@@ -15,6 +16,7 @@ class BistaticDetectionTest(unittest.TestCase):
                 detection_ref.receiver,
                 detection_ref.transmitter,
                 detection_ref.target,
+                rcs_model=ConstantRcsModel(detection_ref.target.cross_section),
             )
             # snr_calc = calculate_snr(
             #     detection_ref.transmitter,
