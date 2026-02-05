@@ -1,6 +1,5 @@
 import datetime
 
-import numpy as np
 import scipy.constants as sc
 
 from theia.config import (
@@ -8,13 +7,13 @@ from theia.config import (
     DOPPLER_SHIFT_THRESHOLD_PCL,
     SNR_THRESHOLD_PCL,
 )
-from theia.coordinates import calculate_azimuth_angle
+from theia.coordinates import calculate_azimuth_angle, calculate_elevation_angle
 from theia.distance import (
     get_2d_distance_between_locs_heights,
     get_bistatic_range,
-    get_elev_angle,
 )
 from theia.doppler import calculate_bistatic_doppler
+from theia.snr import calculate_snr
 from theia.types import (
     PassiveRadarDetection,
     Point,
@@ -23,7 +22,7 @@ from theia.types import (
     Target,
     Transmitter,
 )
-from theia.util import to_dB
+from theia.util import get_clear_sky_attenuation
 
 
 def calculate_bistatic_detection(
@@ -115,22 +114,21 @@ def calculate_bistatic_detection(
         raise ValueError("Delay is too small; we are in the forward scattering regime")
 
     snr = calculate_snr(
-        erp=tx.erp,
         wavelength=sc.speed_of_light / (tx.frequency * 1e6),
-        distance_receiver_target=r_r,
+        antenna_gain_transmitter=tx.antenna_gain,
+        antenna_gain_receiver=rx.antenna_gain(tx.frequency),
+        radar_cross_section=1.0,
         distance_transmitter_target=r_t,
-        antenna_pattern_loss=calculate_antenna_pattern(
-            rx,
-            tx,
-            tgt.point,
-            r_t,
-            r_r,
-        ),
-        noise_temperature=rx.noise_temperature,
-        antenna_gain_receiver=rx.gain,
-        transmitter_processing_gain=tx.processing_gain,
-        receiver_losses=rx.losses,
+        distance_receiver_target=r_r,
+        transmission_power=tx.power,
         bandwidth=rx.bandwidth,
+        cpi_pulses=1,
+        equivalent_temperature=rx.noise_temperature,
+        L_t=0.0,
+        L_a=get_clear_sky_attenuation(tx.frequency) * (r_r + r_t) / 1000.0,
+        polarization_factor=0,
+        pattern_propagation_factor_transmitter=calculate_antenna_pattern(tx, tgt.point),
+        pattern_propagation_factor_receiver=calculate_antenna_pattern(rx, tgt.point),
     )
     min_detectable_rcs = calculate_minimum_detectable_rcs(snr, snr_thresh)
 
@@ -201,158 +199,28 @@ def calculate_minimum_detectable_rcs(
     return rcs
 
 
-def get_clear_sky_attenuation(transmitter_freq: float) -> float:
-    """
-    Calculate clear sky atmospheric one-way attenuation [dB/km] for Radar Windows.
-
-    Parameters
-    ----------
-    transmitter_freq: float
-        Transmitter frequency [MHz].
-
-    Returns
-    -------
-    float
-        Clear sky atmospheric one-way attenuation [dB/km]
-
-    Notes
-    -----
-    Clear Sky weather values from Barton book: 'Modern Radar System Analysis'.
-    """
-
-    freq_mhz = [200, 500, 1000, 10000]
-    atten = [0.00075, 0.003, 0.0055, 0.012]
-    # one-way attenuation: dB/km therefore division by 2
-    # ???
-    atten_db = max(np.interp(transmitter_freq, freq_mhz, atten), 0)
-
-    return atten_db
-
-
 def calculate_antenna_pattern(
-    Rx: Receiver,
-    Tx: Transmitter,
+    transmitter_or_receiver: Transmitter | Receiver,
     point_of_interest: Point,
-    distance_transmitter_target: float,
-    distance_receiver_target: float,
 ) -> float:
     """
     Calculate antenna pattern attenuation [dB] for the given geometry.
     """
-    theta_t_bearing = calculate_azimuth_angle(
-        p_observer=Tx.point,
+    p = Point(
+        lat=transmitter_or_receiver.lat,
+        lon=transmitter_or_receiver.lon,
+        alt=transmitter_or_receiver.alt + transmitter_or_receiver.antenna_height,
+    )
+    theta_bearing = calculate_azimuth_angle(
+        p_observer=p,
         p_target=point_of_interest,
     )
-    theta_t_vert = get_elev_angle(
-        point_of_interest.alt,
-        Tx.alt + Tx.antenna_height,
-        distance_transmitter_target,
-    )
-    theta_r_bearing = calculate_azimuth_angle(
-        p_observer=Rx.point,
+    theta_vert = calculate_elevation_angle(
+        p_observer=p,
         p_target=point_of_interest,
     )
-    theta_r_vert = get_elev_angle(
-        point_of_interest.alt,
-        Rx.alt + Rx.antenna_height,
-        distance_receiver_target,
-    )
 
-    tx_horiz_att = Tx.horizontal_attenuation(theta_t_bearing)
-    rx_horiz_att = Rx.horizontal_attenuation(theta_r_bearing)
-    tx_vert_att = Tx.vertical_attenuation(theta_t_vert)
-    rx_vert_att = Rx.vertical_attenuation(theta_r_vert)
+    horiz_att = transmitter_or_receiver.horizontal_attenuation(theta_bearing)
+    vert_att = transmitter_or_receiver.vertical_attenuation(theta_vert)
 
-    return tx_horiz_att + rx_horiz_att + tx_vert_att + rx_vert_att
-
-
-def calculate_snr(
-    erp: float,
-    wavelength: float,
-    distance_receiver_target: float,
-    distance_transmitter_target: float,
-    antenna_pattern_loss: float,
-    noise_temperature: float,
-    antenna_gain_receiver: float,
-    transmitter_processing_gain: float,
-    receiver_losses: float,
-    bandwidth: float,
-):
-    r"""
-    Calculate the signal-to-noise ratio (SNR) [dB].
-
-    Parameters
-    ----------
-    erp: float
-        Effective Radiated Power [W]
-    wavelength: float
-        Wavelength [m]
-    distance_receiver_target: float
-        Distance between the receiver and the target [m]
-    distance_transmitter_target: float
-        Distance between the transmitter and the target [m]
-    antenna_pattern_loss: float
-        Loss due to the antenna pattern [dB]
-    noise_temperature: float
-        Noise temperature of the receiver [K]
-    antenna_gain_receiver: float
-        Antenna of the receiver [dBi]
-    transmitter_processing_gain: float
-        Processing gain of the transmitter [dBi]
-    bandwidth: float
-        Noise bandwidth of the receiver [MHz]
-    receiver_losses: float
-        Other losses of the receiver [dB]
-
-    Notes
-    -----
-    The SNR is calculated according to the bistatic radar equation (Skolnik 1980, Equ. 14.36), extended by a thermal noise term (Skolnik 1980, Equ. 2.2) and a generic antenna pattern loss term,
-
-    .. math::
-
-        SNR_{\setminus \sigma_B} := \frac{SNR}{\sigma_B} = \frac{P_{T, EIRP} G_R G_p \lambda^2 F_T^2 F_R^2}{(4 \pi)^3 k_B T_S B_n L_T L_R} \frac{1}{R_T^2 R_R^2},
-
-    where :math:`P{T, EIRP}` is the transmitter's EIRP,
-    :math:`G_R, G_P` are the receiving antenna and processing gain,
-    :math:`\lambda` is the signal wavelength, :math:`k_T T_S B_n` is the effective
-    input noise power. The quantities :math:`F_T, F_R` are angle- and frequency-dependent pattern
-    propagation factors.
-
-    The quantities :math:`R_T, R_R` represent the distance
-    between transmitter and point of interest as well as receiver and point of interest.
-
-    Finally, the quantities :math:`L_T, L_R` represent other losses,
-    including atmospheric absorption and line-feed losses between transmitter output
-    and transmitter antenna as well as between receiving antenna output to receiver input.
-
-    References
-    ----------
-    Skolnik, M. I. (1980). Introduction to Radar Systems (2nd ed.). McGraw-Hill.
-    """
-    # Evaluate attenuation for the angles of gaze.
-
-    # Calculate SNR components in dB.
-    eirp_dBW = to_dB(erp) + 2.15
-    rx_thermal_noise_loss_dB = 10 * np.log10(
-        (4 * np.pi) ** 3 * sc.Boltzmann * noise_temperature * bandwidth * 1e6
-    )
-    # frequency = sc.speed_of_light / wavelength
-    # atmospheric_loss_dB = get_clear_sky_attenuation(frequency / 1e6) * (
-    #     (distance_receiver_target + distance_transmitter_target) / 1000.0
-    # )
-    free_space_loss_dB = 20 * np.log10(
-        distance_receiver_target * distance_transmitter_target
-    )
-    wavelength_squared_dB = 20 * np.log10(wavelength)
-
-    return (
-        eirp_dBW
-        + antenna_gain_receiver
-        + transmitter_processing_gain
-        + wavelength_squared_dB
-        - receiver_losses
-        - rx_thermal_noise_loss_dB
-        - antenna_pattern_loss
-        # - atmospheric_loss_dB
-        - free_space_loss_dB
-    )
+    return horiz_att + vert_att

@@ -70,3 +70,31 @@ def marcum_q_function(alpha: float, beta: float) -> float:
             beta,
         )[0]
     )
+
+
+def get_clear_sky_attenuation(transmitter_freq: float) -> float:
+    """
+    Calculate clear sky atmospheric one-way attenuation [dB/km] for Radar Windows.
+
+    Parameters
+    ----------
+    transmitter_freq: float
+        Transmitter frequency [MHz].
+
+    Returns
+    -------
+    float
+        Clear sky atmospheric one-way attenuation [dB/km]
+
+    Notes
+    -----
+    Clear Sky weather values from Barton book: 'Modern Radar System Analysis'.
+    """
+
+    freq_mhz = [200, 500, 1000, 10000]
+    atten = [0.00075, 0.003, 0.0055, 0.012]
+    # one-way attenuation: dB/km therefore division by 2
+    # ???
+    atten_db = max(np.interp(transmitter_freq, freq_mhz, atten), 0)
+
+    return atten_db

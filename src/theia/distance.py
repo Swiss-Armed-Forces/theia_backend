@@ -91,6 +91,11 @@ def line_of_sight_distance(
 ) -> float:
     """
     Calculate the line-of-sight distance between two (lat, lon, h) tuples in meters.
+
+    Returns
+    -------
+    float
+        Line-of-sight distance [m]
     """
     p1 = CoordinateTransformations.geodetic_to_cartesian(lat1, lon1, h1)
     p2 = CoordinateTransformations.geodetic_to_cartesian(lat2, lon2, h2)
