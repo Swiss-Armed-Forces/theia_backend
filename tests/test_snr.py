@@ -36,6 +36,8 @@ class SnrTest(unittest.TestCase):
         )
 
     def test_formula(self):
+        power = 6.2 * 1e3
+        bandwidth = 100
         G_T = to_dB(1.0)
         G_R = to_dB(1.0)
         rcs = 2.0
@@ -43,7 +45,11 @@ class SnrTest(unittest.TestCase):
         cpi = 1
         T = 300
         F = to_dB(1.6)
-        L = to_dB(2.0)
+        L_t = to_dB(2.0)
+        L_a = to_dB(1.0)
+        pol = to_dB(1.0)
+        F_t = to_dB(3.0)
+        F_r = to_dB(1.0)
 
         wavelength = sc.speed_of_light / (self.transmitter.frequency * 1e6)
 
@@ -53,16 +59,19 @@ class SnrTest(unittest.TestCase):
             G_R,
             rcs,
             d,
-            self.transmitter.power,
-            self.transmitter.bandwidth,
+            power,
+            bandwidth,
             cpi,
             T,
-            F,
-            L,
+            L_t,
+            L_a,
+            pol,
+            F_t,
+            F_r,
         )
 
-        # Value calculated "by hand".
-        snr_true = to_dB(4.8712357411401492846 * 1e-6)
+        # Value calculated "by hand" according to the SNR formula in the documentation.
+        snr_true = to_dB(7.011275526 * 1e-5)
 
         self.assertAlmostEqual(snr, snr_true, delta=0.005)
 
@@ -78,12 +87,15 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
-                    self.transmitter.power,
-                    self.transmitter.bandwidth,
+                    power,
+                    bandwidth,
                     cpi,
                     T,
-                    F,
-                    L,
+                    L_t,
+                    L_a,
+                    pol,
+                    F_t,
+                    F_r,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a**2
@@ -101,12 +113,15 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
-                    self.transmitter.power,
-                    self.transmitter.bandwidth,
+                    power,
+                    bandwidth,
                     cpi,
                     T,
-                    F,
-                    L,
+                    L_t,
+                    L_a,
+                    pol,
+                    F_t,
+                    F_r,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a
@@ -123,12 +138,15 @@ class SnrTest(unittest.TestCase):
                     to_dB(from_dB(G_R) * a),
                     rcs,
                     d,
-                    self.transmitter.power,
-                    self.transmitter.bandwidth,
+                    power,
+                    bandwidth,
                     cpi,
                     T,
-                    F,
-                    L,
+                    L_t,
+                    L_a,
+                    pol,
+                    F_t,
+                    F_r,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a
@@ -145,12 +163,15 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     a * rcs,
                     d,
-                    self.transmitter.power,
-                    self.transmitter.bandwidth,
+                    power,
+                    bandwidth,
                     cpi,
                     T,
-                    F,
-                    L,
+                    L_t,
+                    L_a,
+                    pol,
+                    F_t,
+                    F_r,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a
@@ -167,12 +188,15 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     a * d,
-                    self.transmitter.power,
-                    self.transmitter.bandwidth,
+                    power,
+                    bandwidth,
                     cpi,
                     T,
-                    F,
-                    L,
+                    L_t,
+                    L_a,
+                    pol,
+                    F_t,
+                    F_r,
                 )
             )
 
@@ -190,12 +214,15 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
-                    a * self.transmitter.power,
-                    self.transmitter.bandwidth,
+                    a * power,
+                    bandwidth,
                     cpi,
                     T,
-                    F,
-                    L,
+                    L_t,
+                    L_a,
+                    pol,
+                    F_t,
+                    F_r,
                 )
             )
 
@@ -213,12 +240,15 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
-                    self.transmitter.power,
-                    a * self.transmitter.bandwidth,
+                    power,
+                    a * bandwidth,
                     cpi,
                     T,
-                    F,
-                    L,
+                    L_t,
+                    L_a,
+                    pol,
+                    F_t,
+                    F_r,
                 )
             )
 
@@ -236,12 +266,15 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
-                    self.transmitter.power,
-                    self.transmitter.bandwidth,
+                    power,
+                    bandwidth,
                     a * cpi,
                     T,
-                    F,
-                    L,
+                    L_t,
+                    L_a,
+                    pol,
+                    F_t,
+                    F_r,
                 )
             )
 
@@ -259,12 +292,15 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
-                    self.transmitter.power,
-                    self.transmitter.bandwidth,
+                    power,
+                    bandwidth,
                     cpi,
                     a * T,
-                    F,
-                    L,
+                    L_t,
+                    L_a,
+                    pol,
+                    F_t,
+                    F_r,
                 )
             )
 
@@ -274,7 +310,7 @@ class SnrTest(unittest.TestCase):
                 snr_linear_scaled_expected,
             )
 
-            # Loss figure: Linear behaviour.
+            # L_t: Linear behaviour.
             snr_linear_scaled = from_dB(
                 calculate_snr(
                     wavelength,
@@ -282,12 +318,15 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
-                    self.transmitter.power,
-                    self.transmitter.bandwidth,
+                    power,
+                    bandwidth,
                     cpi,
                     T,
-                    to_dB(a * from_dB(F)),
-                    L,
+                    to_dB(a * from_dB(L_t)),
+                    L_a,
+                    pol,
+                    F_t,
+                    F_r,
                 )
             )
 
@@ -297,7 +336,7 @@ class SnrTest(unittest.TestCase):
                 snr_linear_scaled_expected,
             )
 
-            # Losses: Linear behaviour.
+            # L_a: Linear behaviour.
             snr_linear_scaled = from_dB(
                 calculate_snr(
                     wavelength,
@@ -305,16 +344,97 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
-                    self.transmitter.power,
-                    self.transmitter.bandwidth,
+                    power,
+                    bandwidth,
                     cpi,
                     T,
-                    F,
-                    to_dB(a * from_dB(L)),
+                    L_t,
+                    to_dB(a * from_dB(L_a)),
+                    pol,
+                    F_t,
+                    F_r,
                 )
             )
 
             snr_linear_scaled_expected = snr_linear / a
+            self.assertAlmostEqual(
+                snr_linear_scaled,
+                snr_linear_scaled_expected,
+            )
+        
+            # polarization factor: Quadratic behaviour.
+            snr_linear_scaled = from_dB(
+                calculate_snr(
+                    wavelength,
+                    G_T,
+                    G_R,
+                    rcs,
+                    d,
+                    power,
+                    bandwidth,
+                    cpi,
+                    T,
+                    L_t,
+                    L_a,
+                    to_dB(a * from_dB(pol)),
+                    F_t,
+                    F_r,
+                )
+            )
+
+            snr_linear_scaled_expected = snr_linear * a**2
+            self.assertAlmostEqual(
+                snr_linear_scaled,
+                snr_linear_scaled_expected,
+            )
+
+            # Transmitter antenna pattern: Quadratic behaviour.
+            snr_linear_scaled = from_dB(
+                calculate_snr(
+                    wavelength,
+                    G_T,
+                    G_R,
+                    rcs,
+                    d,
+                    power,
+                    bandwidth,
+                    cpi,
+                    T,
+                    L_t,
+                    L_a,
+                    pol,
+                    to_dB(a * from_dB(F_t)),
+                    F_r,
+                )
+            )
+
+            snr_linear_scaled_expected = snr_linear * a**2
+            self.assertAlmostEqual(
+                snr_linear_scaled,
+                snr_linear_scaled_expected,
+            )
+
+            # Receiver antenna pattern: Quadratic behaviour.
+            snr_linear_scaled = from_dB(
+                calculate_snr(
+                    wavelength,
+                    G_T,
+                    G_R,
+                    rcs,
+                    d,
+                    power,
+                    bandwidth,
+                    cpi,
+                    T,
+                    L_t,
+                    L_a,
+                    pol,
+                    F_t,
+                    to_dB(a * from_dB(F_r)),
+                )
+            )
+
+            snr_linear_scaled_expected = snr_linear * a**2
             self.assertAlmostEqual(
                 snr_linear_scaled,
                 snr_linear_scaled_expected,

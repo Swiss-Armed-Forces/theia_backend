@@ -15,8 +15,11 @@ def calculate_snr(
     bandwidth: float,
     cpi_pulses: int,
     equivalent_temperature: float,
-    noise_figure: float,
-    rf_loss: float,
+    L_t: float,
+    L_a: float,
+    polarization_factor: float,
+    pattern_propagation_factor_transmitter: float,
+    pattern_propagation_factor_receiver: float,
 ) -> float:
     r"""
     Calculate the signal-to-noise ratio (SNR) [dB] for free propagation.
@@ -41,10 +44,18 @@ def calculate_snr(
         Number of pulses within a Coherent Processing Interval (CPI)
     equivalent_temperature: float
         Equivalent temperature [K]
-    noise_figure: float
-        Receiver LNA noise figure [dB]
-    rf_loss: float
-        RF system hardware loss [dB]
+    L_t: float
+        Transmission line loss [dB]
+    L_a: float
+        Atmospheric and precipitation attenuation [dB]
+    polarization_factor: float
+        Polarization factor [dB]
+    pattern_propagation_factor_transmitter: float
+        Pattern propagation factor for the path from the transmitter
+        to the target [dB]
+    pattern_propagation_factor_receiver: float
+        Pattern propagation factor for the path from the target
+        to the receiver [dB]
 
     Returns
     -------
@@ -59,48 +70,35 @@ def calculate_snr(
 
     Notes
     -----
-    The following formula is implemented (Skolnik 1980, Equ. 2.54):
-
-    .. math::
-       SNR &= \frac{P G_{T} A \rho \sigma n E_i(n)}{(4 \pi)^2 k_B T B R_T^2 R_R^2 F L}\\
-           &= \frac{P \lambda^2 G_{T} G_{R} G_{coherent integration} \sigma}{(4 \pi)^3 k_B T B R_T^2 R_R^2 F L},
-
-    where :math:`P` is the transmitter power [W], :math:`\lambda` is the signal
-    wave length, :math:`G_{T}, G_{R}` are the transmitter and
-    receiver gains, :math:`G_{coherent integration} = n E_i(n)` is the gain
-    from coherent integration (:math:`n` denotes the number of integrated hits
-    and :math:`E_i(n)` the integration efficiency),
-    :math:`\sigma` is the radar cross section of the target, :math:`T` is the
-    noise temperature, :math:`B` is the bandwidth, :math:`R_T, R_R` are the distance
-    between transmitter / receiver and the target, :math:`F` is the noise figure
-    and :math:`L` is a collective term for all other kinds of RF losses.
-
-    References
-    ----------
-    Skolnik, M. I. (1980). Introduction to Radar Systems (2nd ed.). McGraw-Hill.
+    Details about the implemented formula can be found in the docs at :ref:`snr-section`.
+    The pulse width was replaced by the corresponding noise bandwidth
+    :math:`B_n \approx \frac{1}{\tau}`.
     """
     # Scale to dB units.
     power_dB = 10 * np.log10(transmission_power)
+    coherent_integration_gain_dB = 10 * np.log10(cpi_pulses)
     lambda_sq_dB = 2 * 10 * np.log10(wavelength)
     rcs_dB = 10 * np.log10(radar_cross_section)
     four_pi_dB = 10 * np.log10(pow((4 * np.pi), 3))
     ktb = 10 * np.log10(sc.Boltzmann * equivalent_temperature)
 
     bw_dB = 10 * np.log10(bandwidth * 1e6)
-    coherent_integration_gain_dB = 10 * np.log10(cpi_pulses)
     range_of_target = tgt_rad_dist
 
     return (
         power_dB
-        + lambda_sq_dB
+        + coherent_integration_gain_dB
         + antenna_gain_transmitter
         + antenna_gain_receiver
-        + coherent_integration_gain_dB
+        + lambda_sq_dB
         + rcs_dB
+        + 2 * polarization_factor
+        + 2 * pattern_propagation_factor_transmitter
+        + 2 * pattern_propagation_factor_receiver
         - four_pi_dB
         - ktb
         - bw_dB
         - 40 * np.log10(range_of_target)
-        - noise_figure
-        - rf_loss
+        - L_t
+        - L_a
     )

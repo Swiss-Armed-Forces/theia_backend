@@ -1,6 +1,8 @@
 Physical Model
 ==============
 
+.. _snr-section:
+
 SNR formula
 -----------
 
