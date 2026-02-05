@@ -15,5 +15,6 @@ documentation for details.
    :maxdepth: 2
    :caption: Contents:
    
+   physical_model
    passive_radar
    ./reference/modules
