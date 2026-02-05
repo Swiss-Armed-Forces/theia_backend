@@ -3,8 +3,7 @@ import unittest
 
 import numpy as np
 
-from theia.coordinates import CoordinateTransformations, calculate_elevation_angle
-from theia.data_loading import elevationAt
+from theia.coordinates import calculate_elevation_angle
 from theia.distance import R_EARTH
 from theia.types import Point
 
