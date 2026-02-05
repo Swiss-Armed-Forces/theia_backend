@@ -9,7 +9,7 @@ from theia.doppler import monostatic_doppler
 from theia.line_of_sight import has_line_of_sight
 from theia.snr import calculate_snr
 from theia.types import ActiveRadarDetection, ConstantRcsModel, Radar, RcsModel, Target
-from theia.util import marcum_q_function
+from theia.util import get_clear_sky_attenuation, marcum_q_function
 
 
 def calculate_monostatic_detection(
@@ -154,9 +154,9 @@ def get_rad_pd(
         bandwidth=radar.transmitter.bandwidth,
         cpi_pulses=radar.receiver.cpi_pulses,
         equivalent_temperature=radar.receiver.noise_temperature,
-        noise_figure=radar.receiver.noise_figure,
         L_t=rf_loss,
-        L_a=0.,
+        L_a=get_clear_sky_attenuation(radar.transmitter.frequency) * 2 * dist / 1000.0,
+        # TODO: Should we include these factors?
         polarization_factor=0.,
         pattern_propagation_factor_receiver=0.,
         pattern_propagation_factor_transmitter=0.,

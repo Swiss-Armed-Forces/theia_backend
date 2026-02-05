@@ -10,7 +10,8 @@ def calculate_snr(
     antenna_gain_transmitter: float,
     antenna_gain_receiver: float,
     radar_cross_section: float,
-    tgt_rad_dist: float,
+    distance_transmitter_target: float,
+    distance_receiver_target: float,
     transmission_power: float,
     bandwidth: float,
     cpi_pulses: int,
@@ -34,8 +35,10 @@ def calculate_snr(
         Antenna gain of the receiver [dBi]
     radar_cross_section: float
         Radar cross section of the target [m^2]
-    tgt_rad_dist: float
-        Line-of-sight distance between the target and the transmitter [m]
+    distance_transmitter_target: float
+        Line-of-sight distance between the transmitter and the target [m]
+    distance_receiver_target: float
+        Line-of-sight distance between the receiver and the target [m]
     transmission_power: float
         Power of the signal [W]
     bandwidth: float
@@ -83,7 +86,6 @@ def calculate_snr(
     ktb = 10 * np.log10(sc.Boltzmann * equivalent_temperature)
 
     bw_dB = 10 * np.log10(bandwidth * 1e6)
-    range_of_target = tgt_rad_dist
 
     return (
         power_dB
@@ -98,7 +100,8 @@ def calculate_snr(
         - four_pi_dB
         - ktb
         - bw_dB
-        - 40 * np.log10(range_of_target)
+        - 20 * np.log10(distance_transmitter_target)
+        - 20 * np.log10(distance_receiver_target)
         - L_t
         - L_a
     )

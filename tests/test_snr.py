@@ -44,7 +44,6 @@ class SnrTest(unittest.TestCase):
         d = 10_000.0
         cpi = 1
         T = 300
-        F = to_dB(1.6)
         L_t = to_dB(2.0)
         L_a = to_dB(1.0)
         pol = to_dB(1.0)
@@ -58,6 +57,7 @@ class SnrTest(unittest.TestCase):
             G_T,
             G_R,
             rcs,
+            d,
             d,
             power,
             bandwidth,
@@ -87,6 +87,7 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
+                    d,
                     power,
                     bandwidth,
                     cpi,
@@ -113,6 +114,7 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
+                    d,
                     power,
                     bandwidth,
                     cpi,
@@ -137,6 +139,7 @@ class SnrTest(unittest.TestCase):
                     G_T,
                     to_dB(from_dB(G_R) * a),
                     rcs,
+                    d,
                     d,
                     power,
                     bandwidth,
@@ -163,6 +166,7 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     a * rcs,
                     d,
+                    d,
                     power,
                     bandwidth,
                     cpi,
@@ -180,13 +184,41 @@ class SnrTest(unittest.TestCase):
                 snr_linear_scaled_expected,
             )
 
-            # Distance: Power -4 behaviour.
+            # Distance Tx - target: Power -2 behaviour.
             snr_linear_scaled = from_dB(
                 calculate_snr(
                     wavelength,
                     G_T,
                     G_R,
                     rcs,
+                    a * d,
+                    d,
+                    power,
+                    bandwidth,
+                    cpi,
+                    T,
+                    L_t,
+                    L_a,
+                    pol,
+                    F_t,
+                    F_r,
+                )
+            )
+
+            snr_linear_scaled_expected = snr_linear / a**2
+            self.assertAlmostEqual(
+                snr_linear_scaled,
+                snr_linear_scaled_expected,
+            )
+
+            # Distance Rx - target: Power -2 behaviour.
+            snr_linear_scaled = from_dB(
+                calculate_snr(
+                    wavelength,
+                    G_T,
+                    G_R,
+                    rcs,
+                    d,
                     a * d,
                     power,
                     bandwidth,
@@ -200,7 +232,7 @@ class SnrTest(unittest.TestCase):
                 )
             )
 
-            snr_linear_scaled_expected = snr_linear / a**4
+            snr_linear_scaled_expected = snr_linear / a**2
             self.assertAlmostEqual(
                 snr_linear_scaled,
                 snr_linear_scaled_expected,
@@ -213,6 +245,7 @@ class SnrTest(unittest.TestCase):
                     G_T,
                     G_R,
                     rcs,
+                    d,
                     d,
                     a * power,
                     bandwidth,
@@ -240,6 +273,7 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
+                    d,
                     power,
                     a * bandwidth,
                     cpi,
@@ -265,6 +299,7 @@ class SnrTest(unittest.TestCase):
                     G_T,
                     G_R,
                     rcs,
+                    d,
                     d,
                     power,
                     bandwidth,
@@ -292,6 +327,7 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
+                    d,
                     power,
                     bandwidth,
                     cpi,
@@ -317,6 +353,7 @@ class SnrTest(unittest.TestCase):
                     G_T,
                     G_R,
                     rcs,
+                    d,
                     d,
                     power,
                     bandwidth,
@@ -344,6 +381,7 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
+                    d,
                     power,
                     bandwidth,
                     cpi,
@@ -369,6 +407,7 @@ class SnrTest(unittest.TestCase):
                     G_T,
                     G_R,
                     rcs,
+                    d,
                     d,
                     power,
                     bandwidth,
@@ -396,6 +435,7 @@ class SnrTest(unittest.TestCase):
                     G_R,
                     rcs,
                     d,
+                    d,
                     power,
                     bandwidth,
                     cpi,
@@ -421,6 +461,7 @@ class SnrTest(unittest.TestCase):
                     G_T,
                     G_R,
                     rcs,
+                    d,
                     d,
                     power,
                     bandwidth,
