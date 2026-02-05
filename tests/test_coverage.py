@@ -6,7 +6,7 @@ from pyproj import Transformer
 import shapely
 
 from theia.coverage import calculate_coverage
-from theia.data_loading import elevationAt
+from theia.terrain import elevationAt
 from theia.radar_equation import radar_eq_max_dist
 from theia.types import Point, Polarization, Radar, Receiver, Transmitter
 

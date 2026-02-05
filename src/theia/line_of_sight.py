@@ -1,5 +1,5 @@
 import math
-from theia.data_loading import elevationAt
+from theia.terrain import elevationAt
 from theia.distance import burstvincentydistance, haversine, R_EARTH, linspace
 from theia.types import Point
 

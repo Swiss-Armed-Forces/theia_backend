@@ -3,7 +3,7 @@ import unittest
 import scipy.constants as sc
 
 from theia.coordinates import POSITIONS_OF_INTEREST
-from theia.data_loading import elevationAt
+from theia.terrain import elevationAt
 from theia.snr import calculate_snr
 from theia.types import Point, Polarization, Transmitter
 from theia.util import from_dB, to_dB
