@@ -4,6 +4,9 @@ import os
 import numpy as np
 import pandas as pd
 
+from theia.coordinates import (
+    CoordinateTransformations,
+)
 from theia.data_loading import load_openburst_trajectory_file
 from theia.types import (
     AttenuationModel,
@@ -166,6 +169,23 @@ def load_pcl_reference_data(
             assert np.isclose(row["vy"], 0)
             assert np.isclose(row["vz"], 0)
             continue
+        target_position = Point(
+            lat=row["tgt_lat"],
+            lon=row["tgt_lon"],
+            alt=row["tgt_height"],
+        )
+        # Careful: vx, vy, vz are NOT in Cartesian coordinates in openBURST!
+        vlon = row["vx"]
+        vlat = row["vy"]
+        valt = row["vz"]
+
+        velocity = CoordinateTransformations.velocity_geodetic_to_cartesian(
+            target_position,
+            vlat,
+            vlon,
+            valt,
+        )
+
         detections.append(
             (
                 PassiveRadarDetection(
@@ -175,15 +195,9 @@ def load_pcl_reference_data(
                     receiver=next(r for r in receivers if r.id == row["rx_id"]),
                     target=Target(
                         id=int(row["targ_id"]),
-                        point=Point(
-                            lat=row["tgt_lat"],
-                            lon=row["tgt_lon"],
-                            alt=row["tgt_height"],
-                        ),
+                        point=target_position,
                         cross_section=rcs,
-                        vlon=row["vx"],
-                        vlat=row["vy"],
-                        vz=row["vz"],
+                        velocity=velocity,
                     ),
                     bistatic_range=row["range"] * 1000,
                     doppler_shift=row["doppler"],

@@ -44,8 +44,30 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
     ID = 0
     for callsign, rows in df.groupby("callsign"):
         if rows.shape[0] < 2:
-            logging.warning(f"Skip callsign {callsign} because only one time stamp is available")
+            logging.warning(
+                f"Skip callsign {callsign} because only one time stamp is available"
+            )
             continue
+
+
+
+
+        for lat, lon, alt, vlat, vlon, vz in zip(
+            rows["lat"],
+            rows["lon"],
+            rows["alt"],
+            rows["vlat"],
+            rows["vlon"],
+            rows["vz"],
+            strict=True
+        ):
+            CoordinateTransformations.velocity_geodetic_to_cartesian(
+                p=Point(lat=lat, lon=lon, alt=alt),
+                vlat=vlat,
+                vlon=vlon,
+                valt=vz,
+            )
+
         trajectories.append(
             Trajectory(
                 target_id=ID,
@@ -194,7 +216,8 @@ def save_openburst_trajectory_file(
                 {
                     "DateTimeIndex": time,
                     "millisecs": 0,
-                    "milli_secs_after_midnight": (time - start_time).total_seconds() * 1000,
+                    "milli_secs_after_midnight": (time - start_time).total_seconds()
+                    * 1000,
                     "converted_integer_id": target.id,
                     "lat": target.lat,
                     "lon": target.lon,

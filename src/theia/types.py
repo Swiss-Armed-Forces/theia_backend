@@ -76,6 +76,22 @@ class Point(pydantic.BaseModel):
         return (self.lat, self.lon, self.alt)
 
 
+class Velocity(pydantic.BaseModel):
+    vx: float
+    """Velocity in Cartesian x-direction [m/s]"""
+    vy: float
+    """Velocity in Cartesian y-direction [m/s]"""
+    vz: float
+    """Velocity in Cartesian z-direction [m/s]"""
+
+    @property
+    def speed(self) -> float:
+        return np.sqrt(self.vx**2 + self.vy**2 + self.vz**2)
+
+    def as_tuple(self) -> tuple[float, float, float]:
+        return [self.vx, self.vy, self.vz]
+
+
 class AttenuationModel(pydantic.BaseModel):
     attenuation_table_angles: list[float]
     attenuation_table_values: list[float]
@@ -303,12 +319,7 @@ class Target(pydantic.BaseModel):
     """Coordinates"""
     cross_section: float
     """Radar cross section [m^2]"""
-    vlon: float
-    """Velocity in latitude direction [m / s]"""
-    vlat: float
-    """Velocity in longitude direction [m / s]"""
-    vz: float
-    """Velocity in radial direction [m / s]"""
+    velocity: Velocity
 
     @property
     def lat(self) -> float:
@@ -322,11 +333,6 @@ class Target(pydantic.BaseModel):
     def alt(self) -> float:
         return self.point.alt
 
-    @property
-    def speed(self) -> float:
-        """Magnitude of velocity vector [m / s]"""
-        return np.sqrt(np.square(self.vlat) + np.square(self.vlon) + np.square(self.vz))
-
 
 class Trajectory(pydantic.BaseModel):
     target_id: int
@@ -338,12 +344,12 @@ class Trajectory(pydantic.BaseModel):
     """Longitude coordinates [°]"""
     alts: list[float]
     """Altitude coordinates [m above sea level]"""
-    vlats: list[float]
-    """Velocity along latitude [m / s]"""
-    vlons: list[float]
-    """Velocity along longitude [m / s]"""
+    vxs: list[float]
+    """Velocity components along Cartesian x-coordinate [m / s]"""
+    vys: list[float]
+    """Velocity components along Cartesian y-coordinate [m / s]"""
     vzs: list[float]
-    """Velocity in altitude [m / s]"""
+    """Velocity components along Cartesian z-coordinate [m / s]"""
     cross_sections: list[float]
     """Target cross sections [m^2]"""
 
@@ -355,8 +361,8 @@ class Trajectory(pydantic.BaseModel):
             len(self.times) != len(self.lats)
             or len(self.times) != len(self.lons)
             or len(self.times) != len(self.alts)
-            or len(self.times) != len(self.vlats)
-            or len(self.times) != len(self.vlons)
+            or len(self.times) != len(self.vxs)
+            or len(self.times) != len(self.vys)
             or len(self.times) != len(self.vzs)
             or len(self.times) != len(self.cross_sections)
         ):
@@ -381,8 +387,8 @@ class Trajectory(pydantic.BaseModel):
                 self.lats,
                 self.lons,
                 self.alts,
-                self.vlats,
-                self.vlons,
+                self.vxs,
+                self.vys,
                 self.vzs,
                 self.cross_sections,
             ],
@@ -395,7 +401,7 @@ class Trajectory(pydantic.BaseModel):
         y = self._spline(t.timestamp())
         if np.isnan(y).any():
             return None
-        lat, lon, alt, vlat, vlon, vz, rcs = y
+        lat, lon, alt, vx, vy, vz, rcs = y
         return Target(
             id=self.target_id,
             point=Point(
@@ -404,9 +410,7 @@ class Trajectory(pydantic.BaseModel):
                 alt=alt,
             ),
             cross_section=rcs,
-            vlat=vlat,
-            vlon=vlon,
-            vz=vz,
+            velocity=Velocity(vx=vx, vy=vy, vz=vz),
         )
 
     def __eq__(self, other) -> bool:
@@ -418,16 +422,16 @@ class Trajectory(pydantic.BaseModel):
             and (self.lats == other.lats)
             and (self.lons == other.lons)
             and (self.alts == other.alts)
-            and (self.vlats == other.vlats)
-            and (self.vlons == other.vlons)
+            and (self.vxs == other.vxs)
+            and (self.vys == other.vys)
             and (self.vzs == other.vzs)
             and (self.cross_sections == other.cross_sections)
         )
 
     def plot_velocities(self):
         fig, ax = plt.subplots(figsize=(8, 4.5))
-        ax.plot(self.times, self.vlats, label="lat")
-        ax.plot(self.times, self.vlons, label="lon")
+        ax.plot(self.times, self.vxs, label="x")
+        ax.plot(self.times, self.vys, label="y")
         ax.plot(self.times, self.vzs, label="z")
         ax.legend()
         ax.spines["top"].set_visible(False)

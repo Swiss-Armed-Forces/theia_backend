@@ -2,8 +2,8 @@ import numpy as np
 import pyproj
 from geographiclib.geodesic import Geodesic
 
-from theia.data_loading import elevationAt
-from theia.types import Point
+from theia.terrain import elevationAt
+from theia.types import Point, Velocity
 
 
 LATLON_BOUNDS = {
@@ -52,6 +52,43 @@ class CoordinateTransformations:
         """Convert (x, y, z) to (lat, lon, alt)."""
         lon, lat, alt = cls.t.transform(x, y, z, radians=False, direction="INVERSE")
         return float(lat), float(lon), float(alt)
+
+    @staticmethod
+    def velocity_cartesian_to_geodetic(
+        p: Point,
+        velocity: Velocity,
+    ) -> tuple[float, float, float]:
+        """Project velocity to latitude, longitude and altitude directions at point p [m / s]"""
+        n_lat = latitude_direction(p)
+        n_lon = longitude_direction(p)
+        n_alt = altitude_direction(p)
+
+        v = velocity.as_tuple()
+
+        return (
+            np.dot(n_lat, v),
+            np.dot(n_lon, v),
+            np.dot(n_alt, v),
+        )
+
+    @staticmethod
+    def velocity_geodetic_to_cartesian(
+        p: Point,
+        vlat: float,
+        vlon: float,
+        valt: float,
+    ) -> Velocity:
+        n_lat = latitude_direction(p)
+        n_lon = longitude_direction(p)
+        n_alt = altitude_direction(p)
+
+        v_cartesian = vlat * n_lat + vlon * n_lon + valt * n_alt
+
+        return Velocity(
+            vx=v_cartesian[0],
+            vy=v_cartesian[1],
+            vz=v_cartesian[2],
+        )
 
 
 # The following function is taken from openBURST.
@@ -130,3 +167,36 @@ def calculate_elevation_angle(p_observer: Point, p_target: Point):
     elevation_angle_rad = np.asin(np.dot(up, delta) / np.linalg.norm(delta))
 
     return elevation_angle_rad
+
+
+def latitude_direction(p: Point) -> np.ndarray:
+    """Calculate the direction in Cartesian coordinates of the latitude axis at geodetic point p."""
+    eps = 1e-6
+    p_moved = Point(lat=p.lat + eps, lon=p.lon, alt=p.alt)
+
+    p_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple()))
+    p_moved_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p_moved.as_tuple()))
+    diff = p_moved_xyz - p_xyz
+    return diff / np.linalg.norm(diff)
+
+
+def longitude_direction(p: Point) -> np.ndarray:
+    """Calculate the direction in Cartesian coordinates of the longitude axis at geodetic point p."""
+    eps = 1e-6
+    p_moved = Point(lat=p.lat, lon=p.lon + eps, alt=p.alt)
+
+    p_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple()))
+    p_moved_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p_moved.as_tuple()))
+    diff = p_moved_xyz - p_xyz
+    return diff / np.linalg.norm(diff)
+
+
+def altitude_direction(p: Point) -> np.ndarray:
+    """Calculate the direction in Cartesian coordinates of the altitude axis at geodetic point p."""
+    eps = 1e-6
+    p_moved = Point(lat=p.lat, lon=p.lon, alt=p.alt + eps)
+
+    p_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple()))
+    p_moved_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p_moved.as_tuple()))
+    diff = p_moved_xyz - p_xyz
+    return diff / np.linalg.norm(diff)
