@@ -169,10 +169,12 @@ def calculate_elevation_angle(p_observer: Point, p_target: Point):
     return elevation_angle_rad
 
 
+_EPS = 1e-4
+
+
 def latitude_direction(p: Point) -> np.ndarray:
     """Calculate the direction in Cartesian coordinates of the latitude axis at geodetic point p."""
-    eps = 1e-6
-    p_moved = Point(lat=p.lat + eps, lon=p.lon, alt=p.alt)
+    p_moved = Point(lat=p.lat + _EPS, lon=p.lon, alt=p.alt)
 
     p_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple()))
     p_moved_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p_moved.as_tuple()))
@@ -182,8 +184,7 @@ def latitude_direction(p: Point) -> np.ndarray:
 
 def longitude_direction(p: Point) -> np.ndarray:
     """Calculate the direction in Cartesian coordinates of the longitude axis at geodetic point p."""
-    eps = 1e-6
-    p_moved = Point(lat=p.lat, lon=p.lon + eps, alt=p.alt)
+    p_moved = Point(lat=p.lat, lon=p.lon + _EPS, alt=p.alt)
 
     p_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple()))
     p_moved_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p_moved.as_tuple()))
@@ -193,8 +194,7 @@ def longitude_direction(p: Point) -> np.ndarray:
 
 def altitude_direction(p: Point) -> np.ndarray:
     """Calculate the direction in Cartesian coordinates of the altitude axis at geodetic point p."""
-    eps = 1e-6
-    p_moved = Point(lat=p.lat, lon=p.lon, alt=p.alt + eps)
+    p_moved = Point(lat=p.lat, lon=p.lon, alt=p.alt + _EPS)
 
     p_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple()))
     p_moved_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p_moved.as_tuple()))
