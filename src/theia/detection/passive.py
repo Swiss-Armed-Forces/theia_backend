@@ -12,7 +12,7 @@ from theia.distance import (
     get_2d_distance_between_locs_heights,
     get_bistatic_range,
 )
-from theia.doppler import calculate_bistatic_doppler
+from theia.doppler import calculate_doppler_shift
 from theia.snr import calculate_snr
 from theia.types import (
     PassiveRadarDetection,
@@ -77,7 +77,7 @@ def calculate_bistatic_detection(
     )
 
     # Now check bistatic Doppler and return if Doppler shift too low.
-    doppler = calculate_bistatic_doppler(rx, tgt, tx)  # [Hz]
+    doppler = calculate_doppler_shift(rx, tgt, tx)  # [Hz]
 
     if abs(doppler) < doppler_thresh:
         return None
