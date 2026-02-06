@@ -574,3 +574,14 @@ class ConstantRcsModel(RcsModel):
         target: Target,
     ) -> float:
         return self._rcs
+
+
+class Situation(pydantic.BaseModel):
+    radars: list[Radar]
+    targets: list[Target]
+    transmitter_labels: dict[int, str] = {}
+    """Labels per transmitter ID"""
+    receiver_labels: dict[int, str] = {}
+    """Labels per receiver ID"""
+    target_labels: dict[int, str] = {}
+    """Labels per target ID"""
