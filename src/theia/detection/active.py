@@ -5,7 +5,7 @@ import scipy.constants as sc
 from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, RF_LOSS
 from theia.coordinates import calculate_azimuth_angle, calculate_elevation_angle
 from theia.distance import line_of_sight_distance
-from theia.doppler import monostatic_doppler
+from theia.doppler import calculate_doppler_shift
 from theia.line_of_sight import has_line_of_sight
 from theia.snr import calculate_snr
 from theia.types import ActiveRadarDetection, ConstantRcsModel, Radar, RcsModel, Target
@@ -122,21 +122,16 @@ def get_rad_pd(
     los_ok = has_line_of_sight(radar.transmitter.point, target.point, distance_step)
 
     if not los_ok:
+        print("No LOS")
         return 0.0
     else:
-        doppler = monostatic_doppler(
-            radar.transmitter.frequency,
-            rad_lat,
-            rad_lon,
-            radar.transmitter.alt,
-            tgt_lat,
-            tgt_lon,
-            target.alt,
-            target.vlon,
-            target.vlat,
-            target.vz,
+        doppler = calculate_doppler_shift(
+            radar.receiver,
+            target,
+            radar.transmitter,
         )
         if doppler <= doppler_shift_threshold_hz:
+            print("Doppler fail")
             return 0.0
 
     wavelength = sc.speed_of_light / (radar.transmitter.frequency * 1e6)
@@ -157,10 +152,11 @@ def get_rad_pd(
         L_t=rf_loss,
         L_a=get_clear_sky_attenuation(radar.transmitter.frequency) * 2 * dist / 1000.0,
         # TODO: Should we include these factors?
-        polarization_factor=0.,
-        pattern_propagation_factor_receiver=0.,
-        pattern_propagation_factor_transmitter=0.,
+        polarization_factor=0.0,
+        pattern_propagation_factor_receiver=0.0,
+        pattern_propagation_factor_transmitter=0.0,
     )
+    print(f"SNR = {snr_dB:.2f}dB")
 
     # avoid segmentation fault in the besseli function for high snr values
     return (
