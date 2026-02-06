@@ -78,4 +78,4 @@ def line_of_sight_along_ray(
         point.alt = target_alt
         if has_line_of_sight(emitter_pos, point, dist_res):
             return point
-    raise RuntimeError("No point within line of sight reached!")
+    return emitter_pos
