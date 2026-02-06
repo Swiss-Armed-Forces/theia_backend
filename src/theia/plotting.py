@@ -3,7 +3,7 @@ import numpy as np
 from scipy.spatial import ConvexHull
 import shapely
 from theia.coordinates import CoordinateTransformations
-from theia.data_loading import elevationAt
+from theia.terrain import elevationAt
 from theia.distance import line_of_sight_distance, linspace
 from theia.ellipsoid import Ellipsoid
 from theia.types import Point

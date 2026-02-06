@@ -12,29 +12,30 @@ import requests
 import shapely
 from websockets.sync.client import connect
 
+from theia.coordinates import CoordinateTransformations
 from theia.grids import LatLonHeightGrid
 from theia.types import Radar, RadioClimate, Target
 
 
 def grid_to_openburst(grid: LatLonHeightGrid) -> dict[str, float]:
     return {
-            "lat_start": grid.lat_start,
-            "lat_stop": grid.lat_stop,
-            "lon_start": grid.lon_start,
-            "lon_stop": grid.lon_stop,
-            "min_x": grid.lon_start,
-            "max_x": grid.lon_stop,
-            "min_y": grid.lat_start,
-            "max_y": grid.lat_stop,
-            "min_z": grid.height_start,
-            "max_z": grid.height_stop,
-            "res_x": grid.lon_res,
-            "res_y": grid.lat_res,
-            "res_z": grid.height_res,
-            "amt_pts_x": grid.n_points_lon,
-            "amt_pts_y": grid.n_points_lat,
-            "amt_pts_z": grid.n_points_height,
-        }
+        "lat_start": grid.lat_start,
+        "lat_stop": grid.lat_stop,
+        "lon_start": grid.lon_start,
+        "lon_stop": grid.lon_stop,
+        "min_x": grid.lon_start,
+        "max_x": grid.lon_stop,
+        "min_y": grid.lat_start,
+        "max_y": grid.lat_stop,
+        "min_z": grid.height_start,
+        "max_z": grid.height_stop,
+        "res_x": grid.lon_res,
+        "res_y": grid.lat_res,
+        "res_z": grid.height_res,
+        "amt_pts_x": grid.n_points_lon,
+        "amt_pts_y": grid.n_points_lat,
+        "amt_pts_z": grid.n_points_height,
+    }
 
 
 class PclReceiver(pydantic.BaseModel):
@@ -362,14 +363,18 @@ def radar_to_openburst_json(radar: Radar) -> str:
 
 
 def target_to_openburst_json(target: Target) -> str:
+    vlat, vlon, valt = CoordinateTransformations.velocity_cartesian_to_geodetic(
+        target.point,
+        target.velocity,
+    )
     return str(
         {
             "lat": target.lat,
             "lon": target.lon,
             "alt": target.alt,
             "cross_section": target.cross_section,
-            "vlon": target.vlon,
-            "vlat": target.vlat,
-            "vz": target.vz,
+            "vlon": vlon,
+            "vlat": vlat,
+            "vz": valt,
         }
     ).replace("'", '"')
