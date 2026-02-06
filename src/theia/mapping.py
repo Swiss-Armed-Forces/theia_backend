@@ -31,10 +31,20 @@ class RadarMap:
         )
 
         for name, radar in self.radars.items():
-            folium.Marker(
-                location=(radar.lat, radar.lon),
-                tooltip=name,
-            ).add_to(map)
+            if radar.transmitter.point == radar.receiver.point:
+                folium.Marker(
+                    location=(radar.transmitter.lat, radar.transmitter.lon),
+                    tooltip=f"{name} (monostatic)",
+                ).add_to(map)
+            else:
+                folium.Marker(
+                    location=(radar.transmitter.lat, radar.transmitter.lon),
+                    tooltip=f"{name} (Tx)",
+                ).add_to(map)
+                folium.Marker(
+                    location=(radar.receiver.lat, radar.receiver.lon),
+                    tooltip=f"{name} (Rx)",
+                ).add_to(map)
 
         for name, target in self.targets.items():
             folium.Marker(
