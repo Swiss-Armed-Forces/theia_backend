@@ -173,30 +173,55 @@ _EPS = 1e-4
 
 
 def latitude_direction(p: Point) -> np.ndarray:
-    """Calculate the direction in Cartesian coordinates of the latitude axis at geodetic point p."""
-    p_moved = Point(lat=p.lat + _EPS, lon=p.lon, alt=p.alt)
+    """
+    Calculate the direction in Cartesian coordinates of the latitude axis at geodetic point p.
 
-    p_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple()))
-    p_moved_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p_moved.as_tuple()))
-    diff = p_moved_xyz - p_xyz
-    return diff / np.linalg.norm(diff)
+    North direction: tangent to meridian, pointing toward increasing latitude.
+    """
+    lat_rad = np.radians(p.lat)
+    lon_rad = np.radians(p.lon)
+
+    return np.array(
+        [
+            -np.sin(lat_rad) * np.cos(lon_rad),
+            -np.sin(lat_rad) * np.sin(lon_rad),
+            np.cos(lat_rad),
+        ]
+    )
 
 
 def longitude_direction(p: Point) -> np.ndarray:
-    """Calculate the direction in Cartesian coordinates of the longitude axis at geodetic point p."""
-    p_moved = Point(lat=p.lat, lon=p.lon + _EPS, alt=p.alt)
+    """
+    Calculate the direction in Cartesian coordinates of the longitude axis at geodetic point p.
 
-    p_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple()))
-    p_moved_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p_moved.as_tuple()))
-    diff = p_moved_xyz - p_xyz
-    return diff / np.linalg.norm(diff)
+    East direction: tangent to parallel, pointing toward increasing longitude.
+    """
+    lon_rad = np.radians(p.lon)
+
+    return np.array(
+        [
+            -np.sin(lon_rad),
+            np.cos(lon_rad),
+            0.0,
+        ]
+    )
 
 
 def altitude_direction(p: Point) -> np.ndarray:
-    """Calculate the direction in Cartesian coordinates of the altitude axis at geodetic point p."""
-    p_moved = Point(lat=p.lat, lon=p.lon, alt=p.alt + _EPS)
+    """
+    Calculate the direction in Cartesian coordinates of the altitude axis at geodetic point p.
 
-    p_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple()))
-    p_moved_xyz = np.asarray(CoordinateTransformations.geodetic_to_cartesian(*p_moved.as_tuple()))
-    diff = p_moved_xyz - p_xyz
-    return diff / np.linalg.norm(diff)
+    Up direction: normal to WGS84 ellipsoid surface.
+    """
+    lat_rad = np.radians(p.lat)
+    lon_rad = np.radians(p.lon)
+
+    # For WGS84 ellipsoid, the normal direction is:
+    # (Note: this differs from radial direction due to Earth's flattening)
+    return np.array(
+        [
+            np.cos(lat_rad) * np.cos(lon_rad),
+            np.cos(lat_rad) * np.sin(lon_rad),
+            np.sin(lat_rad),
+        ]
+    )
