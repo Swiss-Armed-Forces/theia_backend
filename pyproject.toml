@@ -16,7 +16,8 @@ dependencies = [
     "pyproj (>=3.7.2,<4.0.0)",
     "shapely (>=2.1.2,<3.0.0)",
     "geopandas (>=1.1.1,<2.0.0)",
-    "fastapi[standard] (>=0.128.0,<0.129.0)"
+    "fastapi[standard] (>=0.128.0,<0.129.0)",
+    "nbformat (>=5.10.4,<6.0.0)"
 ]
 
 [tool.poetry]
@@ -33,6 +34,7 @@ coverage = "^7.13.1"
 selenium = "^4.40.0"
 pylint = "^4.0.4"
 sphinxcontrib-bibtex = "^2.6.5"
+plotly = "^6.5.2"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
