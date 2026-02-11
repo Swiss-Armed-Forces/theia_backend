@@ -4,8 +4,9 @@ import unittest
 
 import numpy as np
 
+from theia.coordinates import CoordinateTransformations
 from theia.data_loading import load_trajectory_file
-from theia.types import Trajectory
+from theia.types import Point, Trajectory, Velocity
 
 
 class TestLoadRecordedTrajectories(unittest.TestCase):
@@ -15,6 +16,21 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
         )
         self.assertEqual(len(trajectories), 1)
         self.assertEqual(lookup[0], "HELLO")
+
+        v_expected: list[Velocity] = [
+            CoordinateTransformations.velocity_geodetic_to_cartesian(
+                p=Point(lat=46.6155, lon=7.2784, alt=500.0),
+                vlat=0.0,
+                vlon=100.0,
+                valt=20.0,
+            ),
+            CoordinateTransformations.velocity_geodetic_to_cartesian(
+                p=Point(lat=46.6155, lon=7.3567, alt=620.0),
+                vlat=0.0,
+                vlon=100.0,
+                valt=0.0,
+            ),
+        ]
 
         expected = Trajectory(
             target_id=0,
@@ -29,9 +45,9 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             lats=[46.6155, 46.6155],
             lons=[7.2784, 7.3567],
             alts=[500.0, 620.0],
-            vlats=[0.0, 0.0],
-            vlons=[100.0, 100.0],
-            vzs=[20.0, 0.0],
+            vxs=[v_expected[0].vx, v_expected[1].vx],
+            vys=[v_expected[0].vy, v_expected[1].vy],
+            vzs=[v_expected[0].vz, v_expected[1].vz],
             cross_sections=[10.0, 10.0],
         )
         self.assertEqual(trajectories[0], expected)
@@ -44,6 +60,21 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
         self.assertEqual(len(lookup), 2)
         self.assertEqual(lookup[0], "HELLO")
         self.assertEqual(lookup[1], "HOHOHO")
+
+        v_expected: list[Velocity] = [
+            CoordinateTransformations.velocity_geodetic_to_cartesian(
+                p=Point(lat=46.6155, lon=7.2784, alt=500.0),
+                vlat=0.0,
+                vlon=100.0,
+                valt=20.0,
+            ),
+            CoordinateTransformations.velocity_geodetic_to_cartesian(
+                p=Point(lat=46.6155, lon=7.3567, alt=620.0),
+                vlat=0.0,
+                vlon=100.0,
+                valt=0.0,
+            ),
+        ]
 
         expected = Trajectory(
             target_id=0,
@@ -68,12 +99,33 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             lats=[46.6155, 46.6155],
             lons=[7.2784, 7.3567],
             alts=[500.0, 620.0],
-            vlats=[0.0, 0.0],
-            vlons=[100.0, 100.0],
-            vzs=[20.0, 0.0],
+            vxs=[v_expected[0].vx, v_expected[1].vx],
+            vys=[v_expected[0].vy, v_expected[1].vy],
+            vzs=[v_expected[0].vz, v_expected[1].vz],
             cross_sections=[10.0, 10.0],
         )
         self.assertEqual(trajectories[0], expected)
+
+        v_expected: list[Velocity] = [
+            CoordinateTransformations.velocity_geodetic_to_cartesian(
+                p=Point(lat=47.7024, lon=8.6078, alt=1000.0),
+                vlat=100,
+                vlon=-50.0,
+                valt=-13.0,
+            ),
+            CoordinateTransformations.velocity_geodetic_to_cartesian(
+                p=Point(lat=46.6638, lon=7.3135, alt=987.0),
+                vlat=100.0,
+                vlon=0.0,
+                valt=-13.0,
+            ),
+            CoordinateTransformations.velocity_geodetic_to_cartesian(
+                p=Point(lat=46.6195, lon=7.2784, alt=928.5),
+                vlat=100.0,
+                vlon=0.0,
+                valt=0.0,
+            ),
+        ]
 
         expected = Trajectory(
             target_id=1,
@@ -106,9 +158,9 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             lats=[47.7024, 46.6638, 46.6195],
             lons=[8.6078, 7.3135, 7.2784],
             alts=[1000.0, 987, 928.5],
-            vlats=[100.0, 100.0, 100.0],
-            vlons=[-50.0, 0.0, 0.0],
-            vzs=[-13.0, -13.0, 0.0],
+            vxs=[v_expected[0].vx, v_expected[1].vx, v_expected[2].vx],
+            vys=[v_expected[0].vy, v_expected[1].vy, v_expected[2].vy],
+            vzs=[v_expected[0].vz, v_expected[1].vz, v_expected[2].vz],
             cross_sections=[100.0, 100.0, 100.0],
         )
         self.assertEqual(trajectories[1], expected)

@@ -56,6 +56,7 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
             )
             continue
 
+        velocities: list[Velocity] = []
         for lat, lon, alt, vlat, vlon, vz in zip(
             rows["lat"],
             rows["lon"],
@@ -65,11 +66,13 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
             rows["vz"],
             strict=True,
         ):
-            CoordinateTransformations.velocity_geodetic_to_cartesian(
-                p=Point(lat=lat, lon=lon, alt=alt),
-                vlat=vlat,
-                vlon=vlon,
-                valt=vz,
+            velocities.append(
+                CoordinateTransformations.velocity_geodetic_to_cartesian(
+                    p=Point(lat=lat, lon=lon, alt=alt),
+                    vlat=vlat,
+                    vlon=vlon,
+                    valt=vz,
+                )
             )
 
         trajectories.append(
@@ -79,9 +82,9 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
                 lats=rows["lat"].astype(float).tolist(),
                 lons=rows["lon"].astype(float).tolist(),
                 alts=rows["alt"].astype(float).tolist(),
-                vlats=rows["vlat"].astype(float).tolist(),
-                vlons=rows["vlon"].astype(float).tolist(),
-                vzs=rows["vz"].astype(float).tolist(),
+                vxs=[v.vx for v in velocities],
+                vys=[v.vy for v in velocities],
+                vzs=[v.vz for v in velocities],
                 cross_sections=rows["cross_section"].astype(float).tolist(),
             )
         )
