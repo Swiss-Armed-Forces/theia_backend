@@ -21,7 +21,7 @@ def calculate_doppler_shift(
     tgt: Target
     tx: Transmitter
     dt: float
-        Time step to use for the finite difference calculation. The target's
+        Time step [s] to use for the finite difference calculation. The target's
         velocity vector is assumed to be constant between the current time t
         and time t + dt.
 
@@ -29,8 +29,8 @@ def calculate_doppler_shift(
     -------
     float
         Doppler shift in [Hz]
-        Negative value: The bistatic range is getting smaller ("target is approaching").
-        Positive value: The bistatic range is getting smaller ("target is leaving).
+        Negative value: The bistatic range is getting bigger ("target is leaving").
+        Positive value: The bistatic range is getting smaller ("target is approaching).
 
     Notes
     -----
@@ -67,6 +67,6 @@ def calculate_doppler_shift(
     diff = signal_path_future - signal_path
 
     wavelength = sc.speed_of_light / (tx.frequency * 1000000)  # m
-    doppler_shift = diff / wavelength  # [Hz]
+    doppler_shift = diff / (wavelength * dt)
 
     return doppler_shift

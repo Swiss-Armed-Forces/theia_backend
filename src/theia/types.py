@@ -1,3 +1,4 @@
+from __future__ import annotations
 import abc
 import datetime
 import enum
@@ -447,6 +448,31 @@ class Trajectory(pydantic.BaseModel):
         for lat, lon in zip(self.lats, self.lons, strict=True):
             points.append((lon, lat))
         return shapely.geometry.LineString(points)
+
+    @staticmethod
+    def from_snapshot(
+        target: Target,
+        t_min: datetime.datetime,
+        t_max: datetime.datetime,
+        dt: datetime.timedelta = datetime.timedelta(seconds=10),
+    ) -> Trajectory:
+        times = []
+        t = t_min
+        while t <= t_max:
+            times.append(t)
+            t = t + dt
+
+        return Trajectory(
+            target_id=target.id,
+            times=times,
+            lats=[target.lat for _ in times],
+            lons=[target.lon for _ in times],
+            alts=[target.alt for _ in times],
+            vxs=[target.velocity.vx for _ in times],
+            vys=[target.velocity.vy for _ in times],
+            vzs=[target.velocity.vz for _ in times],
+            cross_sections=[target.cross_section for _ in times],
+        )
 
 
 class TargetSimulator(abc.ABC):
