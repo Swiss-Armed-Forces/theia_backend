@@ -122,20 +122,20 @@ class OpenburstClient:
         # Build the request message.
         properties = [
             self._RADAR_COVERAGE,
-            radar.id,
-            radar.lat,
-            radar.lon,
+            radar.transmitter.id,
+            radar.transmitter.lat,
+            radar.transmitter.lon,
             target_flight_height,
-            radar.power,
-            radar.diameter,
-            radar.frequency / 1000.0,  # convert MHz -> GHz
-            radar.pulse_width,
-            radar.cpi_pulses,
-            radar.bandwidth,
-            radar.pfa,
+            radar.transmitter.power,
+            radar.transmitter.antenna_diameter,
+            radar.transmitter.frequency / 1000.0,  # convert MHz -> GHz
+            radar.transmitter.pulse_width,
+            radar.receiver.cpi_pulses,
+            radar.transmitter.bandwidth,
+            radar.receiver.pfa,
             target_cross_section,
-            radar.min_elevation,
-            radar.max_elevation,
+            radar.receiver.min_elevation,
+            radar.receiver.max_elevation,
             int(enable_propagation_model),
             int(enable_magl),
         ]
@@ -267,8 +267,7 @@ class OpenburstClient:
 
     def calculate_propagation(
         self,
-        transmitter: Radar,
-        receiver: Radar,
+        radar: Radar,
         radio_climate: RadioClimate = RadioClimate.CONTINENTAL_TEMPERATE,
         earth_dielectric_constant: float = 13.0,  # [no units]
         earth_conductivitiy: float = 0.002,  # [S / m]
@@ -280,24 +279,24 @@ class OpenburstClient:
         with connect(self._url_radterrain, ping_timeout=None) as ws:
             params = [
                 self._PROPAGATION,
-                transmitter.lat,
-                -transmitter.lon,
+                radar.transmitter.lat,
+                -radar.transmitter.lon,
                 # convert to feet
-                transmitter.antenna_height * METER_TO_FEET,
-                receiver.lat,
-                -receiver.lon,
+                radar.transmitter.antenna_height * METER_TO_FEET,
+                radar.receiver.lat,
+                -radar.receiver.lon,
                 # convert to feet
-                receiver.antenna_height * METER_TO_FEET,
+                radar.receiver.antenna_height * METER_TO_FEET,
                 earth_dielectric_constant,
                 earth_conductivitiy,
                 atmospheric_bending_constant,
-                transmitter.frequency,
+                radar.transmitter.frequency,
                 radio_climate.value,
-                transmitter.polarization.value,
+                radar.transmitter.polarization.value,
                 ground_clutter * METER_TO_FEET,
                 0,
                 int(oitm),
-                transmitter.erp,
+                radar.transmitter.erp,
             ]
             ws.send(",".join([str(p) for p in params]))
         answer = ws.recv()
@@ -339,26 +338,33 @@ class OpenburstClient:
     ) -> float:
         radar = radar.model_copy()
         # Convert MHz to GHz.
-        radar.frequency /= 1000.0
+        params = {
+            "radar": radar_to_openburst_json(radar),
+            "target": target_to_openburst_json(target),
+            "doppler_shift_threshold": doppler_shift_threshold,
+        }
         response = requests.get(
             self._url_active_detection,
-            params={
-                "radar": radar_to_openburst_json(radar),
-                "target": target_to_openburst_json(target),
-                "doppler_shift_threshold": doppler_shift_threshold,
-            },
+            params=params,
         )
 
         return float(response.text)
 
 
 def radar_to_openburst_json(radar: Radar) -> str:
-    r = radar.model_dump()
-    r["polarization"] = r["polarization"].value
-    r["lat"] = r["point"]["lat"]
-    r["lon"] = r["point"]["lon"]
-    r["alt"] = r["point"]["alt"]
-    del r["point"]
+    r = {
+        "lat": radar.transmitter.lat,
+        "lon": radar.transmitter.lon,
+        "alt": radar.transmitter.alt,
+        "power": radar.transmitter.power,
+        "diameter": radar.transmitter.antenna_diameter,
+        "frequency": radar.transmitter.frequency / 1000,  # MHz -> GHz
+        "pulse_width": radar.transmitter.pulse_width,
+        "cpi_pulses": radar.receiver.cpi_pulses,
+        "bandwidth": radar.transmitter.bandwidth,
+        "pfa": radar.receiver.pfa,
+        "polarization": radar.transmitter.polarization.value,
+    }
     return str(r).replace("'", '"')
 
 
@@ -373,8 +379,8 @@ def target_to_openburst_json(target: Target) -> str:
             "lon": target.lon,
             "alt": target.alt,
             "cross_section": target.cross_section,
-            "vlon": vlon,
-            "vlat": vlat,
-            "vz": valt,
+            "vlon": float(vlon),
+            "vlat": float(vlat),
+            "vz": float(valt),
         }
     ).replace("'", '"')
