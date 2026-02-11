@@ -6,7 +6,14 @@ import numpy as np
 import pandas as pd
 from theia.coordinates import CoordinateTransformations
 from theia.target_simulation.recorded_targets_simulator import RecordedTargetsSimulator
-from theia.types import AttenuationModel, Point, Polarization, Radar, Trajectory
+from theia.types import (
+    AttenuationModel,
+    Point,
+    Polarization,
+    Radar,
+    Trajectory,
+    Velocity,
+)
 
 
 def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
@@ -49,9 +56,6 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
             )
             continue
 
-
-
-
         for lat, lon, alt, vlat, vlon, vz in zip(
             rows["lat"],
             rows["lon"],
@@ -59,7 +63,7 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
             rows["vlat"],
             rows["vlon"],
             rows["vz"],
-            strict=True
+            strict=True,
         ):
             CoordinateTransformations.velocity_geodetic_to_cartesian(
                 p=Point(lat=lat, lon=lon, alt=alt),
@@ -177,6 +181,22 @@ def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajecto
     trajectories = []
     for ID, df_target in df.groupby("converted_integer_id"):
         df_target.sort_values("milli_secs_after_midnight", inplace=True)
+        velocities: list[Velocity] = []
+        for _, row in df_target.iterrows():
+            velocities.append(
+                CoordinateTransformations.velocity_geodetic_to_cartesian(
+                    p=Point(
+                        lat=row["lat"],
+                        lon=row["lon"],
+                        alt=row["altitude[m]"],
+                    ),
+                    # TODO not sure whether this is actually correct...
+                    # See #20 and #23 in openBURST
+                    vlat=row["tgt_vx [vel m/s on lon axis]"],
+                    vlon=row["tgt_vy [vel m/s on lat axis]"],
+                    valt=row["tgt_vz [vel m/s on z axis]"],
+                )
+            )
         trajectories.append(
             Trajectory(
                 target_id=ID,
@@ -184,9 +204,9 @@ def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajecto
                 lats=df_target.loc[:, "lat"],
                 lons=df_target.loc[:, "lon"],
                 alts=df_target.loc[:, "altitude[m]"],
-                vlats=df_target.loc[:, "tgt_vy [vel m/s on lat axis]"],
-                vlons=df_target.loc[:, "tgt_vx [vel m/s on lon axis]"],
-                vzs=df_target.loc[:, "tgt_vz [vel m/s on z axis]"],
+                vxs=[v.vx for v in velocities],
+                vys=[v.vy for v in velocities],
+                vzs=[v.vz for v in velocities],
                 cross_sections=[rcs for _ in range(df_target.shape[0])],
             )
         )
@@ -212,6 +232,10 @@ def save_openburst_trajectory_file(
     while time <= stop_time:
         targets = sim.get_targets(time)
         for target in targets:
+            vlat, vlon, vz = CoordinateTransformations.velocity_cartesian_to_geodetic(
+                target.point,
+                target.velocity,
+            )
             dicts.append(
                 {
                     "DateTimeIndex": time,
@@ -224,10 +248,10 @@ def save_openburst_trajectory_file(
                     "altitude[m]": target.alt,
                     "track_quality": 1,
                     "heading[0 = north\n180 = south\n360 = north]": 0,
-                    "speed [km / h]": target.speed * 1000 / 3600,
-                    "tgt_vx [vel m/s on lon axis]": target.vlon,
-                    "tgt_vy [vel m/s on lat axis]": target.vlat,
-                    "tgt_vz [vel m/s on z axis]": target.vz,
+                    "speed [km / h]": target.velocity.speed * 1000 / 3600,
+                    "tgt_vx [vel m/s on lon axis]": vlon,
+                    "tgt_vy [vel m/s on lat axis]": vlat,
+                    "tgt_vz [vel m/s on z axis]": vz,
                 }
             )
         time = time + dt

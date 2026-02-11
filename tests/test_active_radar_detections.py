@@ -1,49 +1,70 @@
 # import unittest
 
 # import numpy as np
-# from theia.detection.active import radar_detection_given_with_splat
+
+# from theia.coordinates import CoordinateTransformations
+# from theia.detection.active import calculate_monostatic_detection
+# from theia.types import Point, Polarization, Radar, Receiver, Target, Transmitter
 
 
 # class ActiveRadarDetectionTest(unittest.TestCase):
-
-#     def test_active_radar_detections(self):
-#         line_of_sight_ok = 1.0
-#         propagation_loss = 109.38008880615234
-#         free_space_loss = 109.42449188232422
-#         # fresnel_zone_free = 7044.87939453125
-#         fresnel_zone_free = 0.0
-#         target_radiation_distance = 7.064422898951063
-#         result = radar_detection_given_with_splat(
-#             20000,
-#             2.0,
-#             1000.0,
-#             1.0,
-#             1,
-#             1,
-#             1e-06,
-#             1.0,
-#             target_radiation_distance,
+#     def test_runs(self):
+#         p = Point(
+#             lat=47.36700085728634,
+#             lon=8.537724304199216,
+#             alt=407.83600886023686,
 #         )
-#         self.assertAlmostEqual(result, 1.0)
-
-#         line_of_sight_ok = 1.0
-#         propagation_loss = np.nan
-#         free_space_loss = 113.8821029663086
-#         # fresnel_zone_free = 11769.3916015625
-#         fresnel_zone_free = 0.0
-#         target_radiation_distance = 11.800535396299894
-#         result = radar_detection_given_with_splat(
-#             20000,
-#             2.0,
-#             1000.0,
-#             1.0,
-#             1,
-#             1,
-#             1e-06,
-#             1.0,
-#             target_radiation_distance,
+#         ah = 10.0
+#         bandwidth = 1
+#         diameter = 2.0
+#         radar = Radar(
+#             transmitter=Transmitter(
+#                 id=585,
+#                 point=p,
+#                 power=20000,
+#                 erp=800,
+#                 antenna_height=ah,
+#                 antenna_diameter=diameter,
+#                 frequency=1000.0,
+#                 pulse_width=1,
+#                 bandwidth=bandwidth,
+#                 polarization=Polarization.HORIZONTAL,
+#             ),
+#             receiver=Receiver(
+#                 id=585,
+#                 point=p,
+#                 antenna_height=ah,
+#                 diameter=2.0,
+#                 cpi_pulses=1,
+#                 pfa=1e-6,
+#                 min_elevation=-20.0,
+#                 max_elevation=60.0,
+#                 rotation_time=10.0,
+#                 bandwidth=bandwidth,
+#             ),
 #         )
-#         self.assertAlmostEqual(result, 1.0)
+
+#         p = Point(
+#             lat=47.367001,
+#             lon=8.537724,
+#             alt=2000,
+#         )
+#         target = Target(
+#             id=0,
+#             point=p,
+#             cross_section=2.0,
+#             velocity=CoordinateTransformations.velocity_geodetic_to_cartesian(
+#                 p,
+#                 vlat=100,
+#                 vlon=0,
+#                 valt=0,
+#             ),
+#         )
+
+#         rng = np.random.Generator(np.random.PCG64(seed=4074992))
+#         detection = calculate_monostatic_detection(radar, target, rng)
+
+#         self.assertIsNotNone(detection)
 
 
 # if __name__ == "__main__":
