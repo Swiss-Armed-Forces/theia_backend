@@ -334,6 +334,15 @@ class Target(pydantic.BaseModel):
     def alt(self) -> float:
         return self.point.alt
 
+    def almostEqual(self, other: Target, velocity_tol=0.01) -> bool:
+        assert type(other) is Target
+        return (
+            self.id == other.id
+            and np.isclose(self.point.as_tuple(), other.point.as_tuple()).all()
+            and self.cross_section == other.cross_section
+            and np.isclose(self.velocity.as_tuple(), other.velocity.as_tuple(), atol=0.01).all()
+        )
+
 
 class Trajectory(pydantic.BaseModel):
     target_id: int
