@@ -25,7 +25,7 @@ from theia.types import (
 from theia.util import get_clear_sky_attenuation
 
 
-def calculate_bistatic_detection(
+def calculate_pcl_detection(
     rx: Receiver,
     tx: Transmitter,
     tgt: Target,
@@ -34,7 +34,9 @@ def calculate_bistatic_detection(
     doppler_thresh: float = DOPPLER_SHIFT_THRESHOLD_PCL,
     delay_thresh: float = DELAY_THRESHOLD_PCL,
 ) -> PassiveRadarDetection | None:
-    """sets PCL live detections
+    """
+    Calculate whether the given geometry leads to a detection using Passive
+    Coherent Location (PCL) radar.
 
     Parameters
     ----------
