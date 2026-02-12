@@ -140,6 +140,22 @@ theia.snr module
    :show-inheritance:
    :undoc-members:
 
+theia.terrain module
+--------------------
+
+.. automodule:: theia.terrain
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+theia.test\_data module
+-----------------------
+
+.. automodule:: theia.test_data
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 theia.types module
 ------------------
 
