@@ -1,4 +1,4 @@
-# theia
+![Logo of Theia](doc/source/_static/logo.svg)
 
 ## Installation
 
