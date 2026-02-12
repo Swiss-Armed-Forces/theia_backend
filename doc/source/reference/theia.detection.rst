@@ -12,10 +12,18 @@ theia.detection.active module
    :show-inheritance:
    :undoc-members:
 
-theia.detection.passive module
-------------------------------
+theia.detection.pcl module
+--------------------------
 
-.. automodule:: theia.detection.passive
+.. automodule:: theia.detection.pcl
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+theia.detection.pet module
+--------------------------
+
+.. automodule:: theia.detection.pet
    :members:
    :show-inheritance:
    :undoc-members:

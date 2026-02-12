@@ -6,6 +6,9 @@ Physical Model
 SNR formula
 -----------
 
+Active Radar
+^^^^^^^^^^^^
+
 The detection models in `theia` are based on the book by Barton :footcite:p:`Barton2004-ru`,
 which is an excellent resource to get started in the field of radar technology.
 
@@ -15,7 +18,19 @@ The signal-to-noise ratio (SNR) for the monostatic case is given by Equ. (1.18)
 
    SNR = \frac{P_t \tau n G_t G_r \lambda^2 \sigma F_p^2 F_t^2 F_r^2}{(4 \pi)^3 k_B T_S R^4 L_t L_a}.
 
+PCL
+^^^
+
 This formula is valid for the bistatic case as well by replacing :math:`R^2 = R_t R_r` according to Sec. (1.2.2) in Barton :footcite:p:`Barton2004-ru`.
+
+PET
+^^^
+
+In PET, the formula needs to be adjusted since there is no scatterer
+
+.. math::
+
+   SNR = \frac{P_t \tau n G_t G_r \lambda^2 F_p^2 F_t^2 F_r^2}{(4 \pi)^2 k_B T_S R^2 L_t L_a}.
 
 Quantities
 ----------
