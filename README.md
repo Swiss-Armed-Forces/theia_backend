@@ -1,4 +1,4 @@
-![Logo of Theia](doc/source/_static/logo.svg)
+<img src="doc/source/_static/logo.png" alt="Logo of Theia" width="256" />
 
 ## Installation
 
