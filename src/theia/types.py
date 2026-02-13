@@ -340,7 +340,9 @@ class Target(pydantic.BaseModel):
             self.id == other.id
             and np.isclose(self.point.as_tuple(), other.point.as_tuple()).all()
             and self.cross_section == other.cross_section
-            and np.isclose(self.velocity.as_tuple(), other.velocity.as_tuple(), atol=0.01).all()
+            and np.isclose(
+                self.velocity.as_tuple(), other.velocity.as_tuple(), atol=0.01
+            ).all()
         )
 
 
@@ -565,6 +567,7 @@ class PassiveRadarDetection(pydantic.BaseModel):
 
 class PetDetection(pydantic.BaseModel):
     """Representation of a detection from Passive Emitter Tracking."""
+
     detection_id: int
     time: datetime.datetime
     """Date and time at which the detection takes place."""
@@ -632,3 +635,84 @@ class Situation(pydantic.BaseModel):
     """Labels per receiver ID"""
     target_labels: dict[int, str] = {}
     """Labels per target ID"""
+
+
+class SituationalPicture(pydantic.BaseModel):
+    time: datetime.datetime
+    friendly_radars: list[Radar]
+    friendly_targets: list[Target]
+    # TODO:
+    # Add tracks for enemy targets!
+
+
+class ReceiverController(abc.ABC):
+    @abc.abstractmethod
+    def get_receivers(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Receiver]:
+        raise NotImplementedError()
+
+
+class TransmitterController(abc.ABC):
+    @abc.abstractmethod
+    def get_transmitters(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Transmitter]:
+        raise NotImplementedError()
+
+
+class TargetController(abc.ABC):
+    @abc.abstractmethod
+    def get_targets(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Target]:
+        raise NotImplementedError()
+
+
+class Controller(ReceiverController, TransmitterController, TargetController):
+    def __init__(
+        self,
+        transmitter_controller: TransmitterController,
+        receiver_controller: ReceiverController,
+        target_controller: TargetController,
+    ):
+        self._transmitter_controller = transmitter_controller
+        self._receiver_controller = receiver_controller
+        self._target_controller = target_controller
+
+    def get_receivers(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Receiver]:
+        return self._receiver_controller.get_receivers(situational_picture, dt)
+
+    def get_transmitters(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Transmitter]:
+        return self._transmitter_controller.get_transmitters(situational_picture, dt)
+
+    def get_targets(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Target]:
+        return self._target_controller.get_targets(situational_picture, dt)
+
+
+class Snapshot(pydantic.BaseModel):
+    time: datetime.datetime
+    blue_transmitters: list[Transmitter]
+    blue_receivers: list[Receiver]
+    blue_targets: list[Target]
+    red_transmitters: list[Transmitter]
+    red_receivers: list[Receiver]
+    red_targets: list[Target]
