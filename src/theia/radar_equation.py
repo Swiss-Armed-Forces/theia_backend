@@ -1,122 +1,96 @@
-import math
-import numpy as np
 import scipy.constants as sc
 
+from theia.config import RF_LOSS
+from theia.detection.active import calculate_probability_of_detection
+from theia.snr import calculate_snr
 from theia.types import Radar
-from theia.util import marcum_q_function
+from theia.util import get_clear_sky_attenuation
 
 
-# Taken from OpenBurst.
-def radar_eq_max_dist(radar: Radar, target_rcs: float) -> float:
-    """! returns maximal distance [m] given the radar parameters and the target rcs.
-    MAX RANGE IS SET TO 400kms, due to the HARD LIMIT in SPLAT! (see MAXPAFES in splatBurst.h)
+def calculate_maximum_monostatic_range(
+    radar: Radar,
+    target_rcs: float,
+    probability_threshold: float = 0.8,
+    maximum_expected_range: float = 2**20,
+    resolution: float = 1.0,
+    rf_loss: float = RF_LOSS,
+) -> float:
+    r"""
+    Maximum range [m] such that a minimum probability of detection is achieved.
+
+    Parameters
+    ----------
+    radar: Radar
+        Radar
+    target_rcs: float
+        RCS of a target to be detected [m^2]
+    probability_threshold: float, default 0.8
+        Minimum detection probability in [0, 1] to be achieved at the maximum range
+    maximum_expected_range: float, default 2**20 :math:`\approx.` 1000km
+        Maximum range to be assumed. Determines the number of queries to be made.
+    resolution: float, default 1.0
+    rf_loss: float, default RF_LOSS
+        Loss of the transmitter (correct? TODO)
+
+    Returns
+    -------
+    float
+        Maximum range at which a target of the given RCS can be detected
+
+    See also
+    --------
+    Details about the implemented formula can be found in the docs at :ref:`snr-section`.
+    The pulse width was replaced by the corresponding noise bandwidth
+    :math:`B_n \approx \frac{1}{\tau}`.
+
+    Notes
+    -----
+    Algorithm: We start at range zero. A bisection approach is taken.
+    As long as the range is still detectable, we take one step further.
+    In every iteration, the step width is halved.
     """
-    trans_pwr = radar.transmitter.power
-    antenna_diam = radar.receiver.diameter
-    frequency = radar.transmitter.frequency / 1000.
-    pulse_width = radar.transmitter.pulse_width
-    cpi_pulses = radar.receiver.cpi_pulses
-    bandwidth = radar.transmitter.bandwidth
-    pfa = radar.receiver.pfa
-    rcsSM = target_rcs
+    wavelength = sc.speed_of_light / (radar.transmitter.frequency * 1e6)
 
+    # Factor 2 is needed because the signal travels both ways.
+    atmospheric_loss_per_distance = (
+        get_clear_sky_attenuation(radar.transmitter.frequency) * 2 / 1000.0
+    )
 
-    ####################### Radar and target values (working) ##################
-
-    c = sc.speed_of_light
-    # speed of light
-    rf_loss = 12
-    # RF system hardware loss (not known for ASR, best guess from chapter 2.12, p.80 Skolnik)
-    rcs_start = 10 * np.log10(rcsSM)
-    # rcs_start=13;                        # RCS in db
-    noise_figure = 1.9
-    # Receiver LNA noise figure in dB  (not known for TA, best guess)
-    window = 0
-    # rectangular for no window, or Hamming (=0)
-    equiv_temp = 300
-    # equivalent temperature [K] (not known for ASR, best guess)
-
-    ########################################################################################
-
-    ############# ------------- analyze for upto 400 kms
-    start_range = 0.001
-    # [m] starting at 0 will cause a division by 0 error further down
-    # Attention!!!!!! if the snr is very high (that is for low ranges) the besseli function will overflow
-    # throwing a segmentation fault (another way to avoid it is to return Pd=1 for snr > e.g. 30dB)
-    # this can be avoided by setting the start_range to be a higher value
-    stop_range = 400000
-    # [m]
-
-    # ------------------------------evaluate  range resolution ---------------
-
-    res = c / (2 * (bandwidth * 1e6))
-    if window == 0:
-        res = res * 1.44
-
-    # we set resolution manually
-    res = 1000  # [m]
-
-    # -----------------------evaluate radar range equation -----------------------------------
-
-    A = np.pi * antenna_diam * antenna_diam / 4
-    wavelength = c / (frequency * 1e9)
-    antenna_gain = 10 * np.log10(0.6 * 4 * np.pi * A / (wavelength * wavelength))
-
-    four_pi = 10 * np.log10(pow((4 * np.pi), 3))
-    pt = 10 * np.log10(trans_pwr)
-    lambda_sq = 2 * 10 * np.log10(c / (frequency * 1e9))
-    ktb = 10 * np.log10(1.38e-23 * equiv_temp * (bandwidth * 1e6))
-    t_bw_gain = 10 * np.log10(pulse_width * bandwidth)
-    dop_gain = 10 * np.log10(cpi_pulses)
-
-    ranges = np.arange(start_range, stop_range + 1, res)
-    snr = []
-    for rng in ranges:
-        curr_snr = (
-            pt
-            + lambda_sq
-            + 2 * antenna_gain
-            + t_bw_gain
-            + dop_gain
-            + rcs_start
-            - four_pi
-            - ktb
-            - 40 * np.log10(rng)
-            - noise_figure
-            - rf_loss
+    def calc_pd(r: float) -> float:
+        snr = calculate_snr(
+            wavelength=wavelength,
+            antenna_gain_transmitter=radar.transmitter.antenna_gain,
+            antenna_gain_receiver=radar.receiver.antenna_gain(
+                radar.transmitter.frequency
+            ),
+            radar_cross_section=target_rcs,
+            distance_transmitter_target=r,
+            distance_receiver_target=r,
+            transmission_power=radar.transmitter.power,
+            bandwidth=radar.receiver.bandwidth,
+            cpi_pulses=radar.receiver.cpi_pulses,
+            equivalent_temperature=radar.receiver.noise_temperature,
+            L_t=rf_loss,
+            L_a=atmospheric_loss_per_distance * r,
+            # TODO: Should we include these factors?
+            polarization_factor=0.0,
+            pattern_propagation_factor_receiver=0.0,
+            pattern_propagation_factor_transmitter=0.0,
         )
-        snr = np.concatenate([snr, [curr_snr]])
-
-    # -----------------------------evaluate Pd function -----------------------
-
-    beta = math.sqrt(-2 * (np.log(pfa)))
-
-    rangel = np.arange(start_range, stop_range + 1, res)
-
-    # lrl = rangel.shape[0]
-
-    jj = 0
-    pd = []
-
-    for rng in rangel:
-        # avoid segmentation fault in the besseli function for high snr values
-        if snr[jj] > 30:
-            pd = np.concatenate([pd, [1.0]])
+        # Avoid blowup in Bessel function.
+        if snr > 30:
+            p = 1.0
         else:
-            alpha = pow(10, (snr[jj] + 3) / 20)
-            curr_pd = 1 if alpha > 30 else marcum_q_function(alpha, beta)
-            pd = np.concatenate([pd, [curr_pd]])
+            p = calculate_probability_of_detection(snr, radar.receiver.pfa)
+        return p
 
-        jj = jj + 1
+    step = 0.5 * maximum_expected_range
+    r = 0
+    while step >= 0.5 * resolution:
+        r_further = r + step
+        p_further = calc_pd(r_further)
+        if p_further >= probability_threshold:
+            r += step
+        step /= 2
 
-    # compute and return max range (attention: all max ranges above this will not be noted by the user)
-    retval = 400000
-
-    ii = 0
-    for _ in pd:
-        if pd[ii] <= 0.8:
-            retval = (rangel[ii] + rangel[ii - 1]) / 2
-            break
-        ii = ii + 1
-
-    return retval
+    return r
