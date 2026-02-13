@@ -563,6 +563,19 @@ class PassiveRadarDetection(pydantic.BaseModel):
     """Doppler shift [Hz]."""
 
 
+class PetDetection(pydantic.BaseModel):
+    """Representation of a detection from Passive Emitter Tracking."""
+    detection_id: int
+    time: datetime.datetime
+    """Date and time at which the detection takes place."""
+    transmitter: Transmitter
+    receiver: Receiver
+    azimuth: float
+    """Azimuth angle [rad] of the gaze vector towards the transmitter."""
+    elevation: float
+    """Elevation angle [rad] of the gaze vector towards the transmitter."""
+
+
 class RcsModel(abc.ABC):
     """Abstract base class for a radar cross section model."""
 
