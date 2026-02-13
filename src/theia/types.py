@@ -555,8 +555,7 @@ class PassiveRadarDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
     """Date and time at which the detection takes place."""
-    transmitter: Transmitter
-    receiver: Receiver
+    radar: Radar
     target: Target
     bistatic_range: float
     """Bistatic range [m]."""
