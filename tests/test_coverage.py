@@ -7,8 +7,7 @@ import shapely
 
 from theia.coverage import calculate_coverage
 from theia.terrain import elevationAt
-from theia.radar_equation import radar_eq_max_dist
-from theia.types import Point, Polarization, Radar, Receiver, Transmitter
+from theia.types import Point
 
 
 class CoverageTest(unittest.TestCase):
@@ -24,35 +23,6 @@ class CoverageTest(unittest.TestCase):
             lon=8.537724304199216,
             alt=407.83600886023686,
         )
-        ah = 10.0
-        bandwidth = 1
-        diameter = 2.
-        radar = Radar(
-            transmitter=Transmitter(
-                id=585,
-                point=p,
-                power=20000,
-                erp=800,
-                antenna_height=ah,
-                antenna_diameter=diameter,
-                frequency=1000.0,
-                pulse_width=1,
-                bandwidth=bandwidth,
-                polarization=Polarization.HORIZONTAL,
-            ),
-            receiver=Receiver(
-                id=585,
-                point=p,
-                antenna_height=ah,
-                diameter=2.0,
-                cpi_pulses=1,
-                pfa=1e-6,
-                min_elevation=-20.0,
-                max_elevation=60.0,
-                rotation_time=10.0,
-                bandwidth=bandwidth,
-            ),
-        )
 
         start = Point(
             lat=p.lat,
@@ -60,13 +30,10 @@ class CoverageTest(unittest.TestCase):
             alt=elevationAt(p.lat, p.lon),
         )
 
-        target_cross_section: float = 2.0
         target_flight_height = 1000.0
 
-        max_dist = radar_eq_max_dist(
-            radar,
-            target_cross_section,
-        )
+        # From openBURST.
+        max_dist = 16500.001
 
         coverage = calculate_coverage(
             start, max_dist, target_flight_height, d_theta=0.1
