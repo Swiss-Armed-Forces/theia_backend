@@ -568,8 +568,8 @@ class PetDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
     """Date and time at which the detection takes place."""
-    transmitter: Transmitter
-    receiver: Receiver
+    radar: Radar
+    target: Target
     azimuth: float
     """Azimuth angle [rad] of the gaze vector towards the transmitter."""
     elevation: float
