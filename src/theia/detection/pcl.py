@@ -17,6 +17,7 @@ from theia.snr import calculate_snr
 from theia.types import (
     PassiveRadarDetection,
     Point,
+    Radar,
     RcsModel,
     Receiver,
     Target,
@@ -146,8 +147,10 @@ def calculate_pcl_detection(
         return PassiveRadarDetection(
             detection_id=-1,
             time=datetime.datetime.fromtimestamp(0),
-            transmitter=tx,
-            receiver=rx,
+            radar=Radar(
+                transmitter=tx,
+                receiver=rx,
+            ),
             target=tgt,
             bistatic_range=bistatic_range_km * 1000.0,
             doppler_shift=doppler,
