@@ -3,7 +3,7 @@ import numpy as np
 import scipy.constants as sc
 
 
-# Active radar.
+# Active radar and PCL.
 @numba.njit
 def calculate_snr(
     wavelength: float,
