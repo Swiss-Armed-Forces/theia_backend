@@ -13,6 +13,7 @@ from theia.types import (
     PassiveRadarDetection,
     Point,
     Polarization,
+    Radar,
     Receiver,
     Target,
     Trajectory,
@@ -191,8 +192,12 @@ def load_pcl_reference_data(
                 PassiveRadarDetection(
                     detection_id=id,
                     time=t_min + datetime.timedelta(milliseconds=row["recording_time"]),
-                    transmitter=next(t for t in transmitters if t.id == row["tx_id"]),
-                    receiver=next(r for r in receivers if r.id == row["rx_id"]),
+                    radar=Radar(
+                        transmitter=next(
+                            t for t in transmitters if t.id == row["tx_id"]
+                        ),
+                        receiver=next(r for r in receivers if r.id == row["rx_id"]),
+                    ),
                     target=Target(
                         id=int(row["targ_id"]),
                         point=target_position,
