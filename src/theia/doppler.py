@@ -11,15 +11,18 @@ def calculate_doppler_shift(
     tx: Transmitter,
     dt: float = 1e-6,
 ):
-    """
+    r"""
     Calculate Doppler shift [Hz] assuming transmitter and receiver
     do not move.
 
     Parameters
     ----------
     rx: Receiver
+        Receiver
     tgt: Target
+        Target
     tx: Transmitter
+        Transmitter
     dt: float
         Time step [s] to use for the finite difference calculation. The target's
         velocity vector is assumed to be constant between the current time t
@@ -29,8 +32,9 @@ def calculate_doppler_shift(
     -------
     float
         Doppler shift in [Hz]
-        Negative value: The bistatic range is getting bigger ("target is leaving").
-        Positive value: The bistatic range is getting smaller ("target is approaching).
+
+        * Negative value: The bistatic range is getting bigger ("target is leaving").
+        * Positive value: The bistatic range is getting smaller ("target is approaching").
 
     Notes
     -----
