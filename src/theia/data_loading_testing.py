@@ -10,6 +10,7 @@ from theia.coordinates import (
 from theia.data_loading import load_openburst_trajectory_file
 from theia.types import (
     AttenuationModel,
+    ConstantRcsModel,
     PassiveRadarDetection,
     Point,
     Polarization,
@@ -201,7 +202,7 @@ def load_pcl_reference_data(
                     target=Target(
                         id=int(row["targ_id"]),
                         point=target_position,
-                        cross_section=rcs,
+                        cross_section_model=ConstantRcsModel(rcs),
                         velocity=velocity,
                     ),
                     bistatic_range=row["range"] * 1000,

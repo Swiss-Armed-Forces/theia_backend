@@ -318,8 +318,7 @@ class Target(pydantic.BaseModel):
     """Unique identifier"""
     point: Point
     """Coordinates"""
-    cross_section: float
-    """Radar cross section [m^2]"""
+    cross_section_model: ConstantRcsModel
     velocity: Velocity
 
     @property
@@ -339,7 +338,7 @@ class Target(pydantic.BaseModel):
         return (
             self.id == other.id
             and np.isclose(self.point.as_tuple(), other.point.as_tuple()).all()
-            and self.cross_section == other.cross_section
+            and self.cross_section_model == other.cross_section_model
             and np.isclose(
                 self.velocity.as_tuple(), other.velocity.as_tuple(), atol=0.01
             ).all()
@@ -362,8 +361,7 @@ class Trajectory(pydantic.BaseModel):
     """Velocity components along Cartesian y-coordinate [m / s]"""
     vzs: list[float]
     """Velocity components along Cartesian z-coordinate [m / s]"""
-    cross_sections: list[float]
-    """Target cross sections [m^2]"""
+    cross_section_model: ConstantRcsModel
 
     _spline: CubicSpline = pydantic.PrivateAttr()
 
@@ -376,7 +374,6 @@ class Trajectory(pydantic.BaseModel):
             or len(self.times) != len(self.vxs)
             or len(self.times) != len(self.vys)
             or len(self.times) != len(self.vzs)
-            or len(self.times) != len(self.cross_sections)
         ):
             raise ValueError("Properties are not of same length")
         return self
@@ -402,7 +399,6 @@ class Trajectory(pydantic.BaseModel):
                 self.vxs,
                 self.vys,
                 self.vzs,
-                self.cross_sections,
             ],
             axis=1,
         )
@@ -413,7 +409,7 @@ class Trajectory(pydantic.BaseModel):
         y = self._spline(t.timestamp())
         if np.isnan(y).any():
             return None
-        lat, lon, alt, vx, vy, vz, rcs = y
+        lat, lon, alt, vx, vy, vz = y
         return Target(
             id=self.target_id,
             point=Point(
@@ -421,7 +417,7 @@ class Trajectory(pydantic.BaseModel):
                 lon=lon,
                 alt=alt,
             ),
-            cross_section=rcs,
+            cross_section_model=self.cross_section_model,
             velocity=Velocity(vx=vx, vy=vy, vz=vz),
         )
 
@@ -437,7 +433,6 @@ class Trajectory(pydantic.BaseModel):
             and (self.vxs == other.vxs)
             and (self.vys == other.vys)
             and (self.vzs == other.vzs)
-            and (self.cross_sections == other.cross_sections)
         )
 
     def plot_velocities(self):
@@ -482,7 +477,7 @@ class Trajectory(pydantic.BaseModel):
             vxs=[target.velocity.vx for _ in times],
             vys=[target.velocity.vy for _ in times],
             vzs=[target.velocity.vz for _ in times],
-            cross_sections=[target.cross_section for _ in times],
+            cross_section_model=target.cross_section_model,
         )
 
 
@@ -607,7 +602,7 @@ class RcsModel(abc.ABC):
         raise NotImplementedError()
 
 
-class ConstantRcsModel(RcsModel):
+class ConstantRcsModel(RcsModel, pydantic.BaseModel):
     def __init__(self, rcs: float):
         """
         Parameters

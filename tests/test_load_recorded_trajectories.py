@@ -2,11 +2,10 @@ import datetime
 from pathlib import Path
 import unittest
 
-import numpy as np
 
 from theia.coordinates import CoordinateTransformations
 from theia.data_loading import load_trajectory_file
-from theia.types import Point, Trajectory, Velocity
+from theia.types import ConstantRcsModel, Point, Trajectory, Velocity
 
 
 class TestLoadRecordedTrajectories(unittest.TestCase):
@@ -48,7 +47,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             vxs=[v_expected[0].vx, v_expected[1].vx],
             vys=[v_expected[0].vy, v_expected[1].vy],
             vzs=[v_expected[0].vz, v_expected[1].vz],
-            cross_sections=[10.0, 10.0],
+            cross_section_model=ConstantRcsModel(10.0),
         )
         self.assertEqual(trajectories[0], expected)
 
@@ -102,7 +101,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             vxs=[v_expected[0].vx, v_expected[1].vx],
             vys=[v_expected[0].vy, v_expected[1].vy],
             vzs=[v_expected[0].vz, v_expected[1].vz],
-            cross_sections=[10.0, 10.0],
+            cross_section_model=ConstantRcsModel(10.0),
         )
         self.assertEqual(trajectories[0], expected)
 
@@ -161,7 +160,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             vxs=[v_expected[0].vx, v_expected[1].vx, v_expected[2].vx],
             vys=[v_expected[0].vy, v_expected[1].vy, v_expected[2].vy],
             vzs=[v_expected[0].vz, v_expected[1].vz, v_expected[2].vz],
-            cross_sections=[100.0, 100.0, 100.0],
+            cross_section_model=ConstantRcsModel(100.0),
         )
         self.assertEqual(trajectories[1], expected)
 

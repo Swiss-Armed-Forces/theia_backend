@@ -3,6 +3,7 @@ from typing import Literal
 from theia.coordinates import CoordinateTransformations
 from theia.terrain import elevationAt
 from theia.types import (
+    ConstantRcsModel,
     Point,
     Polarization,
     Radar,
@@ -83,7 +84,7 @@ class TestSituationLoader:
         target = Target(
             id=0,
             point=p_target,
-            cross_section=2.0,
+            cross_section_model=ConstantRcsModel(2.0),
             velocity=v,
         )
 
