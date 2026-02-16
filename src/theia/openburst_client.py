@@ -334,13 +334,13 @@ class OpenburstClient:
         return img, free_space_loss, longley_rice_loss, terrain_shielding_loss
 
     def active_radar_probability_of_detection(
-        self, radar: Radar, target: Target, doppler_shift_threshold: float = 5.0
+        self, radar: Radar, target: Target, rcs: float, doppler_shift_threshold: float = 5.0
     ) -> float:
         radar = radar.model_copy()
         # Convert MHz to GHz.
         params = {
             "radar": radar_to_openburst_json(radar),
-            "target": target_to_openburst_json(target),
+            "target": target_to_openburst_json(target, rcs),
             "doppler_shift_threshold": doppler_shift_threshold,
         }
         response = requests.get(
@@ -368,7 +368,7 @@ def radar_to_openburst_json(radar: Radar) -> str:
     return str(r).replace("'", '"')
 
 
-def target_to_openburst_json(target: Target) -> str:
+def target_to_openburst_json(target: Target, rcs: float) -> str:
     vlat, vlon, valt = CoordinateTransformations.velocity_cartesian_to_geodetic(
         target.point,
         target.velocity,
@@ -378,7 +378,7 @@ def target_to_openburst_json(target: Target) -> str:
             "lat": target.lat,
             "lon": target.lon,
             "alt": target.alt,
-            "cross_section": target.cross_section,
+            "cross_section": rcs,
             "vlon": float(vlon),
             "vlat": float(vlat),
             "vz": float(valt),
