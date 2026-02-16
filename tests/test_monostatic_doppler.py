@@ -3,7 +3,7 @@ import unittest
 from theia.coordinates import CoordinateTransformations
 from theia.doppler import calculate_doppler_shift
 from theia.test_data import TestSituationLoader
-from theia.types import Point, Polarization, Radar, Receiver, Target, Transmitter
+from theia.types import ConstantRcsModel, Point, Polarization, Radar, Receiver, Target, Transmitter
 
 
 class MonostaticDopplerTest(unittest.TestCase):
@@ -103,7 +103,7 @@ class MonostaticDopplerTest(unittest.TestCase):
                 lon=8.6266,
                 alt=1000.0,
             ),
-            cross_section=2.0,
+            cross_section_model=ConstantRcsModel(2.0),
             velocity=CoordinateTransformations.velocity_geodetic_to_cartesian(
                 p,
                 0.0,

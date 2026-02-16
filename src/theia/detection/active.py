@@ -8,7 +8,7 @@ from theia.distance import line_of_sight_distance
 from theia.doppler import calculate_doppler_shift
 from theia.line_of_sight import has_line_of_sight
 from theia.snr import calculate_snr
-from theia.types import ActiveRadarDetection, ConstantRcsModel, Radar, RcsModel, Target
+from theia.types import ActiveRadarDetection, Radar, RcsModel, Target
 from theia.util import get_clear_sky_attenuation, marcum_q_function
 
 
@@ -45,7 +45,7 @@ def calculate_monostatic_detection(
     p = get_rad_pd(
         radar,
         target,
-        rcs_model=ConstantRcsModel(target.cross_section),
+        rcs_model=target.cross_section_model,
         distance_step=distance_step,
         doppler_shift_threshold_hz=doppler_shift_threshold_hz,
         rf_loss=rf_loss,

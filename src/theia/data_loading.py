@@ -5,7 +5,6 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from theia.coordinates import CoordinateTransformations
-from theia.target_simulation.recorded_targets_simulator import RecordedTargetsSimulator
 from theia.types import (
     AttenuationModel,
     Point,
@@ -13,6 +12,7 @@ from theia.types import (
     Radar,
     Trajectory,
     Velocity,
+    ConstantRcsModel,
 )
 
 
@@ -75,6 +75,9 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
                 )
             )
 
+        assert len(rows["cross_section"].unique()) == 1
+        rcs = rows["cross_section"].tolist()[0]
+
         trajectories.append(
             Trajectory(
                 target_id=ID,
@@ -85,7 +88,7 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
                 vxs=[v.vx for v in velocities],
                 vys=[v.vy for v in velocities],
                 vzs=[v.vz for v in velocities],
-                cross_sections=rows["cross_section"].astype(float).tolist(),
+                cross_section_model=ConstantRcsModel(rcs),
             )
         )
         callsign_map[ID] = callsign
@@ -210,7 +213,7 @@ def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajecto
                 vxs=[v.vx for v in velocities],
                 vys=[v.vy for v in velocities],
                 vzs=[v.vz for v in velocities],
-                cross_sections=[rcs for _ in range(df_target.shape[0])],
+                cross_section_model=ConstantRcsModel(rcs),
             )
         )
 
@@ -224,16 +227,15 @@ def save_openburst_trajectory_file(
     stop_time: Optional[datetime.datetime] = None,
     dt: datetime.timedelta = datetime.timedelta(seconds=10),
 ):
-    sim = RecordedTargetsSimulator(trajectories)
     if start_time is None:
-        start_time = sim.get_minimum_time()
+        start_time = min([t.times[0] for t in trajectories])
     if stop_time is None:
-        stop_time = sim.get_maximum_time()
+        stop_time = max([t.times[-1] for t in trajectories])
 
     dicts = []
     time = start_time
     while time <= stop_time:
-        targets = sim.get_targets(time)
+        targets = [t(time) for t in trajectories]
         for target in targets:
             vlat, vlon, vz = CoordinateTransformations.velocity_cartesian_to_geodetic(
                 target.point,
