@@ -603,14 +603,8 @@ class RcsModel(abc.ABC):
 
 
 class ConstantRcsModel(RcsModel, pydantic.BaseModel):
-    def __init__(self, rcs: float):
-        """
-        Parameters
-        ----------
-        rcs: float
-            Radar cross section [m^2] to be used for all geometries
-        """
-        self._rcs = rcs
+    rcs: float
+    """Radar cross section [m^2] to be used for all geometries"""
 
     def __call__(
         self,
@@ -618,7 +612,7 @@ class ConstantRcsModel(RcsModel, pydantic.BaseModel):
         receiver: Receiver,
         target: Target,
     ) -> float:
-        return self._rcs
+        return self.rcs
 
 
 class Situation(pydantic.BaseModel):
@@ -640,7 +634,7 @@ class SituationalPicture(pydantic.BaseModel):
     # Add tracks for enemy targets!
 
 
-class ReceiverController(abc.ABC):
+class Controller(abc.ABC):
     @abc.abstractmethod
     def get_receivers(
         self,
@@ -649,8 +643,6 @@ class ReceiverController(abc.ABC):
     ) -> list[Receiver]:
         raise NotImplementedError()
 
-
-class TransmitterController(abc.ABC):
     @abc.abstractmethod
     def get_transmitters(
         self,
@@ -659,8 +651,6 @@ class TransmitterController(abc.ABC):
     ) -> list[Transmitter]:
         raise NotImplementedError()
 
-
-class TargetController(abc.ABC):
     @abc.abstractmethod
     def get_targets(
         self,
@@ -668,39 +658,6 @@ class TargetController(abc.ABC):
         dt: datetime.timedelta,
     ) -> list[Target]:
         raise NotImplementedError()
-
-
-class Controller(ReceiverController, TransmitterController, TargetController):
-    def __init__(
-        self,
-        transmitter_controller: TransmitterController,
-        receiver_controller: ReceiverController,
-        target_controller: TargetController,
-    ):
-        self._transmitter_controller = transmitter_controller
-        self._receiver_controller = receiver_controller
-        self._target_controller = target_controller
-
-    def get_receivers(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Receiver]:
-        return self._receiver_controller.get_receivers(situational_picture, dt)
-
-    def get_transmitters(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Transmitter]:
-        return self._transmitter_controller.get_transmitters(situational_picture, dt)
-
-    def get_targets(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Target]:
-        return self._target_controller.get_targets(situational_picture, dt)
 
 
 class Snapshot(pydantic.BaseModel):

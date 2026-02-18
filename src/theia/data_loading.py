@@ -88,7 +88,7 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
                 vxs=[v.vx for v in velocities],
                 vys=[v.vy for v in velocities],
                 vzs=[v.vz for v in velocities],
-                cross_section_model=ConstantRcsModel(rcs),
+                cross_section_model=ConstantRcsModel(rcs=rcs),
             )
         )
         callsign_map[ID] = callsign
@@ -213,7 +213,7 @@ def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajecto
                 vxs=[v.vx for v in velocities],
                 vys=[v.vy for v in velocities],
                 vzs=[v.vz for v in velocities],
-                cross_section_model=ConstantRcsModel(rcs),
+                cross_section_model=ConstantRcsModel(rcs=rcs),
             )
         )
 

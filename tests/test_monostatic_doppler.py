@@ -103,7 +103,7 @@ class MonostaticDopplerTest(unittest.TestCase):
                 lon=8.6266,
                 alt=1000.0,
             ),
-            cross_section_model=ConstantRcsModel(2.0),
+            cross_section_model=ConstantRcsModel(rcs=2.0),
             velocity=CoordinateTransformations.velocity_geodetic_to_cartesian(
                 p,
                 0.0,
