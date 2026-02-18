@@ -122,7 +122,6 @@ def get_rad_pd(
     los_ok = has_line_of_sight(radar.transmitter.point, target.point, distance_step)
 
     if not los_ok:
-        print("No LOS")
         return 0.0
     else:
         doppler = calculate_doppler_shift(
@@ -130,8 +129,7 @@ def get_rad_pd(
             target,
             radar.transmitter,
         )
-        if doppler <= doppler_shift_threshold_hz:
-            print("Doppler fail")
+        if abs(doppler) <= doppler_shift_threshold_hz:
             return 0.0
 
     wavelength = sc.speed_of_light / (radar.transmitter.frequency * 1e6)
