@@ -47,7 +47,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             vxs=[v_expected[0].vx, v_expected[1].vx],
             vys=[v_expected[0].vy, v_expected[1].vy],
             vzs=[v_expected[0].vz, v_expected[1].vz],
-            cross_section_model=ConstantRcsModel(10.0),
+            cross_section_model=ConstantRcsModel(rcs=10.0),
         )
         self.assertEqual(trajectories[0], expected)
 
@@ -101,7 +101,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             vxs=[v_expected[0].vx, v_expected[1].vx],
             vys=[v_expected[0].vy, v_expected[1].vy],
             vzs=[v_expected[0].vz, v_expected[1].vz],
-            cross_section_model=ConstantRcsModel(10.0),
+            cross_section_model=ConstantRcsModel(rcs=10.0),
         )
         self.assertEqual(trajectories[0], expected)
 
@@ -160,7 +160,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             vxs=[v_expected[0].vx, v_expected[1].vx, v_expected[2].vx],
             vys=[v_expected[0].vy, v_expected[1].vy, v_expected[2].vy],
             vzs=[v_expected[0].vz, v_expected[1].vz, v_expected[2].vz],
-            cross_section_model=ConstantRcsModel(100.0),
+            cross_section_model=ConstantRcsModel(rcs=100.0),
         )
         self.assertEqual(trajectories[1], expected)
 
