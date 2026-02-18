@@ -1,15 +1,15 @@
 import datetime
 from theia.types import (
+    Controller,
     Radar,
     Receiver,
-    ReceiverController,
     SituationalPicture,
+    Target,
     Transmitter,
-    TransmitterController,
 )
 
 
-class MonostaticRadarController(ReceiverController, TransmitterController):
+class MonostaticRadarController(Controller):
     def __init__(self, radar: Radar):
         self._radar = radar
 
@@ -18,11 +18,18 @@ class MonostaticRadarController(ReceiverController, TransmitterController):
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
     ) -> list[Receiver]:
-        return self._radar.receiver
+        return [self._radar.receiver]
 
     def get_transmitters(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
     ) -> list[Transmitter]:
-        return self._radar.transmitter
+        return [self._radar.transmitter]
+
+    def get_targets(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Target]:
+        return []

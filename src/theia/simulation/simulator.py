@@ -2,7 +2,12 @@ import abc
 import datetime
 import itertools
 import time
+
+import numpy as np
+from theia.detection.active import calculate_monostatic_detection
+from theia.simulation.logging import AbstractSimulationLogger
 from theia.types import (
+    ActiveRadarDetection,
     Controller,
     Radar,
     Receiver,
@@ -36,6 +41,8 @@ class Simulator:
         time_step: datetime.timedelta,
         min_time_per_step: datetime.timedelta,
         termination_criterion: TerminationCriterion,
+        seed: int,
+        logger: AbstractSimulationLogger,
     ):
         """
         Parameters
@@ -54,6 +61,10 @@ class Simulator:
             human interactivity.
         termination_criterion: TerminationCriterion
             Determines when the simulation stops.
+        seed: int
+            Seed for the pseudo-random number generator (RNG)
+        logger: AbstractSimulationLogger
+            Logger for intermediate results
         """
         self._blue_controller = blue_controller
         self._red_controller = red_controller
@@ -62,6 +73,8 @@ class Simulator:
         self._minimum_time_per_step = min_time_per_step.seconds
         """Minimum amount of time to spend on an iteration."""
         self._termination_criterion = termination_criterion
+        self._rng = np.random.Generator(np.random.PCG64(seed=seed))
+        self._logger = logger
 
         self._blue_receivers: list[Receiver] = []
         self._blue_transmitters: list[Transmitter] = []
@@ -69,6 +82,9 @@ class Simulator:
         self._red_receivers: list[Receiver] = []
         self._red_transmitters: list[Transmitter] = []
         self._red_targets: list[Target] = []
+        self._active_detection_id = 0
+        self._time_of_last_active_detection: dict[int, datetime.datetime] = {}
+        """Time of latest detection for each active radar receiver ID."""
 
     def get_situational_picture_blue(self) -> SituationalPicture:
         radars = []
@@ -90,35 +106,126 @@ class Simulator:
             friendly_targets=self._red_targets,
         )
 
-    def advance(self):
+    def take_snapshot(self) -> Snapshot:
+        return Snapshot(
+            time=self._t,
+            blue_transmitters=self._blue_transmitters,
+            blue_receivers=self._blue_receivers,
+            blue_targets=self._blue_targets,
+            red_transmitters=self._red_transmitters,
+            red_receivers=self._red_receivers,
+            red_targets=self._red_targets,
+        )
+
+    @property
+    def _blue_active_radars(self) -> list[Radar]:
+        return [
+            Radar(transmitter=tx, receiver=rx)
+            for rx, tx in itertools.product(
+                self._blue_receivers,
+                self._blue_transmitters,
+            )
+            if rx.point == tx.point
+        ]
+
+    def _calculate_blue_active_detections(self) -> list[ActiveRadarDetection]:
+        """
+        Calculate blue active radar detections at the current time step,
+        i. e. the red targets detected by BLUE.
+
+        Notes
+        -----
+        The active detections are assumed to take place at a fixed period
+        (the receiver's rotation time) all at once.
+        No angular update is implemented.
+        """
+        detections: list[ActiveRadarDetection] = []
+        for radar in self._blue_active_radars:
+            time_of_last_detection = self._time_of_last_active_detection.get(
+                radar.receiver.id,
+                datetime.datetime(year=1900, month=1, day=1, tzinfo=self._t.tzinfo),
+            )
+            if (
+                self._t - time_of_last_detection
+            ).seconds < radar.receiver.rotation_time:
+                # No new detections.
+                continue
+            for target in self._red_targets:
+                det = calculate_monostatic_detection(
+                    radar,
+                    target,
+                    rng=self._rng,
+                )
+                if det is not None:
+                    det.time = self._t
+                    det.detection_id = self._active_detection_id
+                    self._active_detection_id += 1
+                    detections.append(det)
+            self._time_of_last_active_detection[radar.receiver.id] = self._t
+        return detections
+
+    def advance(self) -> bool:
+        """
+        Advance the simulation by a single iteration.
+
+        Returns
+        -------
+        bool
+            Whether the iteration has run sucessfully
+        """
         start_time = time.time()
+
+        if self._termination_criterion.is_terminated(self.take_snapshot()):
+            self._logger.end()
+            return False
 
         # Build situational picture.
         blue_situational_picture = self.get_situational_picture_blue()
         red_situational_picture = self.get_situational_picture_red()
 
-        # Update world according to behaviour.
+        # Update world according to behaviour informed by situational picture.
         self._blue_receivers = self._blue_controller.get_receivers(
-            blue_situational_picture
+            blue_situational_picture,
+            self._dt,
         )
         self._blue_transmitters = self._blue_controller.get_transmitters(
-            blue_situational_picture
+            blue_situational_picture,
+            self._dt,
         )
-        self._blue_targets = self._blue_controller.get_targets(blue_situational_picture)
+        self._blue_targets = self._blue_controller.get_targets(
+            blue_situational_picture,
+            self._dt,
+        )
         self._red_receivers = self._red_controller.get_receivers(
-            red_situational_picture
+            red_situational_picture,
+            self._dt,
         )
         self._red_transmitters = self._red_controller.get_transmitters(
-            red_situational_picture
+            red_situational_picture,
+            self._dt,
         )
-        self._red_targets = self._red_controller.get_targets(red_situational_picture)
+        self._red_targets = self._red_controller.get_targets(
+            red_situational_picture,
+            self._dt,
+        )
 
-        # TODO: Detect.
+        # Update the time stamp.
+        self._t += self._dt
+
+        # Detect RED targets.
+        blue_active_radar_detections = self._calculate_blue_active_detections()
+
+        # TODO: Implement PCL detections.
+        # TODO: Implement PET detections.
         # TODO: Track.
-        # TODO: Implement the update.
+
+        # Log.
+        self._logger.log_detections(blue_active_radar_detections, is_blue=True)
 
         stop_time = time.time()
 
         # Sleep the remaining time for an update.
         time_step_on_update = stop_time - start_time
         time.sleep(max(0, self._minimum_time_per_step - time_step_on_update))
+
+        return True
