@@ -157,7 +157,6 @@ def get_rad_pd(
         pattern_propagation_factor_receiver=0.0,
         pattern_propagation_factor_transmitter=0.0,
     )
-    print(f"SNR = {snr_dB:.2f}dB")
 
     # avoid segmentation fault in the besseli function for high snr values
     return (
@@ -192,5 +191,8 @@ def calculate_probability_of_detection(snr: float, pfa: float) -> float:
     https://doi.org/10.1109/taes.1973.309792
     """
     alpha = pow(10, ((snr + 3) / 20))
+    # Avoid blowup in Bessel function.
+    if alpha > 30:
+        return 1.0
     beta = math.sqrt(-2 * (np.log(pfa)))
     return marcum_q_function(alpha, beta)

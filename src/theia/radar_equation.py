@@ -77,11 +77,7 @@ def calculate_maximum_monostatic_range(
             pattern_propagation_factor_receiver=0.0,
             pattern_propagation_factor_transmitter=0.0,
         )
-        # Avoid blowup in Bessel function.
-        if snr > 30:
-            p = 1.0
-        else:
-            p = calculate_probability_of_detection(snr, radar.receiver.pfa)
+        p = calculate_probability_of_detection(snr, radar.receiver.pfa)
         return p
 
     step = 0.5 * maximum_expected_range
