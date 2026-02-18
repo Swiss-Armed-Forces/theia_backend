@@ -84,7 +84,7 @@ class TestSituationLoader:
         target = Target(
             id=0,
             point=p_target,
-            cross_section_model=ConstantRcsModel(2.0),
+            cross_section_model=ConstantRcsModel(rcs=2.0),
             velocity=v,
         )
 
