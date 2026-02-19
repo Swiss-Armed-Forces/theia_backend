@@ -220,6 +220,7 @@ class Simulator:
         # TODO: Track.
 
         # Log.
+        self._logger.log_snapshot(self.take_snapshot())
         self._logger.log_detections(blue_active_radar_detections, is_blue=True)
 
         stop_time = time.time()
