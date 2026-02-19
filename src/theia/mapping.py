@@ -3,6 +3,7 @@ from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
+import plotly.graph_objects as go
 from shapely.geometry import Polygon, LineString
 import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
@@ -71,18 +72,16 @@ class RadarMap:
 
         colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         for i, (name, path) in enumerate(self.paths.items()):
-            folium.GeoJson(
-                path,
-                tooltip=name,
-                color=colors[i % len(colors)]
-            ).add_to(map)
+            folium.GeoJson(path, tooltip=name, color=colors[i % len(colors)]).add_to(
+                map
+            )
 
         for name, polygon in self.polygons.items():
             folium.GeoJson(
                 polygon,
                 tooltip=name,
             ).add_to(map)
-        
+
         for name, trajectory in self.trajectories.items():
             folium.GeoJson(
                 trajectory.to_geojson(),
@@ -90,7 +89,6 @@ class RadarMap:
             ).add_to(map)
 
         return map
-
 
     def to_static_map(
         self,
@@ -132,87 +130,132 @@ class RadarMap:
         for name, radar in self.radars.items():
             if radar.transmitter.point == radar.receiver.point:
                 ax.plot(
-                    radar.transmitter.lon, radar.transmitter.lat,
-                    marker="^", color="blue", markersize=10,
-                    transform=ccrs.PlateCarree(), zorder=5,
+                    radar.transmitter.lon,
+                    radar.transmitter.lat,
+                    marker="^",
+                    color="blue",
+                    markersize=10,
+                    transform=ccrs.PlateCarree(),
+                    zorder=5,
                 )
                 ax.text(
-                    radar.transmitter.lon, radar.transmitter.lat,
+                    radar.transmitter.lon,
+                    radar.transmitter.lat,
                     f"  {name} (monostatic)",
-                    color="blue", fontsize=8,
-                    transform=ccrs.PlateCarree(), zorder=5,
+                    color="blue",
+                    fontsize=8,
+                    transform=ccrs.PlateCarree(),
+                    zorder=5,
                 )
             else:
                 ax.plot(
-                    radar.transmitter.lon, radar.transmitter.lat,
-                    marker="^", color="blue", markersize=10,
-                    transform=ccrs.PlateCarree(), zorder=5,
+                    radar.transmitter.lon,
+                    radar.transmitter.lat,
+                    marker="^",
+                    color="blue",
+                    markersize=10,
+                    transform=ccrs.PlateCarree(),
+                    zorder=5,
                 )
                 ax.text(
-                    radar.transmitter.lon, radar.transmitter.lat,
+                    radar.transmitter.lon,
+                    radar.transmitter.lat,
                     f"  {name} (Tx)",
-                    color="blue", fontsize=8,
-                    transform=ccrs.PlateCarree(), zorder=5,
+                    color="blue",
+                    fontsize=8,
+                    transform=ccrs.PlateCarree(),
+                    zorder=5,
                 )
                 ax.plot(
-                    radar.receiver.lon, radar.receiver.lat,
-                    marker="v", color="cornflowerblue", markersize=10,
-                    transform=ccrs.PlateCarree(), zorder=5,
+                    radar.receiver.lon,
+                    radar.receiver.lat,
+                    marker="v",
+                    color="cornflowerblue",
+                    markersize=10,
+                    transform=ccrs.PlateCarree(),
+                    zorder=5,
                 )
                 ax.text(
-                    radar.receiver.lon, radar.receiver.lat,
+                    radar.receiver.lon,
+                    radar.receiver.lat,
                     f"  {name} (Rx)",
-                    color="cornflowerblue", fontsize=8,
-                    transform=ccrs.PlateCarree(), zorder=5,
+                    color="cornflowerblue",
+                    fontsize=8,
+                    transform=ccrs.PlateCarree(),
+                    zorder=5,
                 )
 
         # --- Targets ---
         for name, target in self.targets.items():
             ax.plot(
-                target.lon, target.lat,
-                marker="o", color="red", markersize=10,
-                transform=ccrs.PlateCarree(), zorder=5,
+                target.lon,
+                target.lat,
+                marker="o",
+                color="red",
+                markersize=10,
+                transform=ccrs.PlateCarree(),
+                zorder=5,
             )
             ax.text(
-                target.lon, target.lat,
+                target.lon,
+                target.lat,
                 f"  {name}",
-                color="red", fontsize=8,
-                transform=ccrs.PlateCarree(), zorder=5,
+                color="red",
+                fontsize=8,
+                transform=ccrs.PlateCarree(),
+                zorder=5,
             )
 
         # --- Paths ---
         for name, path in self.paths.items():
             lons, lats = path.xy
             ax.plot(
-                list(lons), list(lats),
-                color="green", linewidth=2,
-                transform=ccrs.PlateCarree(), zorder=4,
+                list(lons),
+                list(lats),
+                color="green",
+                linewidth=2,
+                transform=ccrs.PlateCarree(),
+                zorder=4,
             )
             mid = len(lons) // 2
             ax.text(
-                lons[mid], lats[mid], name,
-                color="green", fontsize=8,
-                transform=ccrs.PlateCarree(), zorder=4,
+                lons[mid],
+                lats[mid],
+                name,
+                color="green",
+                fontsize=8,
+                transform=ccrs.PlateCarree(),
+                zorder=4,
             )
 
         # --- Polygons ---
         for name, polygon in self.polygons.items():
             lons, lats = polygon.exterior.xy
             ax.fill(
-                list(lons), list(lats),
-                color="orange", alpha=0.4,
-                transform=ccrs.PlateCarree(), zorder=3,
+                list(lons),
+                list(lats),
+                color="orange",
+                alpha=0.4,
+                transform=ccrs.PlateCarree(),
+                zorder=3,
             )
             ax.plot(
-                list(lons), list(lats),
-                color="darkorange", linewidth=2,
-                transform=ccrs.PlateCarree(), zorder=3,
+                list(lons),
+                list(lats),
+                color="darkorange",
+                linewidth=2,
+                transform=ccrs.PlateCarree(),
+                zorder=3,
             )
             cx_p, cy_p = polygon.centroid.x, polygon.centroid.y
             ax.text(
-                cx_p, cy_p, name,
-                color="darkorange", fontsize=8,
-                transform=ccrs.PlateCarree(), zorder=3,
+                cx_p,
+                cy_p,
+                name,
+                color="darkorange",
+                fontsize=8,
+                transform=ccrs.PlateCarree(),
+                zorder=3,
             )
 
         # --- Trajectories ---
@@ -220,32 +263,61 @@ class RadarMap:
             geom = trajectory.to_geojson()
             lons, lats = geom.xy
             ax.plot(
-                list(lons), list(lats),
-                color="purple", linewidth=2, linestyle="--",
-                transform=ccrs.PlateCarree(), zorder=4,
+                list(lons),
+                list(lats),
+                color="purple",
+                linewidth=2,
+                linestyle="--",
+                transform=ccrs.PlateCarree(),
+                zorder=4,
             )
             mid = len(lons) // 2
             ax.text(
-                lons[mid], lats[mid], name,
-                color="purple", fontsize=8,
-                transform=ccrs.PlateCarree(), zorder=4,
+                lons[mid],
+                lats[mid],
+                name,
+                color="purple",
+                fontsize=8,
+                transform=ccrs.PlateCarree(),
+                zorder=4,
             )
 
         # --- Legend ---
         legend_handles = []
         if self.radars:
             legend_handles.append(
-                mlines.Line2D([], [], marker="^", color="blue", linestyle="None",
-                              markersize=8, label="Radar (Tx / monostatic)")
+                mlines.Line2D(
+                    [],
+                    [],
+                    marker="^",
+                    color="blue",
+                    linestyle="None",
+                    markersize=8,
+                    label="Radar (Tx / monostatic)",
+                )
             )
             legend_handles.append(
-                mlines.Line2D([], [], marker="v", color="cornflowerblue", linestyle="None",
-                              markersize=8, label="Radar (Rx)")
+                mlines.Line2D(
+                    [],
+                    [],
+                    marker="v",
+                    color="cornflowerblue",
+                    linestyle="None",
+                    markersize=8,
+                    label="Radar (Rx)",
+                )
             )
         if self.targets:
             legend_handles.append(
-                mlines.Line2D([], [], marker="o", color="red", linestyle="None",
-                              markersize=8, label="Target")
+                mlines.Line2D(
+                    [],
+                    [],
+                    marker="o",
+                    color="red",
+                    linestyle="None",
+                    markersize=8,
+                    label="Target",
+                )
             )
         if self.paths:
             legend_handles.append(
@@ -253,13 +325,23 @@ class RadarMap:
             )
         if self.polygons:
             legend_handles.append(
-                mpatches.Patch(facecolor="orange", edgecolor="darkorange",
-                               alpha=0.6, label="Polygon")
+                mpatches.Patch(
+                    facecolor="orange",
+                    edgecolor="darkorange",
+                    alpha=0.6,
+                    label="Polygon",
+                )
             )
         if self.trajectories:
             legend_handles.append(
-                mlines.Line2D([], [], color="purple", linewidth=2,
-                              linestyle="--", label="Trajectory")
+                mlines.Line2D(
+                    [],
+                    [],
+                    color="purple",
+                    linewidth=2,
+                    linestyle="--",
+                    label="Trajectory",
+                )
             )
 
         if legend_handles:
@@ -267,3 +349,156 @@ class RadarMap:
 
         fig.tight_layout()
         return fig, ax
+
+    def to_plotly_map(
+        self,
+        map_style: str = "open-street-map",
+        zoom: int = 6,
+    ) -> go.Figure:
+        """
+        Render the map interactively using Plotly.
+
+        Args:
+            map_style: Mapbox tile style. Options (no token needed):
+                    "open-street-map", "carto-positron", "carto-darkmatter",
+                    "stamen-terrain", "stamen-toner", "stamen-watercolor"
+            zoom:      Initial zoom level.
+        """
+        cx = POSITIONS_OF_INTEREST["CH_CENTER"]["lon"]
+        cy = POSITIONS_OF_INTEREST["CH_CENTER"]["lat"]
+
+        fig = go.Figure()
+
+        # --- Radars ---
+        for name, radar in self.radars.items():
+            is_monostatic = radar.transmitter.point == radar.receiver.point
+
+            fig.add_trace(
+                go.Scattermapbox(
+                    lat=[radar.transmitter.lat],
+                    lon=[radar.transmitter.lon],
+                    mode="markers+text",
+                    marker=dict(size=12, color="blue"),
+                    text=[f"{name} ({'monostatic' if is_monostatic else 'Tx'})"],
+                    textposition="top right",
+                    name=f"{name} (Tx/monostatic)",
+                    legendgroup="radar_tx",
+                    showlegend=True,
+                )
+            )
+
+            if not is_monostatic:
+                fig.add_trace(
+                    go.Scattermapbox(
+                        lat=[radar.receiver.lat],
+                        lon=[radar.receiver.lon],
+                        mode="markers+text",
+                        marker=dict(
+                            size=12, color="cornflowerblue", symbol="triangle-down"
+                        ),
+                        text=[f"{name} (Rx)"],
+                        textposition="top right",
+                        name=f"{name} (Rx)",
+                        legendgroup="radar_rx",
+                        showlegend=True,
+                    )
+                )
+
+        # --- Targets ---
+        for name, target in self.targets.items():
+            fig.add_trace(
+                go.Scattermapbox(
+                    lat=[target.lat],
+                    lon=[target.lon],
+                    mode="markers+text",
+                    marker=dict(size=12, color="red"),
+                    text=[name],
+                    textposition="top right",
+                    name=name,
+                    legendgroup="targets",
+                    showlegend=True,
+                    customdata=[
+                        [
+                            f"{target.lat:.4f}",
+                            f"{target.lon:.4f}",
+                            f"{target.alt:.0f}",  # remove if no altitude
+                        ]
+                    ],
+                    hovertemplate=(
+                        f"<b>{name}</b><br>"
+                        "Lat: %{customdata[0]}°<br>"
+                        "Lon: %{customdata[1]}°<br>"
+                        "Alt: %{customdata[2]} m<br>"
+                        "<extra></extra>"
+                    ),
+                )
+            )
+
+        # --- Paths ---
+        for name, path in self.paths.items():
+            lons, lats = path.xy
+            fig.add_trace(
+                go.Scattermapbox(
+                    lat=list(lats),
+                    lon=list(lons),
+                    mode="lines",
+                    line=dict(width=2, color="green"),
+                    name=name,
+                    legendgroup="paths",
+                    showlegend=True,
+                )
+            )
+
+        # --- Polygons ---
+        for name, polygon in self.polygons.items():
+            lons, lats = polygon.exterior.xy
+            fig.add_trace(
+                go.Scattermapbox(
+                    lat=list(lats),
+                    lon=list(lons),
+                    mode="lines",
+                    fill="toself",
+                    fillcolor="rgba(255,165,0,0.4)",
+                    line=dict(width=2, color="darkorange"),
+                    name=name,
+                    legendgroup="polygons",
+                    showlegend=True,
+                )
+            )
+
+        # --- Trajectories ---
+        for name, trajectory in self.trajectories.items():
+            geom = trajectory.to_geojson()
+            lons, lats = geom.xy
+            fig.add_trace(
+                go.Scattermapbox(
+                    lat=list(lats),
+                    lon=list(lons),
+                    mode="lines",
+                    line=dict(
+                        width=2, color="purple", dash="dot"
+                    ),  # "dot" ≈ dashed in mapbox
+                    name=name,
+                    legendgroup="trajectories",
+                    showlegend=True,
+                    hovertemplate=(
+                        f"<b>{name}</b><br>Lat: %{{lat:.4f}}°<br>Lon: %{{lon:.4f}}°<br>"
+                    ),
+                )
+            )
+
+        fig.update_layout(
+            mapbox=dict(
+                style=map_style,
+                center=dict(lat=cy, lon=cx),
+                zoom=zoom,
+            ),
+            margin=dict(l=0, r=0, t=0, b=0),
+            legend=dict(
+                bgcolor="rgba(255,255,255,0.8)",
+                bordercolor="gray",
+                borderwidth=1,
+            ),
+        )
+
+        return fig
