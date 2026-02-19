@@ -1,10 +1,14 @@
 import abc
 import json
 
-from theia.types import ActiveRadarDetection, SituationalPicture
+from theia.types import ActiveRadarDetection, SituationalPicture, Snapshot
 
 
 class AbstractSimulationLogger(abc.ABC):
+    @abc.abstractmethod
+    def log_snapshot(self, snapshot: Snapshot):
+        raise NotImplementedError()
+
     @abc.abstractmethod
     def log_situational_picture(
         self,
@@ -27,6 +31,9 @@ class AbstractSimulationLogger(abc.ABC):
 
 
 class NoLogger(AbstractSimulationLogger):
+    def log_snapshot(self, snapshot):
+        pass
+
     def log_situational_picture(
         self, situational_picture: SituationalPicture, is_blue: bool
     ):
@@ -45,8 +52,12 @@ class FileLogger(AbstractSimulationLogger):
     def __init__(self, path: str, override: bool = True):
         self._path = path
         self._override = override
+        self.snapshots = []
         self.situational_pictures = []
         self.active_radar_detections = []
+
+    def log_snapshot(self, snapshot):
+        self.snapshots.append(snapshot.model_dump(mode="json"))
 
     def log_situational_picture(
         self,
@@ -79,6 +90,7 @@ class FileLogger(AbstractSimulationLogger):
             json.dump(
                 {
                     # "situational_pictures": self.situational_pictures,
+                    "snapshots": self.snapshots,
                     "active_radar_detections": self.active_radar_detections,
                 },
                 file,
@@ -86,6 +98,9 @@ class FileLogger(AbstractSimulationLogger):
 
 
 class PrintLogger(AbstractSimulationLogger):
+    def log_snapshot(self, snapshot):
+        print(snapshot)
+
     def log_situational_picture(
         self, situational_picture: SituationalPicture, is_blue: bool
     ):
@@ -106,6 +121,10 @@ class InMemoryLogger(AbstractSimulationLogger):
     def __init__(self):
         self.situational_pictures = []
         self.active_radar_detections = []
+        self.snapshots = []
+
+    def log_snapshot(self, snapshot):
+        self.snapshots.append(snapshot)
 
     def log_situational_picture(
         self, situational_picture: SituationalPicture, is_blue: bool
