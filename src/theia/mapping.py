@@ -24,12 +24,14 @@ class RadarMap:
         polygons: dict[str, Polygon] = {},
         paths: dict[str, LineString] = {},
         trajectories: dict[str, Trajectory] = {},
+        latlon_popup: bool = True,
     ):
         self.radars = radars
         self.targets = targets
         self.polygons = polygons
         self.paths = paths
         self.trajectories = trajectories
+        self.latlon_popup = latlon_popup
 
     def to_map(self) -> folium.folium.Map:
         map = folium.Map(
@@ -40,6 +42,9 @@ class RadarMap:
             ),
             control_scale=True,
         )
+
+        if self.latlon_popup:
+            folium.LatLngPopup().add_to(map)
 
         for name, radar in self.radars.items():
             if radar.transmitter.point == radar.receiver.point:
@@ -64,10 +69,12 @@ class RadarMap:
                 icon=folium.Icon(color="red"),
             ).add_to(map)
 
-        for name, path in self.paths.items():
+        colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        for i, (name, path) in enumerate(self.paths.items()):
             folium.GeoJson(
                 path,
                 tooltip=name,
+                color=colors[i % len(colors)]
             ).add_to(map)
 
         for name, polygon in self.polygons.items():
