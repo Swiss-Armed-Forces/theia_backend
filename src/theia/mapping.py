@@ -1,3 +1,5 @@
+import datetime
+
 import folium
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
@@ -502,3 +504,104 @@ class RadarMap:
         )
 
         return fig
+
+
+def plot_trajectories(
+    times: list[datetime.datetime],
+    radars: dict[str, Radar],
+    trajectories: list[Trajectory],
+):
+    frames = []
+    for i, time in enumerate(times):
+        targets = [trajectory(time) for trajectory in trajectories]
+        targets = [target for target in targets if target is not None]
+        fig = RadarMap(
+            radars=radars,
+            targets={str(t.id): t for t in targets},
+        ).to_plotly_map()
+        frames.append(
+            go.Frame(
+                data=fig.data,
+                name=str(time),
+                layout=go.Layout(title_text=f"Time: {time}"),
+            )
+        )
+
+    # --- Initial (first) frame data ---
+    base_fig = RadarMap(
+        radars=radars,
+        targets={
+            str(t.id): t for t in targets
+        },  # or reuse frame_fig from last iteration
+    ).to_plotly_map()
+
+    fig = go.Figure(
+        data=frames[0].data,
+        layout=base_fig.layout,  # <-- this brings mapbox config along
+        frames=frames,
+    )
+
+    # --- Slider steps ---
+    slider_steps = [
+        dict(
+            args=[
+                [f.name],
+                {
+                    "frame": {"duration": 300, "redraw": True},
+                    "mode": "immediate",
+                    "transition": {"duration": 0},
+                },
+            ],
+            label=str(t),
+            method="animate",
+        )
+        for f, t in zip(frames, times)
+    ]
+
+    # --- Layout: only add animation controls, don't touch mapbox or axes ---
+    fig.update_layout(
+        updatemenus=[
+            dict(
+                type="buttons",
+                showactive=False,
+                y=-0.15,
+                x=0.05,
+                xanchor="left",
+                buttons=[
+                    dict(
+                        label="Play",
+                        method="animate",
+                        args=[
+                            None,
+                            {
+                                "frame": {"duration": 300, "redraw": True},
+                                "fromcurrent": True,
+                                "transition": {"duration": 0},
+                            },
+                        ],
+                    ),
+                    dict(
+                        label="Stop",
+                        method="animate",
+                        args=[
+                            [None],
+                            {
+                                "frame": {"duration": 0, "redraw": False},
+                                "mode": "immediate",
+                                "transition": {"duration": 0},
+                            },
+                        ],
+                    ),
+                ],
+            )
+        ],
+        sliders=[
+            dict(
+                active=0,
+                currentvalue=dict(prefix="Time: ", visible=True, xanchor="right"),
+                pad=dict(t=50),
+                steps=slider_steps,
+            )
+        ],
+    )
+    return fig
