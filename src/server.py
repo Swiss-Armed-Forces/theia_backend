@@ -8,7 +8,7 @@ import numpy as np
 from theia.data_loading import load_trajectory_file
 from theia.target_simulation.constant_radar_simulator import ConstantRadarSimulator
 from theia.target_simulation.recorded_targets_simulator import RecordedTargetsSimulator
-from theia.types import ActiveRadarDetection, Radar, Target
+from theia.types import MonostaticRadarDetection, Radar, Target
 
 
 data_dir = os.environ["THEIA_DIR"]
@@ -29,7 +29,7 @@ detections = []
 if os.path.exists(detections_file):
     with open(detections_file, "r") as file:
         objects = json.load(file)
-    detections = [ActiveRadarDetection.model_validate(o) for o in objects]
+    detections = [MonostaticRadarDetection.model_validate(o) for o in objects]
 
 # Load target trajectories.
 # Sanitise missing data.
@@ -71,5 +71,5 @@ def get_radars(time: datetime.datetime) -> list[Radar]:
 
 
 @app.get("/active_radar_detections/{time}")
-def get_active_radar_detections(time: datetime.datetime) -> list[ActiveRadarDetection]:
+def get_active_radar_detections(time: datetime.datetime) -> list[MonostaticRadarDetection]:
     return [d for d in detections if d.time <= time]

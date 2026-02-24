@@ -4,7 +4,7 @@ import numpy as np
 
 from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, RF_LOSS
 from theia.detection.active import calculate_monostatic_detection
-from theia.types import ActiveRadarDetection, RadarSimulator, TargetSimulator
+from theia.types import MonostaticRadarDetection, RadarSimulator, TargetSimulator
 
 
 class ScenarioSimulator:
@@ -42,8 +42,8 @@ class ScenarioSimulator:
         timestamps = sorted(list(set(timestamps)))
         return [datetime.datetime.fromtimestamp(s) for s in timestamps]
 
-    def simulate_active_radar_detections(self) -> list[ActiveRadarDetection]:
-        detections: list[ActiveRadarDetection] = []
+    def simulate_active_radar_detections(self) -> list[MonostaticRadarDetection]:
+        detections: list[MonostaticRadarDetection] = []
         detection_id = 0
         times = self._get_simulated_times()
         for t in times:

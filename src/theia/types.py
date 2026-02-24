@@ -516,7 +516,7 @@ class RadarSimulator(abc.ABC):
         raise NotImplementedError()
 
 
-class ActiveRadarDetection(pydantic.BaseModel):
+class MonostaticRadarDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
     """Date and time at which the detection takes place."""
