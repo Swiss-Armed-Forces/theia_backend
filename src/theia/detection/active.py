@@ -42,7 +42,7 @@ def calculate_monostatic_detection(
         Default value from chapter 2.12, p.80 Skolnik "Introduction to radar systems"
         TODO is this the same as the Receiver.losses property?
     """
-    p = get_rad_pd(
+    snr_dB = calculate_monostatic_snr(
         radar,
         target,
         rcs_model=target.cross_section_model,
@@ -50,12 +50,17 @@ def calculate_monostatic_detection(
         doppler_shift_threshold_hz=doppler_shift_threshold_hz,
         rf_loss=rf_loss,
     )
+    p = calculate_probability_of_detection(
+        snr_dB,
+        radar.receiver.pfa,
+    )
     if rng.uniform(low=0, high=1) <= p:
         return ActiveRadarDetection(
             detection_id=-1,
             time=datetime.datetime.fromtimestamp(0),
             radar=radar,
             target=target,
+            snr=snr_dB,
             target_range=line_of_sight_distance(
                 *radar.transmitter.point.as_tuple(),
                 *target.point.as_tuple(),
@@ -73,7 +78,7 @@ def calculate_monostatic_detection(
         return None
 
 
-def get_rad_pd(
+def calculate_monostatic_snr(
     radar: Radar,
     target: Target,
     rcs_model: RcsModel,
@@ -82,7 +87,7 @@ def get_rad_pd(
     rf_loss,
 ) -> float:
     """
-    Calculate probability of detection for a monostatic radar.
+    Calculate signal-to-noise ratio for a monostatic radar.
 
     Parameters
     ----------
@@ -101,6 +106,11 @@ def get_rad_pd(
         RF system hardware loss [dB].
         TODO is this the transmitter leakage in the source below?
         Default value from chapter 2.12, p.80 Skolnik "Introduction to radar systems"
+
+    Returns
+    -------
+    snr: float
+        Signal-to-noise ration [dB]
     """
     rad_lat = radar.transmitter.lat
     rad_lon = radar.transmitter.lon
@@ -155,16 +165,7 @@ def get_rad_pd(
         pattern_propagation_factor_receiver=0.0,
         pattern_propagation_factor_transmitter=0.0,
     )
-
-    # avoid segmentation fault in the besseli function for high snr values
-    return (
-        1.0
-        if snr_dB > 30
-        else calculate_probability_of_detection(
-            snr_dB,
-            radar.receiver.pfa,
-        )
-    )
+    return snr_dB
 
 
 def calculate_probability_of_detection(snr: float, pfa: float) -> float:

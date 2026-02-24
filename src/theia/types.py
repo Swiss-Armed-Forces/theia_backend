@@ -522,6 +522,8 @@ class ActiveRadarDetection(pydantic.BaseModel):
     """Date and time at which the detection takes place."""
     radar: Radar
     target: Target
+    snr: float
+    """Signal-to-noise ratio [dB]"""
     target_range: float
     """Line-of-sight distance between radar and target [m]"""
     elevation_angle: float
