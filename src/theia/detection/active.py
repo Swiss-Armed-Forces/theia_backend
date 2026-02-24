@@ -8,7 +8,7 @@ from theia.distance import line_of_sight_distance
 from theia.doppler import calculate_doppler_shift
 from theia.line_of_sight import has_line_of_sight
 from theia.snr import calculate_snr
-from theia.types import ActiveRadarDetection, Radar, RcsModel, Target
+from theia.types import MonostaticRadarDetection, Radar, RcsModel, Target
 from theia.util import get_clear_sky_attenuation, marcum_q_function
 
 
@@ -19,7 +19,7 @@ def calculate_monostatic_detection(
     distance_step: float = 30.0,
     doppler_shift_threshold_hz: float = ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD,
     rf_loss: float = RF_LOSS,
-) -> ActiveRadarDetection | None:
+) -> MonostaticRadarDetection | None:
     """
     Calculate probabilistic active radar detection.
 
@@ -55,7 +55,7 @@ def calculate_monostatic_detection(
         radar.receiver.pfa,
     )
     if rng.uniform(low=0, high=1) <= p:
-        return ActiveRadarDetection(
+        return MonostaticRadarDetection(
             detection_id=-1,
             time=datetime.datetime.fromtimestamp(0),
             radar=radar,

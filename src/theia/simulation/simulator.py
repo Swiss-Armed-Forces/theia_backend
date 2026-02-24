@@ -7,7 +7,7 @@ import numpy as np
 from theia.detection.active import calculate_monostatic_detection
 from theia.simulation.logging import AbstractSimulationLogger
 from theia.types import (
-    ActiveRadarDetection,
+    MonostaticRadarDetection,
     Controller,
     Radar,
     Receiver,
@@ -128,7 +128,7 @@ class Simulator:
             if rx.point == tx.point
         ]
 
-    def _calculate_blue_active_detections(self) -> list[ActiveRadarDetection]:
+    def _calculate_blue_monostatic_detections(self) -> list[MonostaticRadarDetection]:
         """
         Calculate blue active radar detections at the current time step,
         i. e. the red targets detected by BLUE.
@@ -139,7 +139,7 @@ class Simulator:
         (the receiver's rotation time) all at once.
         No angular update is implemented.
         """
-        detections: list[ActiveRadarDetection] = []
+        detections: list[MonostaticRadarDetection] = []
         for radar in self._blue_active_radars:
             time_of_last_detection = self._time_of_last_active_detection.get(
                 radar.receiver.id,
@@ -213,7 +213,7 @@ class Simulator:
         self._t += self._dt
 
         # Detect RED targets.
-        blue_active_radar_detections = self._calculate_blue_active_detections()
+        blue_active_radar_detections = self._calculate_blue_monostatic_detections()
 
         # TODO: Implement PCL detections.
         # TODO: Implement PET detections.
