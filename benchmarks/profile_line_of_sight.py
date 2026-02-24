@@ -1,5 +1,5 @@
 from theia.line_of_sight import has_line_of_sight
-from theia.detection.active import get_rad_pd
+from theia.detection.active import calculate_monostatic_snr
 from theia.types import Radar, Target, Polarization, Point
 
 
@@ -30,7 +30,7 @@ target = Target(
     vz=0.0,
 )
 
-get_rad_pd(transmitter, target)
+calculate_monostatic_snr(transmitter, target)
 
 for _ in range(10_000):
     has_los = has_line_of_sight(transmitter.point, target.point, 30.0)
