@@ -530,6 +530,12 @@ class MonostaticRadarDetection(pydantic.BaseModel):
     """Elevation angle between radar (observer) and target in [-pi/2, pi/2) [rad]"""
     azimuth_angle: float
     """Azimuth between radar (observer) and target measured in [0, 2pi) from north [rad]"""
+    sigma_target_range: float
+    """Standard deviation of Gaussian range uncertainty [m]"""
+    sigma_elevation: float
+    """Standard deviation of Gaussian elevation uncertainty [rad]"""
+    sigma_azimuth: float
+    """Standard deviation of Gaussian azimuth uncertainty [rad]"""
 
     @pydantic.model_validator(mode="after")
     def check_range_positivity(self) -> Self:
@@ -548,6 +554,77 @@ class MonostaticRadarDetection(pydantic.BaseModel):
         if not 0 <= self.azimuth_angle < 2 * np.pi:
             raise ValueError(f"Azimuth {self.azimuth_angle} not in [0, 2pi)")
         return self
+
+
+class MonostaticRadarMeasurementModel(pydantic.BaseModel):
+    radar: Radar
+
+    def calculate_range_uncertainty(self, snr: float) -> float:
+        """
+        Calculate range uncertainty [m].
+
+        Parameters
+        ----------
+        snr: float
+            Signal-to-noise ratio of the detection [dB]
+
+        Returns
+        -------
+        float
+            Uncertainty of the range [m]
+        """
+        range_resolution = sc.speed_of_light / (2 * self.radar.receiver.bandwidth * 1e6)
+        return range_resolution / (2 * np.sqrt(snr))
+
+    def calculate_elevation_uncertainty(self, snr: float) -> float:
+        """
+        Calculate elevation uncertainty [rad].
+
+        Parameters
+        ----------
+        snr: float
+            Signal-to-noise ratio of the detection [dB]
+
+        Returns
+        -------
+        float
+            Uncertainty of the elevation [rad]
+
+        Notes
+        -----
+        This is the Cramér-Rao lower bound.
+        """
+        elevation_resolution = (
+            sc.speed_of_light
+            / (self.radar.transmitter.frequency * 1e6)
+            / self.radar.receiver.diameter
+        )
+        return elevation_resolution / (2 * np.sqrt(snr))
+    
+    def calculate_azimuth_uncertainty(self, snr: float) -> float:
+        """
+        Calculate azimuth uncertainty [rad].
+
+        Parameters
+        ----------
+        snr: float
+            Signal-to-noise ratio of the detection [dB]
+
+        Returns
+        -------
+        float
+            Uncertainty of the azimuth [rad]
+
+        Notes
+        -----
+        This is the Cramér-Rao lower bound.
+        """
+        azimuth_resolution = (
+            sc.speed_of_light
+            / (self.radar.transmitter.frequency * 1e6)
+            / self.radar.receiver.diameter
+        )
+        return azimuth_resolution / (2 * np.sqrt(snr))
 
 
 class PassiveRadarDetection(pydantic.BaseModel):
