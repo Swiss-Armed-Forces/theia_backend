@@ -1,5 +1,6 @@
 import datetime
 import math
+from typing import Optional
 import numpy as np
 import scipy.constants as sc
 from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, RF_LOSS
@@ -8,7 +9,13 @@ from theia.distance import line_of_sight_distance
 from theia.doppler import calculate_doppler_shift
 from theia.line_of_sight import has_line_of_sight
 from theia.snr import calculate_snr
-from theia.types import MonostaticRadarDetection, Radar, RcsModel, Target
+from theia.types import (
+    MonostaticRadarDetection,
+    MonostaticRadarMeasurementModel,
+    Radar,
+    RcsModel,
+    Target,
+)
 from theia.util import get_clear_sky_attenuation, marcum_q_function
 
 
@@ -19,6 +26,7 @@ def calculate_monostatic_detection(
     distance_step: float = 30.0,
     doppler_shift_threshold_hz: float = ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD,
     rf_loss: float = RF_LOSS,
+    error_model: Optional[MonostaticRadarMeasurementModel] = None,
 ) -> MonostaticRadarDetection | None:
     """
     Calculate probabilistic active radar detection.
@@ -41,6 +49,8 @@ def calculate_monostatic_detection(
         TODO is this the transmitter leakage in the source below?
         Default value from chapter 2.12, p.80 Skolnik "Introduction to radar systems"
         TODO is this the same as the Receiver.losses property?
+    error_model: Optional[MonostaticRadarMeasurementModel], default None
+        Error model to use on the range, elevation and azimuth
     """
     snr_dB = calculate_monostatic_snr(
         radar,
@@ -55,24 +65,40 @@ def calculate_monostatic_detection(
         radar.receiver.pfa,
     )
     if rng.uniform(low=0, high=1) <= p:
+        target_range = line_of_sight_distance(
+            *radar.transmitter.point.as_tuple(),
+            *target.point.as_tuple(),
+        )
+        elevation = calculate_elevation_angle(
+            radar.transmitter.point,
+            target.point,
+        )
+        azimuth = calculate_azimuth_angle(
+            radar.transmitter.point,
+            target.point,
+        )
+        sigma_range = 0.0
+        sigma_elevation = 0.0
+        sigma_azimuth = 0.0
+        if error_model is not None:
+            sigma_range = error_model.calculate_range_uncertainty(snr_dB)
+            sigma_elevation = error_model.calculate_elevation_uncertainty(snr_dB)
+            sigma_azimuth = error_model.calculate_azimuth_uncertainty(snr_dB)
+            target_range += rng.normal(loc=0.0, scale=sigma_range)
+            elevation += rng.normal(loc=0.0, scale=sigma_elevation)
+            azimuth += rng.normal(loc=0.0, scale=sigma_azimuth)
         return MonostaticRadarDetection(
             detection_id=-1,
             time=datetime.datetime.fromtimestamp(0),
             radar=radar,
             target=target,
             snr=snr_dB,
-            target_range=line_of_sight_distance(
-                *radar.transmitter.point.as_tuple(),
-                *target.point.as_tuple(),
-            ),
-            elevation_angle=calculate_elevation_angle(
-                radar.transmitter.point,
-                target.point,
-            ),
-            azimuth_angle=calculate_azimuth_angle(
-                radar.transmitter.point,
-                target.point,
-            ),
+            target_range=target_range,
+            elevation_angle=elevation,
+            azimuth_angle=azimuth,
+            sigma_target_range=sigma_range,
+            sigma_elevation=sigma_elevation,
+            sigma_azimuth=sigma_azimuth,
         )
     else:
         return None

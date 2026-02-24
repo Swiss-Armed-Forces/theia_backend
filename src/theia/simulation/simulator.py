@@ -9,6 +9,7 @@ from theia.simulation.logging import AbstractSimulationLogger
 from theia.types import (
     MonostaticRadarDetection,
     Controller,
+    MonostaticRadarMeasurementModel,
     Radar,
     Receiver,
     SituationalPicture,
@@ -155,6 +156,7 @@ class Simulator:
                     radar,
                     target,
                     rng=self._rng,
+                    error_model=MonostaticRadarMeasurementModel(radar=radar),
                 )
                 if det is not None:
                     det.time = self._t
