@@ -8,7 +8,7 @@ from stonesoup.types.detection import Detection
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 
 from theia.coordinates import CoordinateTransformations
-from theia.types import ActiveRadarDetection, Radar, Receiver, SituationalPicture, Snapshot, Transmitter
+from theia.types import MonostaticRadarDetection, Radar, Receiver, SituationalPicture, Snapshot, Transmitter
 
 
 class AbstractSimulationLogger(abc.ABC):
@@ -27,7 +27,7 @@ class AbstractSimulationLogger(abc.ABC):
     @abc.abstractmethod
     def log_detections(
         self,
-        active_radar_detections: list[ActiveRadarDetection],
+        active_radar_detections: list[MonostaticRadarDetection],
         is_blue: bool,
     ):
         raise NotImplementedError()
@@ -47,7 +47,7 @@ class NoLogger(AbstractSimulationLogger):
         pass
 
     def log_detections(
-        self, active_radar_detections: list[ActiveRadarDetection], is_blue: bool
+        self, active_radar_detections: list[MonostaticRadarDetection], is_blue: bool
     ):
         pass
 
@@ -80,7 +80,7 @@ class FileLogger(AbstractSimulationLogger):
 
     def log_detections(
         self,
-        active_radar_detections: list[ActiveRadarDetection],
+        active_radar_detections: list[MonostaticRadarDetection],
         is_blue: bool,
     ):
         self.active_radar_detections.append(
@@ -115,7 +115,7 @@ class PrintLogger(AbstractSimulationLogger):
         print(situational_picture)
 
     def log_detections(
-        self, active_radar_detections: list[ActiveRadarDetection], is_blue: bool
+        self, active_radar_detections: list[MonostaticRadarDetection], is_blue: bool
     ):
         print(f"Active radar detections {'BLUE' if is_blue else 'RED'}:")
         print(active_radar_detections)
@@ -144,7 +144,7 @@ class InMemoryLogger(AbstractSimulationLogger):
         )
 
     def log_detections(
-        self, active_radar_detections: list[ActiveRadarDetection], is_blue: bool
+        self, active_radar_detections: list[MonostaticRadarDetection], is_blue: bool
     ):
         for det in active_radar_detections:
             self.active_radar_detections.append(
@@ -252,7 +252,7 @@ class LogLoader:
             )
         )
         blue_detections = [
-            ActiveRadarDetection.model_validate(d) for d in blue_detections
+            MonostaticRadarDetection.model_validate(d) for d in blue_detections
         ]
         properties = []
         for detection in blue_detections:
