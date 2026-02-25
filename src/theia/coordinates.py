@@ -90,6 +90,87 @@ class CoordinateTransformations:
             vz=v_cartesian[2],
         )
 
+    @staticmethod
+    def enu_to_ecef(
+        reference_point: Point, p_enu: tuple[float, float, float]
+    ) -> tuple[float, float, float]:
+        """
+        Convert Cartesian coordinates from east-north-up to earth-centered-earth-fixed.
+
+        Parameters
+        ----------
+        reference_point: Point
+            Reference point in geodetic coordinates at which the
+            ENU-frame is defined. Typically the observer (radar) position.
+        p_enu: tuple[float, float, float]
+            Point in Cartesian ENU coordinates to be transformed to ECEF
+            coordinates. Typically the observed (target) position.
+
+        Returns
+        -------
+        tuple[float, float, float]
+            Cartesian ECEF coordinates corresponding to p_enu
+
+        Notes
+        -----
+        Formula according to Wikipedia:
+        https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ENU_to_ECEF
+        """
+        lon = np.deg2rad(reference_point.lon)
+        lat = np.deg2rad(reference_point.lat)
+        R_ecef_to_enu = np.array(
+            [
+                [-np.sin(lon), np.cos(lon), 0.0],
+                [-np.sin(lat) * np.cos(lon), -np.sin(lat) * np.sin(lon), np.cos(lat)],
+                [np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)],
+            ]
+        )
+        R_enu_to_ecef = R_ecef_to_enu.T
+
+        reference_point_xyz = np.array(
+            CoordinateTransformations.geodetic_to_cartesian(
+                *reference_point.as_tuple(),
+            )
+        )
+        p_enu = np.array(p_enu)
+        return tuple(R_enu_to_ecef @ p_enu + reference_point_xyz)
+
+    @staticmethod
+    def elevation_azimuth_range_to_cartesian(
+        observer_point: Point,
+        elevation: float,
+        azimuth: float,
+        range_m: float,
+    ) -> tuple[float, float, float]:
+        """
+        Convert (elevation, azimuth, range) coordinates defined at the reference
+        point's ENU-frame to Cartesian ECEF coordinates.
+
+        Parameters
+        ----------
+        observer_point: Point
+            Position of the observer
+        elevation: float
+            Elevation angle (upward from horizontal plane) [rad]
+        azimuth: float
+            Azimuth angle (clockwise from North) [rad]
+        range_m: float
+            Distance between observer and target [m]
+
+        Returns
+        -------
+        tuple[float, float, float]
+            Observed point in Cartesian ECEF coordinates [m]
+        """
+        east = range_m * np.cos(elevation) * np.sin(azimuth)
+        north = range_m * np.cos(elevation) * np.cos(azimuth)
+        up = range_m * np.sin(elevation)
+
+        return CoordinateTransformations.enu_to_ecef(
+            observer_point,
+            (east, north, up),
+        )
+
 
 # The following function is taken from openBURST.
 def calculate_azimuth_angle(p_observer: Point, p_target: Point) -> float:
@@ -167,9 +248,6 @@ def calculate_elevation_angle(p_observer: Point, p_target: Point):
     elevation_angle_rad = np.asin(np.dot(up, delta) / np.linalg.norm(delta))
 
     return elevation_angle_rad
-
-
-_EPS = 1e-4
 
 
 def latitude_direction(p: Point) -> np.ndarray:
