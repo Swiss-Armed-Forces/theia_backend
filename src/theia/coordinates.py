@@ -2,6 +2,7 @@ import numpy as np
 import pyproj
 from geographiclib.geodesic import Geodesic
 
+from theia.distance import line_of_sight_distance
 from theia.terrain import elevationAt
 from theia.types import Point, Velocity
 
@@ -91,6 +92,45 @@ class CoordinateTransformations:
         )
 
     @staticmethod
+    def ecef_to_enu(
+        reference_point: Point, p_ecef: tuple[float, float, float]
+    ) -> tuple[float, float, float]:
+        """
+        Convert Cartesian coordinates from earth-centered-earth-fixed to east-north-up.
+
+        Parameters
+        ----------
+        reference_point: Point
+            Reference point in geodetic coordinates at which the
+            ENU-frame is defined. Typically the observer (radar) position.
+        p_ecef: tuple[float, float, float]
+            Point in Cartesian ECEF coordinates to be transformed to ENU
+            coordinates. Typically the observed (target) position.
+
+        Returns
+        -------
+        tuple[float, float, float]
+            Cartesian ENU coordinates corresponding to p_ecef
+
+        Notes
+        -----
+        Formula according to Wikipedia:
+        https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
+        """
+        R_ecef_to_enu = _ecef_to_enu_rotation_matrix(
+            reference_point.lat,
+            reference_point.lon,
+        )
+
+        reference_point_xyz = np.array(
+            CoordinateTransformations.geodetic_to_cartesian(
+                *reference_point.as_tuple(),
+            )
+        )
+        p_ecef = np.array(p_ecef)
+        return tuple(R_ecef_to_enu @ (p_ecef - reference_point_xyz))
+
+    @staticmethod
     def enu_to_ecef(
         reference_point: Point, p_enu: tuple[float, float, float]
     ) -> tuple[float, float, float]:
@@ -116,14 +156,9 @@ class CoordinateTransformations:
         Formula according to Wikipedia:
         https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ENU_to_ECEF
         """
-        lon = np.deg2rad(reference_point.lon)
-        lat = np.deg2rad(reference_point.lat)
-        R_ecef_to_enu = np.array(
-            [
-                [-np.sin(lon), np.cos(lon), 0.0],
-                [-np.sin(lat) * np.cos(lon), -np.sin(lat) * np.sin(lon), np.cos(lat)],
-                [np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)],
-            ]
+        R_ecef_to_enu = _ecef_to_enu_rotation_matrix(
+            reference_point.lat,
+            reference_point.lon,
         )
         R_enu_to_ecef = R_ecef_to_enu.T
 
@@ -170,6 +205,70 @@ class CoordinateTransformations:
             observer_point,
             (east, north, up),
         )
+
+    @staticmethod
+    def cartesian_to_elevation_azimuth_range(
+        observer_point: Point,
+        p: tuple[float, float, float],
+    ) -> tuple[float, float, float]:
+        """
+        Calculate (elevation, azimuth, range) as measured by an observer at observer_point.
+
+        Parameters
+        ----------
+        observer_point: Point
+            Position of the observer
+        p: tuple[float, float, float]
+            Position in Cartesian ECEF coordinates to measure
+
+        Return
+        ------
+        tuple[float, float, float]
+            elevation angle [rad], azimuth angle [rad] and range
+            (i. e. line-of-sight distance to the observer) [m]
+        """
+        lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(*p)
+        p_target = Point(lat=lat, lon=lon, alt=alt)
+        elevation = calculate_elevation_angle(observer_point, p_target)
+        azimuth = calculate_azimuth_angle(observer_point, p_target)
+        range = line_of_sight_distance(
+            observer_point.lat,
+            observer_point.lon,
+            observer_point.alt,
+            lat,
+            lon,
+            alt,
+        )
+        return elevation, azimuth, range
+
+
+def _ecef_to_enu_rotation_matrix(lat: float, lon: float) -> np.array:
+    """
+    Calculate rotation matrix that converts earth-centered-earth-fixed to East-North-Up
+    coordinates at the given lat, lon coordinates.
+
+    Parameters
+    ----------
+    lat: float
+        Latitude [°]
+    lon: float
+        Longitude [°]
+
+    Returns
+    -------
+    np.ndarray
+        Rotation matrix of shape (3, 3)
+    """
+    lon = np.deg2rad(lon)
+    lat = np.deg2rad(lat)
+    R_ecef_to_enu = np.array(
+        [
+            [-np.sin(lon), np.cos(lon), 0.0],
+            [-np.sin(lat) * np.cos(lon), -np.sin(lat) * np.sin(lon), np.cos(lat)],
+            [np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)],
+        ]
+    )
+    return R_ecef_to_enu
 
 
 # The following function is taken from openBURST.
@@ -226,7 +325,7 @@ def calculate_elevation_angle(p_observer: Point, p_target: Point):
     Returns
     -------
     elevation_angle: float
-        elevation angle in [-pi/2, pi/2] in degrees.
+        elevation angle [rad] in the interval [-pi/2, pi/2]
         Positive elevation means that the target is above the observer's horizon.
         Negative elevation means that the target is below the observer's horizon.
     """
