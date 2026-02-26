@@ -1,4 +1,3 @@
-import math
 from typing import Generator
 import geopy
 from geopy.distance import distance
@@ -198,29 +197,3 @@ def get_bistatic_range(
         tx_tgt_range,
         tx_rx_range,
     )
-
-
-def get_elev_angle(
-    tgt_z: float,
-    antenna_z: float,
-    dist_tgt_antenna: float,
-) -> float:
-    """
-    Calculate the elevation angle.
-
-    Parameters
-    ----------
-    tgt_z: float
-        Altitude of target above sea level [m]
-    antenna_z: float
-        z position of antenna (altitude + antenna height) above sea level [m]
-    dist_tgt_antenna: float
-        distance between target and antenna on XY plane [m]
-
-    Returns
-    -------
-    elev_angle: float
-        Elevation angle in [-pi/2, pi/2] [rad]
-    """
-    elev_angle = math.asin((tgt_z - antenna_z) / dist_tgt_antenna)
-    return elev_angle
