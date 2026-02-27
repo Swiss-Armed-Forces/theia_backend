@@ -225,15 +225,9 @@ def calculate_azimuth_angle(p_observer: Point, p_target: Point) -> float:
     https://geographiclib.sourceforge.io/2009-03/geodesic.html
 
     """
-    # Inverse() returns angles in (-180, 180), but we need (0, 360).
-    tmp = Geodesic.WGS84.Inverse(
-        p_observer.lat,
-        p_observer.lon,
-        p_target.lat,
-        p_target.lon,
-    )["azi1"]
-    tmp = (tmp + 360) % 360
-    return np.radians(tmp)
+    tgt_ecef = np.array(CoordinateTransformations.geodetic_to_cartesian(*p_target.as_tuple()))
+    east, north, up = CoordinateTransformations.ecef_to_enu(p_observer, tgt_ecef)
+    return np.arctan2(east, north) % (2 * np.pi)
 
 
 # The following function was generated using Claude AI Sonnet 4.5
