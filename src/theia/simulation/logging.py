@@ -2,13 +2,26 @@ import abc
 import itertools
 import json
 
+import numpy as np
 import pandas as pd
-from stonesoup.models.measurement.base import MeasurementModel
+from stonesoup.base import Property
+from stonesoup.functions import jacobian as approx_jacobian
+from stonesoup.models.measurement.nonlinear import NonLinearGaussianMeasurement
 from stonesoup.types.detection import Detection
+from stonesoup.types.state import State, StateVector, StateVectors
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 
 from theia.coordinates import CoordinateTransformations
-from theia.types import MonostaticRadarDetection, Radar, Receiver, SituationalPicture, Snapshot, Transmitter
+from theia.measurement import MonostaticMeasurementTransformations
+from theia.types import (
+    MonostaticRadarDetection,
+    Point,
+    Radar,
+    Receiver,
+    SituationalPicture,
+    Snapshot,
+    Transmitter,
+)
 
 
 class AbstractSimulationLogger(abc.ABC):
@@ -158,10 +171,67 @@ class InMemoryLogger(AbstractSimulationLogger):
         pass
 
 
+class MonostaticEcefMeasurement(NonLinearGaussianMeasurement):
+    p_radar: Point = Property(doc="Radar position")
+
+    @property
+    def ndim_meas(self) -> int:
+        return 3
+
+    def function(
+        self,
+        state: State,
+        noise: bool = False,
+        **kwargs,
+    ) -> StateVector:
+        if noise:
+            raise NotImplementedError()
+        N = state.state_vector.shape[1]
+        result = np.zeros((3, N))
+        for i in range(N):
+            ecef_pos = state.state_vector[self.mapping, i]
+            elevation, azimuth, range_m = (
+                MonostaticMeasurementTransformations.cartesian_to_elevation_azimuth_range(
+                    self.p_radar, tuple(ecef_pos.flatten())
+                )
+            )
+            result[:, i] = (float(elevation), float(azimuth), float(range_m))
+
+        if N == 1:
+            return StateVector(result)  # (3, 1)
+        else:
+            return StateVectors(result)  # (3, N)
+
+    def inverse_function(
+        self,
+        detection: Detection,
+        **kwargs,
+    ) -> StateVector:
+        elevation: float = detection.state_vector[0, 0]
+        azimuth: float = detection.state_vector[1, 0]
+        range_m: float = detection.state_vector[2, 0]
+
+        p_ecef = (
+            MonostaticMeasurementTransformations.elevation_azimuth_range_to_cartesian(
+                self.p_radar,
+                elevation,
+                azimuth,
+                range_m,
+            )
+        )
+
+        result = StateVector(np.zeros((self.ndim_state, 1)))
+        result[self.mapping, :] = np.array(p_ecef, dtype=np.float64).reshape(3, 1)
+        return result
+
+    def jacobian(self, state: State, **kwargs) -> np.ndarray:
+        return approx_jacobian(self.function, state, step_size=1.0)
+
+
 class LogLoader:
     """Load JSON file written by FileLogger."""
-    def __init__(self, path: str, measurement_model: MeasurementModel):
-        self._measurement_model = measurement_model
+
+    def __init__(self, path: str):
         with open(path, "r") as file:
             self._data = json.load(file)
         self._load_snapshots()
@@ -254,6 +324,7 @@ class LogLoader:
         blue_detections = [
             MonostaticRadarDetection.model_validate(d) for d in blue_detections
         ]
+        self._raw_blue_detections = blue_detections
         properties = []
         for detection in blue_detections:
             x, y, z = CoordinateTransformations.geodetic_to_cartesian(
@@ -268,12 +339,16 @@ class LogLoader:
                     "range": detection.target_range,
                     "elevation": detection.elevation_angle,
                     "azimuth": detection.azimuth_angle,
+                    "sigma_range": detection.sigma_target_range,
+                    "sigma_elevation": detection.sigma_elevation,
+                    "sigma_azimuth": detection.sigma_azimuth,
                     "target_x": x,
                     "target_y": y,
                     "target_z": z,
                     "target_vx": detection.target.velocity.vx,
                     "target_vy": detection.target.velocity.vy,
                     "target_vz": detection.target.velocity.vz,
+                    "snr": detection.snr,
                 }
             )
 
@@ -283,20 +358,43 @@ class LogLoader:
 
         self._blue_monostatic_radar_detections: list[Detection] = []
         for _, row in df_blue_detections.iterrows():
+            cov = np.diag(
+                [
+                    row["sigma_elevation"] ** 2,
+                    row["sigma_azimuth"] ** 2,
+                    row["sigma_range"] ** 2,
+                ]
+            )
+
+            radar = [
+                radar
+                for radar in self.blue_monostatic_radars
+                if radar.receiver.id == row["radar_id"]
+            ]
+            assert len(radar) == 1
+            radar = radar[0]
+
+            model = MonostaticEcefMeasurement(
+                p_radar=radar.receiver.point,
+                ndim_state=6,
+                mapping=(0, 2, 4),
+                noise_covar=cov,
+            )
             self._blue_monostatic_radar_detections.append(
                 Detection(
                     state_vector=row[
                         [
-                            "target_x",
-                            "target_y",
-                            "target_z",
+                            "elevation",
+                            "azimuth",
+                            "range",
                         ]
                     ],
                     timestamp=row["time"],
                     metadata={
                         "radar_id": row["radar_id"],
                         "target_id": row["target_id"],
+                        "snr": row["snr"],
                     },
-                    measurement_model=self._measurement_model,
+                    measurement_model=model,
                 )
             )
