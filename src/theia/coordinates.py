@@ -126,7 +126,8 @@ class CoordinateTransformations:
             )
         )
         p_ecef = np.array(p_ecef)
-        return tuple(R_ecef_to_enu @ (p_ecef - reference_point_xyz))
+        p_enu = R_ecef_to_enu @ (p_ecef - reference_point_xyz)
+        return (float(p_enu[0]), float(p_enu[1]), float(p_enu[2]))
 
     @staticmethod
     def enu_to_ecef(
@@ -166,7 +167,8 @@ class CoordinateTransformations:
             )
         )
         p_enu = np.array(p_enu)
-        return tuple(R_enu_to_ecef @ p_enu + reference_point_xyz)
+        p_ecef = R_enu_to_ecef @ p_enu + reference_point_xyz
+        return (float(p_ecef[0]), float(p_ecef[1]), float(p_ecef[2]))
 
 
 def _ecef_to_enu_rotation_matrix(lat: float, lon: float) -> np.array:
