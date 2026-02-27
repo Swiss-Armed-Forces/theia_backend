@@ -19,6 +19,11 @@ from theia.simulation.logging import FileLogger, InMemoryLogger
 from theia.simulation.simulator import Simulator, TimeCriterion
 from theia.types import Point, Polarization, Radar, Receiver, Transmitter
 
+FREQUENCY = 3_000 # Hz
+POWER = 500_000 # W
+DIAMETER = 4. # m
+BANDWIDTH = 5 # MHz
+
 
 class SimulatorTest(unittest.TestCase):
     def test_run_zueri_westbound(self):
@@ -27,14 +32,14 @@ class SimulatorTest(unittest.TestCase):
             transmitter=Transmitter(
                 id=0,
                 point=Point(lat=47.349491, lon=8.492063, alt=856.2037851199802),
-                power=20000,
+                power=POWER,
                 erp=1000.0,
                 antenna_height=10.0,
-                antenna_diameter=2.0,
-                frequency=50000,
+                antenna_diameter=DIAMETER,
+                frequency=FREQUENCY,
                 pulse_width=1.0,
                 polarization=Polarization.VERTICAL,
-                bandwidth=100.0,
+                bandwidth=BANDWIDTH,
                 max_coherent_integration_time=0.5,
                 antenna_efficiency_value=0.6,
                 vertical_attenuation=None,
@@ -44,13 +49,13 @@ class SimulatorTest(unittest.TestCase):
                 id=0,
                 point=Point(lat=47.349491, lon=8.492063, alt=856.2037851199802),
                 antenna_height=10.0,
-                diameter=2.0,
+                diameter=DIAMETER,
                 cpi_pulses=1.0,
                 pfa=1e-06,
                 min_elevation=-20.0,
                 max_elevation=60.0,
                 rotation_time=10.0,
-                bandwidth=100.0,
+                bandwidth=BANDWIDTH,
                 gain=0,
                 losses=0,
                 noise_temperature=300.0,
@@ -95,14 +100,14 @@ class SimulatorTest(unittest.TestCase):
             transmitter=Transmitter(
                 id=0,
                 point=Point(lat=47.349491, lon=8.492063, alt=856.2037851199802),
-                power=20000,
+                power=POWER,
                 erp=1000.0,
                 antenna_height=10.0,
-                antenna_diameter=2.0,
-                frequency=50000,
+                antenna_diameter=DIAMETER,
+                frequency=FREQUENCY,
                 pulse_width=1.0,
                 polarization=Polarization.VERTICAL,
-                bandwidth=100.0,
+                bandwidth=BANDWIDTH,
                 max_coherent_integration_time=0.5,
                 antenna_efficiency_value=0.6,
                 vertical_attenuation=None,
@@ -112,13 +117,13 @@ class SimulatorTest(unittest.TestCase):
                 id=0,
                 point=Point(lat=47.349491, lon=8.492063, alt=856.2037851199802),
                 antenna_height=10.0,
-                diameter=2.0,
+                diameter=DIAMETER,
                 cpi_pulses=1.0,
                 pfa=1e-06,
                 min_elevation=-20.0,
                 max_elevation=60.0,
                 rotation_time=10.0,
-                bandwidth=100.0,
+                bandwidth=BANDWIDTH,
                 gain=0,
                 losses=0,
                 noise_temperature=300.0,

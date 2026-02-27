@@ -27,3 +27,6 @@ Delay threshold for PCL [us].
 This is used to judge whether a given transmitter - target - receiver geometry
 is in the bistatic or the forward scattering regime.
 """
+
+RCS_FOR_RANGE_CALCULATION = 1.0
+"""Radar cross section [m^2] to be used for monostatic range calculations by default."""

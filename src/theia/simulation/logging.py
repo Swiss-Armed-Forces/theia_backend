@@ -7,13 +7,14 @@ import pandas as pd
 from stonesoup.base import Property
 from stonesoup.functions import jacobian as approx_jacobian
 from stonesoup.models.measurement.nonlinear import NonLinearGaussianMeasurement
-from stonesoup.types.detection import Detection
+from stonesoup.types.detection import Clutter, Detection
 from stonesoup.types.state import State, StateVector, StateVectors
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 
 from theia.coordinates import CoordinateTransformations
 from theia.measurement import MonostaticMeasurementTransformations
 from theia.types import (
+    CLUTTER_TARGET,
     MonostaticRadarDetection,
     Point,
     Radar,
@@ -380,21 +381,33 @@ class LogLoader:
                 mapping=(0, 2, 4),
                 noise_covar=cov,
             )
-            self._blue_monostatic_radar_detections.append(
-                Detection(
-                    state_vector=row[
-                        [
-                            "elevation",
-                            "azimuth",
-                            "range",
-                        ]
-                    ],
-                    timestamp=row["time"],
-                    metadata={
-                        "radar_id": row["radar_id"],
-                        "target_id": row["target_id"],
-                        "snr": row["snr"],
-                    },
-                    measurement_model=model,
+            state_vector = row[
+                [
+                    "elevation",
+                    "azimuth",
+                    "range",
+                ]
+            ]
+            metadata = {
+                "radar_id": row["radar_id"],
+                "target_id": row["target_id"],
+                "snr": row["snr"],
+            }
+            if row["target_id"] == CLUTTER_TARGET.id:
+                self._blue_monostatic_radar_detections.append(
+                    Clutter(
+                        state_vector=state_vector,
+                        timestamp=row["time"],
+                        metadata=metadata,
+                        measurement_model=model,
+                    )
                 )
-            )
+            else:
+                self._blue_monostatic_radar_detections.append(
+                    Detection(
+                        state_vector=state_vector,
+                        timestamp=row["time"],
+                        metadata=metadata,
+                        measurement_model=model,
+                    )
+                )
