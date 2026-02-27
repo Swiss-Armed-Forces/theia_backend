@@ -5,6 +5,7 @@ import time
 
 import numpy as np
 from theia.detection.active import calculate_monostatic_detection
+from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.logging import AbstractSimulationLogger
 from theia.types import (
     MonostaticRadarDetection,
@@ -44,6 +45,7 @@ class Simulator:
         termination_criterion: TerminationCriterion,
         seed: int,
         logger: AbstractSimulationLogger,
+        simulate_clutter: bool = True,
     ):
         """
         Parameters
@@ -66,6 +68,8 @@ class Simulator:
             Seed for the pseudo-random number generator (RNG)
         logger: AbstractSimulationLogger
             Logger for intermediate results
+        simulate_clutter: bool, default True
+            Whether to simulate clutter detections
         """
         self._blue_controller = blue_controller
         self._red_controller = red_controller
@@ -76,6 +80,7 @@ class Simulator:
         self._termination_criterion = termination_criterion
         self._rng = np.random.Generator(np.random.PCG64(seed=seed))
         self._logger = logger
+        self._simulate_clutter = simulate_clutter
 
         self._blue_receivers: list[Receiver] = []
         self._blue_transmitters: list[Transmitter] = []
@@ -132,7 +137,7 @@ class Simulator:
     def _calculate_blue_monostatic_detections(self) -> list[MonostaticRadarDetection]:
         """
         Calculate blue active radar detections at the current time step,
-        i. e. the red targets detected by BLUE.
+        i. e. the red targets detected by BLUE. Includes clutter.
 
         Notes
         -----
@@ -142,6 +147,8 @@ class Simulator:
         """
         detections: list[MonostaticRadarDetection] = []
         for radar in self._blue_active_radars:
+            error_model = MonostaticRadarMeasurementModel(radar=radar)
+            max_range = calculate_maximum_monostatic_range(radar)
             time_of_last_detection = self._time_of_last_active_detection.get(
                 radar.receiver.id,
                 datetime.datetime(year=1900, month=1, day=1, tzinfo=self._t.tzinfo),
@@ -156,7 +163,7 @@ class Simulator:
                     radar,
                     target,
                     rng=self._rng,
-                    error_model=MonostaticRadarMeasurementModel(radar=radar),
+                    error_model=error_model,
                 )
                 if det is not None:
                     det.time = self._t
@@ -164,6 +171,14 @@ class Simulator:
                     self._active_detection_id += 1
                     detections.append(det)
             self._time_of_last_active_detection[radar.receiver.id] = self._t
+            # Simulate clutter.
+            if self._simulate_clutter:
+                clutter_detections = error_model.sample_clutter(self._rng, max_range)
+                for d in clutter_detections:
+                    d.detection_id = self._active_detection_id
+                    self._active_detection_id += 1
+                    d.time = self._t
+                    detections.append(d)
         return detections
 
     def advance(self) -> bool:

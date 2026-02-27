@@ -558,6 +558,85 @@ class MonostaticRadarDetection(pydantic.BaseModel):
         return self
 
 
+class PassiveRadarDetection(pydantic.BaseModel):
+    detection_id: int
+    time: datetime.datetime
+    """Date and time at which the detection takes place."""
+    radar: Radar
+    target: Target
+    bistatic_range: float
+    """Bistatic range [m]."""
+    doppler_shift: float
+    """Doppler shift [Hz]."""
+
+
+class PetDetection(pydantic.BaseModel):
+    """Representation of a detection from Passive Emitter Tracking."""
+
+    detection_id: int
+    time: datetime.datetime
+    """Date and time at which the detection takes place."""
+    radar: Radar
+    target: Target
+    azimuth: float
+    """Azimuth angle [rad] of the gaze vector towards the transmitter."""
+    elevation: float
+    """Elevation angle [rad] of the gaze vector towards the transmitter."""
+
+
+class RcsModel(abc.ABC):
+    """Abstract base class for a radar cross section model."""
+
+    @abc.abstractmethod
+    def __call__(
+        self,
+        transmitter: Transmitter,
+        receiver: Receiver,
+        target: Target,
+    ) -> float:
+        """
+        Calculate the radar cross section for the given transmitter, receiver
+        and target geometry.
+
+        Parameter
+        ---------
+        transmitter: Transmitter
+        receiver: Receiver
+        target: Target
+
+        Returns
+        -------
+        float
+            Radar cross section [m^2]
+        """
+        raise NotImplementedError()
+
+
+class ConstantRcsModel(RcsModel, pydantic.BaseModel):
+    rcs: float
+    """Radar cross section [m^2] to be used for all geometries"""
+
+    def __call__(
+        self,
+        transmitter: Transmitter,
+        receiver: Receiver,
+        target: Target,
+    ) -> float:
+        return self.rcs
+
+
+CLUTTER_TARGET = Target(
+    id=-2,
+    point=Point(lat=0, lon=0, alt=0),
+    cross_section_model=ConstantRcsModel(rcs=0),
+    velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+)
+"""
+Special target representing clutter.
+It is needed because a detection needs to be associated to a target.
+"""
+
+
 class MonostaticRadarMeasurementModel(pydantic.BaseModel):
     radar: Radar
     min_range_uncertainty: float = 100.0
@@ -645,74 +724,78 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
         cramer_rao_bound = self.azimuth_resolution / (2 * np.sqrt(from_dB(snr)))
         return max(cramer_rao_bound, self.min_angular_uncertainty)
 
-    # def sample_clutter(self, rng: np.random.Generator) -> list[MonostaticRadarDetection]:
-
-
-class PassiveRadarDetection(pydantic.BaseModel):
-    detection_id: int
-    time: datetime.datetime
-    """Date and time at which the detection takes place."""
-    radar: Radar
-    target: Target
-    bistatic_range: float
-    """Bistatic range [m]."""
-    doppler_shift: float
-    """Doppler shift [Hz]."""
-
-
-class PetDetection(pydantic.BaseModel):
-    """Representation of a detection from Passive Emitter Tracking."""
-
-    detection_id: int
-    time: datetime.datetime
-    """Date and time at which the detection takes place."""
-    radar: Radar
-    target: Target
-    azimuth: float
-    """Azimuth angle [rad] of the gaze vector towards the transmitter."""
-    elevation: float
-    """Elevation angle [rad] of the gaze vector towards the transmitter."""
-
-
-class RcsModel(abc.ABC):
-    """Abstract base class for a radar cross section model."""
-
-    @abc.abstractmethod
-    def __call__(
+    def sample_clutter(
         self,
-        transmitter: Transmitter,
-        receiver: Receiver,
-        target: Target,
-    ) -> float:
-        """
-        Calculate the radar cross section for the given transmitter, receiver
-        and target geometry.
+        rng: np.random.Generator,
+        max_range: float,
+    ) -> list[MonostaticRadarDetection]:
+        N_range_cells = int(np.ceil(max_range / self.range_resolution))
+        N_azimuth_cells = int(np.ceil(2 * np.pi / self.azimuth_resolution))
+        N_elevation_cells = int(np.ceil(np.pi / self.elevation_resolution))
 
-        Parameter
-        ---------
-        transmitter: Transmitter
-        receiver: Receiver
-        target: Target
+        N_cells = N_range_cells * N_azimuth_cells * N_elevation_cells
+        N_expected_false_alarms = self.radar.receiver.pfa * N_cells
+        N = rng.poisson(N_expected_false_alarms)
 
-        Returns
-        -------
-        float
-            Radar cross section [m^2]
-        """
-        raise NotImplementedError()
+        # print(N)
 
+        clutter = []
+        for _ in range(N):
+            # Two-step sampling:
+            # 1. Randomly select a resolution cell in which a false alarm (clutter) occurs.
+            # 2. Sample uniformly within the resolution cell.
+            range_index = rng.integers(0, N_range_cells)
+            azimuth_index = rng.integers(0, N_azimuth_cells)
+            elevation_index = rng.integers(0, N_elevation_cells)
 
-class ConstantRcsModel(RcsModel, pydantic.BaseModel):
-    rcs: float
-    """Radar cross section [m^2] to be used for all geometries"""
+            # Approximation:
+            # We neglect the curvature of a resolution cell and simply sample
+            # elevation, azimuth and range uniformly in each coordinate.
+            clutter_range = rng.uniform(
+                range_index * self.range_resolution,
+                (range_index + 1) * self.range_resolution,
+            )
+            clutter_azimuth = rng.uniform(
+                azimuth_index * self.azimuth_resolution,
+                (azimuth_index + 1) * self.azimuth_resolution,
+            )
+            clutter_elevation = rng.uniform(
+                elevation_index * self.elevation_resolution,
+                (elevation_index + 1) * self.elevation_resolution,
+            )
 
-    def __call__(
-        self,
-        transmitter: Transmitter,
-        receiver: Receiver,
-        target: Target,
-    ) -> float:
-        return self.rcs
+            # We have to clip the values due to rounding the number of cells up.
+            clutter_range = np.clip(clutter_range, a_min=0.0, a_max=max_range)
+            clutter_azimuth = np.clip(
+                clutter_azimuth,
+                a_min=0.0,
+                a_max=2 * np.pi - 1e-6,
+            )
+            clutter_elevation = np.clip(
+                clutter_elevation,
+                a_min=-np.pi / 2,
+                a_max=np.pi / 2 - 1e-6,
+            )
+
+            clutter.append(
+                MonostaticRadarDetection(
+                    detection_id=-1,
+                    time=datetime.datetime.fromtimestamp(0),
+                    radar=self.radar,
+                    target=CLUTTER_TARGET,
+                    snr=np.nan,
+                    target_range=clutter_range,
+                    elevation_angle=clutter_elevation,
+                    azimuth_angle=clutter_azimuth,
+                    # The noise model is inferred from standard deviation of the
+                    # uniform distribution:
+                    # sigma_x = |interval| / sqrt(12)
+                    sigma_target_range=self.range_resolution / np.sqrt(12.0),
+                    sigma_elevation=self.elevation_resolution / np.sqrt(12.0),
+                    sigma_azimuth=self.azimuth_resolution / np.sqrt(12.0),
+                )
+            )
+        return clutter
 
 
 class Situation(pydantic.BaseModel):
