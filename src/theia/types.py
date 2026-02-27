@@ -10,6 +10,8 @@ from scipy.interpolate import CubicSpline
 import scipy.constants as sc
 import shapely
 
+from theia.util import from_dB
+
 
 def calculate_antenna_gain(
     antenna_diameter: float,
@@ -558,6 +560,31 @@ class MonostaticRadarDetection(pydantic.BaseModel):
 
 class MonostaticRadarMeasurementModel(pydantic.BaseModel):
     radar: Radar
+    min_range_uncertainty: float = 100.0
+    min_angular_uncertainty: float = np.deg2rad(1.0)
+
+    @property
+    def range_resolution(self) -> float:
+        """Resolution of the detected range [m]"""
+        return sc.speed_of_light / (2 * self.radar.receiver.bandwidth * 1e6)
+
+    @property
+    def elevation_resolution(self) -> float:
+        """Resolution of the detected elevation [rad]"""
+        return (
+            sc.speed_of_light
+            / (self.radar.transmitter.frequency * 1e6)
+            / self.radar.receiver.diameter
+        )
+
+    @property
+    def azimuth_resolution(self) -> float:
+        """Resolution of the detected azimuth [rad]"""
+        return (
+            sc.speed_of_light
+            / (self.radar.transmitter.frequency * 1e6)
+            / self.radar.receiver.diameter
+        )
 
     def calculate_range_uncertainty(self, snr: float) -> float:
         """
@@ -573,8 +600,8 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
         float
             Uncertainty of the range [m]
         """
-        range_resolution = sc.speed_of_light / (2 * self.radar.receiver.bandwidth * 1e6)
-        return range_resolution / (2 * np.sqrt(snr))
+        cramer_rao_bound = self.range_resolution / (2 * np.sqrt(from_dB(snr)))
+        return max(cramer_rao_bound, self.min_range_uncertainty)
 
     def calculate_elevation_uncertainty(self, snr: float) -> float:
         """
@@ -594,13 +621,9 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
         -----
         This is the Cramér-Rao lower bound.
         """
-        elevation_resolution = (
-            sc.speed_of_light
-            / (self.radar.transmitter.frequency * 1e6)
-            / self.radar.receiver.diameter
-        )
-        return elevation_resolution / (2 * np.sqrt(snr))
-    
+        cramer_rao_bound = self.elevation_resolution / (2 * np.sqrt(from_dB(snr)))
+        return max(cramer_rao_bound, self.min_angular_uncertainty)
+
     def calculate_azimuth_uncertainty(self, snr: float) -> float:
         """
         Calculate azimuth uncertainty [rad].
@@ -619,12 +642,10 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
         -----
         This is the Cramér-Rao lower bound.
         """
-        azimuth_resolution = (
-            sc.speed_of_light
-            / (self.radar.transmitter.frequency * 1e6)
-            / self.radar.receiver.diameter
-        )
-        return azimuth_resolution / (2 * np.sqrt(snr))
+        cramer_rao_bound = self.azimuth_resolution / (2 * np.sqrt(from_dB(snr)))
+        return max(cramer_rao_bound, self.min_angular_uncertainty)
+
+    # def sample_clutter(self, rng: np.random.Generator) -> list[MonostaticRadarDetection]:
 
 
 class PassiveRadarDetection(pydantic.BaseModel):

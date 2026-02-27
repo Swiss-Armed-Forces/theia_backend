@@ -87,6 +87,9 @@ def calculate_monostatic_detection(
             target_range += rng.normal(loc=0.0, scale=sigma_range)
             elevation += rng.normal(loc=0.0, scale=sigma_elevation)
             azimuth += rng.normal(loc=0.0, scale=sigma_azimuth)
+        target_range = np.clip(target_range, a_min=0.0, a_max=np.inf)
+        elevation = np.clip(elevation, a_min=-np.pi / 2.0, a_max=np.pi / 2)
+        azimuth = np.clip(azimuth, a_min=0, a_max=2 * np.pi - 1e-6)
         return MonostaticRadarDetection(
             detection_id=-1,
             time=datetime.datetime.fromtimestamp(0),
