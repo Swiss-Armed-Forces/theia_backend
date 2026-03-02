@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from stonesoup.base import Property
 from stonesoup.functions import jacobian as approx_jacobian
+from stonesoup.models.base import ReversibleModel
 from stonesoup.models.measurement.nonlinear import NonLinearGaussianMeasurement
 from stonesoup.types.detection import Clutter, Detection
 from stonesoup.types.state import State, StateVector, StateVectors
@@ -172,7 +173,7 @@ class InMemoryLogger(AbstractSimulationLogger):
         pass
 
 
-class MonostaticEcefMeasurement(NonLinearGaussianMeasurement):
+class MonostaticEcefMeasurement(NonLinearGaussianMeasurement, ReversibleModel):
     p_radar: Point = Property(doc="Radar position")
 
     @property

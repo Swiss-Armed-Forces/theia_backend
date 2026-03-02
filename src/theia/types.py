@@ -760,8 +760,8 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
                 (azimuth_index + 1) * self.azimuth_resolution,
             )
             clutter_elevation = rng.uniform(
-                elevation_index * self.elevation_resolution,
-                (elevation_index + 1) * self.elevation_resolution,
+                -np.pi / 2.0 + elevation_index * self.elevation_resolution,
+                -np.pi / 2.0 + (elevation_index + 1) * self.elevation_resolution,
             )
 
             # We have to clip the values due to rounding the number of cells up.
