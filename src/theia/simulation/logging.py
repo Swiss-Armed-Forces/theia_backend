@@ -4,16 +4,12 @@ import json
 
 import numpy as np
 import pandas as pd
-from stonesoup.base import Property
-from stonesoup.functions import jacobian as approx_jacobian
-from stonesoup.models.base import ReversibleModel
-from stonesoup.models.measurement.nonlinear import NonLinearGaussianMeasurement
 from stonesoup.types.detection import Clutter, Detection
-from stonesoup.types.state import State, StateVector, StateVectors
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 
 from theia.coordinates import CoordinateTransformations
 from theia.measurement import MonostaticMeasurementTransformations
+from theia.stonesoup_interface import MonostaticDetectionFactory
 from theia.types import (
     CLUTTER_TARGET,
     MonostaticRadarDetection,
@@ -173,63 +169,6 @@ class InMemoryLogger(AbstractSimulationLogger):
         pass
 
 
-class MonostaticEcefMeasurement(NonLinearGaussianMeasurement, ReversibleModel):
-    p_radar: Point = Property(doc="Radar position")
-
-    @property
-    def ndim_meas(self) -> int:
-        return 3
-
-    def function(
-        self,
-        state: State,
-        noise: bool = False,
-        **kwargs,
-    ) -> StateVector:
-        if noise:
-            raise NotImplementedError()
-        N = state.state_vector.shape[1]
-        result = np.zeros((3, N))
-        for i in range(N):
-            ecef_pos = state.state_vector[self.mapping, i]
-            elevation, azimuth, range_m = (
-                MonostaticMeasurementTransformations.cartesian_to_elevation_azimuth_range(
-                    self.p_radar, tuple(ecef_pos.flatten())
-                )
-            )
-            result[:, i] = (float(elevation), float(azimuth), float(range_m))
-
-        if N == 1:
-            return StateVector(result)  # (3, 1)
-        else:
-            return StateVectors(result)  # (3, N)
-
-    def inverse_function(
-        self,
-        detection: Detection,
-        **kwargs,
-    ) -> StateVector:
-        elevation: float = detection.state_vector[0, 0]
-        azimuth: float = detection.state_vector[1, 0]
-        range_m: float = detection.state_vector[2, 0]
-
-        p_ecef = (
-            MonostaticMeasurementTransformations.elevation_azimuth_range_to_cartesian(
-                self.p_radar,
-                elevation,
-                azimuth,
-                range_m,
-            )
-        )
-
-        result = StateVector(np.zeros((self.ndim_state, 1)))
-        result[self.mapping, :] = np.array(p_ecef, dtype=np.float64).reshape(3, 1)
-        return result
-
-    def jacobian(self, state: State, **kwargs) -> np.ndarray:
-        return approx_jacobian(self.function, state, step_size=1.0)
-
-
 class LogLoader:
     """Load JSON file written by FileLogger."""
 
@@ -326,89 +265,11 @@ class LogLoader:
         blue_detections = [
             MonostaticRadarDetection.model_validate(d) for d in blue_detections
         ]
-        self._raw_blue_detections = blue_detections
-        properties = []
-        for detection in blue_detections:
-            x, y, z = CoordinateTransformations.geodetic_to_cartesian(
-                *detection.target.point.as_tuple()
-            )
-            properties.append(
-                {
-                    "id": detection.detection_id,
-                    "radar_id": detection.radar.receiver.id,
-                    "target_id": detection.target.id,
-                    "time": detection.time,
-                    "range": detection.target_range,
-                    "elevation": detection.elevation_angle,
-                    "azimuth": detection.azimuth_angle,
-                    "sigma_range": detection.sigma_target_range,
-                    "sigma_elevation": detection.sigma_elevation,
-                    "sigma_azimuth": detection.sigma_azimuth,
-                    "target_x": x,
-                    "target_y": y,
-                    "target_z": z,
-                    "target_vx": detection.target.velocity.vx,
-                    "target_vy": detection.target.velocity.vy,
-                    "target_vz": detection.target.velocity.vz,
-                    "snr": detection.snr,
-                }
-            )
-
-        df_blue_detections = pd.DataFrame(properties).sort_values(
-            ["time", "radar_id", "target_id"]
+        self._raw_blue_detections = sorted(
+            blue_detections, key=lambda d: (d.time, d.radar.receiver.id, d.target.id)
         )
-
         self._blue_monostatic_radar_detections: list[Detection] = []
-        for _, row in df_blue_detections.iterrows():
-            cov = np.diag(
-                [
-                    row["sigma_elevation"] ** 2,
-                    row["sigma_azimuth"] ** 2,
-                    row["sigma_range"] ** 2,
-                ]
+        for detection in blue_detections:
+            self._blue_monostatic_radar_detections.append(
+                MonostaticDetectionFactory.from_theia(detection)
             )
-
-            radar = [
-                radar
-                for radar in self.blue_monostatic_radars
-                if radar.receiver.id == row["radar_id"]
-            ]
-            assert len(radar) == 1
-            radar = radar[0]
-
-            model = MonostaticEcefMeasurement(
-                p_radar=radar.receiver.point,
-                ndim_state=6,
-                mapping=(0, 2, 4),
-                noise_covar=cov,
-            )
-            state_vector = row[
-                [
-                    "elevation",
-                    "azimuth",
-                    "range",
-                ]
-            ]
-            metadata = {
-                "radar_id": row["radar_id"],
-                "target_id": row["target_id"],
-                "snr": row["snr"],
-            }
-            if row["target_id"] == CLUTTER_TARGET.id:
-                self._blue_monostatic_radar_detections.append(
-                    Clutter(
-                        state_vector=state_vector,
-                        timestamp=row["time"],
-                        metadata=metadata,
-                        measurement_model=model,
-                    )
-                )
-            else:
-                self._blue_monostatic_radar_detections.append(
-                    Detection(
-                        state_vector=state_vector,
-                        timestamp=row["time"],
-                        metadata=metadata,
-                        measurement_model=model,
-                    )
-                )
