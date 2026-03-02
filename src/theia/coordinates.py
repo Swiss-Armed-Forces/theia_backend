@@ -1,6 +1,6 @@
+
 import numpy as np
 import pyproj
-from geographiclib.geodesic import Geodesic
 from theia.terrain import elevationAt
 from theia.types import Point, Velocity
 

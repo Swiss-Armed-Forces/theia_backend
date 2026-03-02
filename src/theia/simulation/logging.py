@@ -2,18 +2,14 @@ import abc
 import itertools
 import json
 
-import numpy as np
 import pandas as pd
-from stonesoup.types.detection import Clutter, Detection
+from stonesoup.types.detection import Detection
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 
 from theia.coordinates import CoordinateTransformations
-from theia.measurement import MonostaticMeasurementTransformations
 from theia.stonesoup_interface import MonostaticDetectionFactory
 from theia.types import (
-    CLUTTER_TARGET,
     MonostaticRadarDetection,
-    Point,
     Radar,
     Receiver,
     SituationalPicture,
