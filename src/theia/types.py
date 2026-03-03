@@ -851,3 +851,28 @@ class Snapshot(pydantic.BaseModel):
     red_transmitters: list[Transmitter]
     red_receivers: list[Receiver]
     red_targets: list[Target]
+
+
+class Track(abc.ABC):
+    def __init__(self, states: list[tuple[datetime.datetime, np.ndarray]]):
+        self._times : list[float] = []
+        self._y = np.empty((len(states), 6), dtype=np.float64)
+        for i, (time, state) in enumerate(states):
+            self._times.append(time.timestamp())
+            self._y[i, :] = state
+        self._f = CubicSpline(self._times, self._y)
+
+    def __call__(self, time: datetime.datetime) -> np.ndarray:
+        return self._f(time.timestamp())
+
+
+class AbstractTracker(abc.ABC):
+    @abc.abstractmethod
+    def add_detections(self, detections: list[MonostaticRadarDetection]):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def get_tracks(self) -> list[Track]:
+        raise NotImplementedError()
+
+    # TODO: Include PCL and PET detections...
