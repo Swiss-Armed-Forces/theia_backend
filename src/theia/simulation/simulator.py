@@ -7,7 +7,9 @@ import numpy as np
 from theia.detection.active import calculate_monostatic_detection
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.logging import AbstractSimulationLogger
+from theia.stonesoup_interface import MonostaticDetectionFactory
 from theia.types import (
+    AbstractTracker,
     MonostaticRadarDetection,
     Controller,
     MonostaticRadarMeasurementModel,
@@ -39,6 +41,7 @@ class Simulator:
         self,
         blue_controller: Controller,
         red_controller: Controller,
+        blue_tracker: AbstractTracker,
         start_time: datetime.datetime,
         time_step: datetime.timedelta,
         min_time_per_step: datetime.timedelta,
@@ -54,6 +57,9 @@ class Simulator:
             Handles all blue behaviour
         red_controller: Controller
             Handles all red behaviour
+        blue_tracker: AbstractTracker
+            Tracker that generates the blue situational pictures
+            (it detects red targets)
         start_time: datetime.datetime
             Initial time at the start of the simulation
         time_step: datetime.timedelta
@@ -73,6 +79,7 @@ class Simulator:
         """
         self._blue_controller = blue_controller
         self._red_controller = red_controller
+        self._blue_tracker = blue_tracker
         self._t = start_time
         self._dt = time_step
         self._minimum_time_per_step = min_time_per_step.seconds
@@ -100,6 +107,7 @@ class Simulator:
             time=self._t,
             friendly_radars=radars,
             friendly_targets=self._blue_targets,
+            enemy_targets=self._blue_tracker.get_tracks(),
         )
 
     def get_situational_picture_red(self) -> SituationalPicture:
@@ -110,6 +118,7 @@ class Simulator:
             time=self._t,
             friendly_radars=radars,
             friendly_targets=self._red_targets,
+            enemy_targets=[],
         )
 
     def take_snapshot(self) -> Snapshot:
@@ -234,7 +243,14 @@ class Simulator:
 
         # TODO: Implement PCL detections.
         # TODO: Implement PET detections.
-        # TODO: Track.
+
+        # Track.
+        self._blue_tracker.add_detections(
+            set([
+                MonostaticDetectionFactory.from_theia(d)
+                for d in blue_active_radar_detections
+            ])
+        )
 
         # Log.
         self._logger.log_snapshot(self.take_snapshot())

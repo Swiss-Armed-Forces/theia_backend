@@ -813,8 +813,7 @@ class SituationalPicture(pydantic.BaseModel):
     time: datetime.datetime
     friendly_radars: list[Radar]
     friendly_targets: list[Target]
-    # TODO:
-    # Add tracks for enemy targets!
+    enemy_targets: list[Track]
 
 
 class Controller(abc.ABC):
@@ -853,17 +852,30 @@ class Snapshot(pydantic.BaseModel):
     red_targets: list[Target]
 
 
-class Track(abc.ABC):
+class Track(pydantic.BaseModel):
+    states: list[tuple[datetime.datetime, np.ndarray]]
+
+    _times: list[float] = pydantic.PrivateAttr()
+    _y: np.ndarray = pydantic.PrivateAttr()
+    _f: CubicSpline = pydantic.PrivateAttr()
+
     def __init__(self, states: list[tuple[datetime.datetime, np.ndarray]]):
-        self._times : list[float] = []
+        super().__init__(states=states)
+
+        self._times = []
         self._y = np.empty((len(states), 6), dtype=np.float64)
+
         for i, (time, state) in enumerate(states):
             self._times.append(time.timestamp())
             self._y[i, :] = state
+
         self._f = CubicSpline(self._times, self._y)
 
-    def __call__(self, time: datetime.datetime) -> np.ndarray:
+    def __call__(self, time: datetime) -> np.ndarray:
         return self._f(time.timestamp())
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class AbstractTracker(abc.ABC):

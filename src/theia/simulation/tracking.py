@@ -112,3 +112,11 @@ class MonostaticSingleSensorTracker(AbstractTracker):
             states = [(s.timestamp, s.state_vector.flatten()) for s in track.states]
             tracks.append(theia.types.Track(states))
         return tracks
+
+
+class DummyTracker(AbstractTracker):
+    def add_detections(self, detections: list[Detection]):
+        pass
+
+    def get_tracks(self) -> list[theia.types.Track]:
+        return []
