@@ -17,6 +17,7 @@ from theia.simulation.controllers.waypoint_target_controller import (
 )
 from theia.simulation.logging import FileLogger, InMemoryLogger
 from theia.simulation.simulator import Simulator, TimeCriterion
+from theia.simulation.tracking import DummyTracker
 from theia.types import Point, Polarization, Radar, Receiver, Transmitter
 
 FREQUENCY = 3_000 # Hz
@@ -82,6 +83,7 @@ class SimulatorTest(unittest.TestCase):
         simulator = Simulator(
             blue_controller=MonostaticRadarController(radar),
             red_controller=scripted_target_controller,
+            blue_tracker=DummyTracker(),
             start_time=start_time,
             time_step=datetime.timedelta(seconds=1),
             min_time_per_step=datetime.timedelta(seconds=0),
@@ -152,6 +154,7 @@ class SimulatorTest(unittest.TestCase):
         simulator = Simulator(
             blue_controller=MonostaticRadarController(radar),
             red_controller=scripted_target_controller,
+            blue_tracker=DummyTracker(),
             start_time=start_time,
             time_step=time_step,
             min_time_per_step=datetime.timedelta(seconds=0),
