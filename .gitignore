@@ -4,6 +4,7 @@
 *.svg
 *.csv
 *.json
+*.prof
 doc/build/
 .coverage
 bistatic_range_*.png
