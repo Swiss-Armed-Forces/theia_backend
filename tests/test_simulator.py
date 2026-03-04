@@ -89,7 +89,7 @@ class SimulatorTest(unittest.TestCase):
             min_time_per_step=datetime.timedelta(seconds=0),
             termination_criterion=TimeCriterion(stop_time),
             seed=4054080,
-            logger=logger,
+            listener=logger,
         )
         # Simulate until the end.
         while simulator.advance():
@@ -160,7 +160,7 @@ class SimulatorTest(unittest.TestCase):
             min_time_per_step=datetime.timedelta(seconds=0),
             termination_criterion=TimeCriterion(stop_time),
             seed=4054080,
-            logger=logger,
+            listener=logger,
         )
         n_iterations = int(np.ceil((stop_time - start_time).seconds / time_step.seconds))
 
