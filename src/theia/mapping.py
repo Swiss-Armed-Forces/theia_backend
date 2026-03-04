@@ -102,14 +102,19 @@ class RadarMap:
         """
         Render the map using Cartopy with OpenStreetMap tiles.
 
-        Args:
-            figsize:    Figure dimensions in inches.
-            zoom:       Tile zoom level (higher = more detail, slower).
-            span_deg:   Half-width of the viewport in degrees (controls zoom-equivalent).
-            tile_source: Cartopy tile object. Defaults to OSM.
-                         Other options:
-                           cimgt.Stamen("terrain")
-                           cimgt.GoogleTiles(style="satellite")
+        Arguments
+        ---------
+        figsize: tuple[int, int], default (12, 10)
+            Figure dimensions in inches.
+        zoom: int, default 8
+            Tile zoom level (higher = more detail, slower).
+        span_deg: float, default 3.0
+            Half-width of the viewport in degrees (controls zoom-equivalent).
+        tile_source: cimgt.GoogleWTS, default None
+            Cartopy tile object. Defaults to OSM.
+            Other options:
+            cimgt.Stamen("terrain")
+            cimgt.GoogleTiles(style="satellite")
         """
         if tile_source is None:
             tile_source = cimgt.OSM()
@@ -360,11 +365,14 @@ class RadarMap:
         """
         Render the map interactively using Plotly.
 
-        Args:
-            map_style: Mapbox tile style. Options (no token needed):
-                    "open-street-map", "carto-positron", "carto-darkmatter",
-                    "stamen-terrain", "stamen-toner", "stamen-watercolor"
-            zoom:      Initial zoom level.
+        Arguments
+        ---------
+        map_style: str, default "open-street-map"
+            Mapbox tile style. Options (no token needed):
+                - "open-street-map", "carto-positron", "carto-darkmatter",
+                - "stamen-terrain", "stamen-toner", "stamen-watercolor"
+        zoom: int, default 6
+            Initial zoom level.
         """
         cx = POSITIONS_OF_INTEREST["CH_CENTER"]["lon"]
         cy = POSITIONS_OF_INTEREST["CH_CENTER"]["lat"]

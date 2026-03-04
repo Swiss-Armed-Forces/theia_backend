@@ -31,6 +31,7 @@ def calculate_maximum_monostatic_range(
     maximum_expected_range: float, default 2**20 :math:`\approx.` 1000km
         Maximum range to be assumed. Determines the number of queries to be made.
     resolution: float, default 1.0
+        range resolution [m]
     rf_loss: float, default RF_LOSS
         Loss of the transmitter (correct? TODO)
 
