@@ -871,7 +871,7 @@ class Track(pydantic.BaseModel):
 
         self._f = CubicSpline(self._times, self._y)
 
-    def __call__(self, time: datetime) -> np.ndarray:
+    def __call__(self, time: datetime.datetime) -> np.ndarray:
         return self._f(time.timestamp())
 
     class Config:
