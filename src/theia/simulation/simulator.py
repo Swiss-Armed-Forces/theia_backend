@@ -6,7 +6,7 @@ import time
 import numpy as np
 from theia.detection.active import calculate_monostatic_detection
 from theia.radar_equation import calculate_maximum_monostatic_range
-from theia.simulation.logging import AbstractSimulationLogger
+from theia.simulation.logging import AbstractSimulationListener
 from theia.stonesoup_interface import MonostaticDetectionFactory
 from theia.types import (
     AbstractTracker,
@@ -47,7 +47,7 @@ class Simulator:
         min_time_per_step: datetime.timedelta,
         termination_criterion: TerminationCriterion,
         seed: int,
-        logger: AbstractSimulationLogger,
+        listener: AbstractSimulationListener,
         simulate_clutter: bool = True,
     ):
         """
@@ -72,8 +72,8 @@ class Simulator:
             Determines when the simulation stops.
         seed: int
             Seed for the pseudo-random number generator (RNG)
-        logger: AbstractSimulationLogger
-            Logger for intermediate results
+        listener: AbstractSimulationListener
+            Called when intermediate results are available
         simulate_clutter: bool, default True
             Whether to simulate clutter detections
         """
@@ -86,7 +86,7 @@ class Simulator:
         """Minimum amount of time to spend on an iteration."""
         self._termination_criterion = termination_criterion
         self._rng = np.random.Generator(np.random.PCG64(seed=seed))
-        self._logger = logger
+        self._listener = listener
         self._simulate_clutter = simulate_clutter
 
         self._blue_receivers: list[Receiver] = []
@@ -202,7 +202,7 @@ class Simulator:
         start_time = time.time()
 
         if self._termination_criterion.is_terminated(self.take_snapshot()):
-            self._logger.end()
+            self._listener.on_end()
             return False
 
         # Build situational picture.
@@ -253,8 +253,8 @@ class Simulator:
         )
 
         # Log.
-        self._logger.log_snapshot(self.take_snapshot())
-        self._logger.log_detections(blue_active_radar_detections, is_blue=True)
+        self._listener.on_snapshot(self.take_snapshot())
+        self._listener.on_detections(blue_active_radar_detections, is_blue=True)
 
         stop_time = time.time()
 

@@ -1,4 +1,5 @@
 import abc
+import datetime
 import itertools
 import json
 
@@ -18,13 +19,13 @@ from theia.types import (
 )
 
 
-class AbstractSimulationLogger(abc.ABC):
+class AbstractSimulationListener(abc.ABC):
     @abc.abstractmethod
-    def log_snapshot(self, snapshot: Snapshot):
+    def on_snapshot(self, snapshot: Snapshot):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def log_situational_picture(
+    def on_situational_picture(
         self,
         situational_picture: SituationalPicture,
         is_blue: bool,
@@ -32,7 +33,7 @@ class AbstractSimulationLogger(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def log_detections(
+    def on_detections(
         self,
         active_radar_detections: list[MonostaticRadarDetection],
         is_blue: bool,
@@ -40,29 +41,29 @@ class AbstractSimulationLogger(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def end(self):
+    def on_end(self):
         raise NotImplementedError()
 
 
-class NoLogger(AbstractSimulationLogger):
-    def log_snapshot(self, snapshot):
+class NoLogger(AbstractSimulationListener):
+    def on_snapshot(self, snapshot):
         pass
 
-    def log_situational_picture(
+    def on_situational_picture(
         self, situational_picture: SituationalPicture, is_blue: bool
     ):
         pass
 
-    def log_detections(
+    def on_detections(
         self, active_radar_detections: list[MonostaticRadarDetection], is_blue: bool
     ):
         pass
 
-    def end(self):
+    def on_end(self):
         pass
 
 
-class FileLogger(AbstractSimulationLogger):
+class FileLogger(AbstractSimulationListener):
     def __init__(self, path: str, override: bool = True):
         self._path = path
         self._override = override
@@ -70,10 +71,10 @@ class FileLogger(AbstractSimulationLogger):
         self.situational_pictures = []
         self.active_radar_detections = []
 
-    def log_snapshot(self, snapshot):
+    def on_snapshot(self, snapshot):
         self.snapshots.append(snapshot.model_dump(mode="json"))
 
-    def log_situational_picture(
+    def on_situational_picture(
         self,
         situational_picture: SituationalPicture,
         is_blue: bool,
@@ -85,7 +86,7 @@ class FileLogger(AbstractSimulationLogger):
             }
         )
 
-    def log_detections(
+    def on_detections(
         self,
         active_radar_detections: list[MonostaticRadarDetection],
         is_blue: bool,
@@ -99,7 +100,7 @@ class FileLogger(AbstractSimulationLogger):
             }
         )
 
-    def end(self):
+    def on_end(self):
         with open(self._path, "a" if not self._override else "w") as file:
             json.dump(
                 {
@@ -111,36 +112,36 @@ class FileLogger(AbstractSimulationLogger):
             )
 
 
-class PrintLogger(AbstractSimulationLogger):
-    def log_snapshot(self, snapshot):
+class PrintLogger(AbstractSimulationListener):
+    def on_snapshot(self, snapshot):
         print(snapshot)
 
-    def log_situational_picture(
+    def on_situational_picture(
         self, situational_picture: SituationalPicture, is_blue: bool
     ):
         print(f"Situational picture {'BLUE' if is_blue else 'RED'}:")
         print(situational_picture)
 
-    def log_detections(
+    def on_detections(
         self, active_radar_detections: list[MonostaticRadarDetection], is_blue: bool
     ):
         print(f"Active radar detections {'BLUE' if is_blue else 'RED'}:")
         print(active_radar_detections)
 
-    def end(self):
+    def on_end(self):
         pass
 
 
-class InMemoryLogger(AbstractSimulationLogger):
+class InMemoryLogger(AbstractSimulationListener):
     def __init__(self):
         self.situational_pictures = []
         self.active_radar_detections = []
         self.snapshots = []
 
-    def log_snapshot(self, snapshot):
+    def on_snapshot(self, snapshot):
         self.snapshots.append(snapshot)
 
-    def log_situational_picture(
+    def on_situational_picture(
         self, situational_picture: SituationalPicture, is_blue: bool
     ):
         self.situational_pictures.append(
@@ -150,7 +151,7 @@ class InMemoryLogger(AbstractSimulationLogger):
             }
         )
 
-    def log_detections(
+    def on_detections(
         self, active_radar_detections: list[MonostaticRadarDetection], is_blue: bool
     ):
         for det in active_radar_detections:
@@ -161,7 +162,7 @@ class InMemoryLogger(AbstractSimulationLogger):
                 }
             )
 
-    def end(self):
+    def on_end(self):
         pass
 
 
