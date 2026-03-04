@@ -16,5 +16,6 @@ documentation for details.
    :caption: Contents:
    
    physical_model
+   api
    passive_radar
    ./reference/modules
