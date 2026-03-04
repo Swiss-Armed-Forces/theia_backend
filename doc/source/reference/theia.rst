@@ -100,6 +100,14 @@ theia.mapping module
    :show-inheritance:
    :undoc-members:
 
+theia.measurement module
+------------------------
+
+.. automodule:: theia.measurement
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 theia.openburst\_client module
 ------------------------------
 
@@ -132,10 +140,26 @@ theia.scenario\_simulator module
    :show-inheritance:
    :undoc-members:
 
+theia.simulation module
+-----------------------
+
+.. automodule:: theia.simulation
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 theia.snr module
 ----------------
 
 .. automodule:: theia.snr
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+theia.stonesoup\_interface module
+---------------------------------
+
+.. automodule:: theia.stonesoup_interface
    :members:
    :show-inheritance:
    :undoc-members:
