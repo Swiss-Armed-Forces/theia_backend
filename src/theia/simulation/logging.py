@@ -270,3 +270,52 @@ class LogLoader:
             self._blue_monostatic_radar_detections.append(
                 MonostaticDetectionFactory.from_theia(detection)
             )
+
+
+class SituationalPictureBuffer(AbstractSimulationListener):
+    def __init__(self):
+        self._situational_picture_blue = SituationalPicture(
+            time=datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc),
+            friendly_radars=[],
+            friendly_targets=[],
+            enemy_targets=[],
+        )
+        self._situational_picture_red = SituationalPicture(
+            time=datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc),
+            friendly_radars=[],
+            friendly_targets=[],
+            enemy_targets=[],
+        )
+        self._has_completed = False
+
+    def on_snapshot(self, snapshot: Snapshot):
+        pass
+
+    def on_situational_picture(
+        self,
+        situational_picture: SituationalPicture,
+        is_blue: bool,
+    ):
+        if is_blue:
+            self._situational_picture_blue = situational_picture
+        else:
+            self._situational_picture_red = situational_picture
+
+    def on_detections(
+        self,
+        active_radar_detections: list[MonostaticRadarDetection],
+        is_blue: bool,
+    ):
+        pass
+
+    def on_end(self):
+        self._has_completed = True
+
+    def get_situational_picture(self, is_blue: bool) -> SituationalPicture:
+        if is_blue:
+            return self._situational_picture_blue
+        else:
+            return self._situational_picture_red
+
+    def has_comleted(self) -> bool:
+        return self._has_completed
