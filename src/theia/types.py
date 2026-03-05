@@ -404,7 +404,7 @@ class Trajectory(pydantic.BaseModel):
             ],
             axis=1,
         )
-        self._spline = CubicSpline(x, y, extrapolate=False)
+        self._spline = CubicSpline(x, y, extrapolate=True)
         return self
 
     def __call__(self, t: datetime.datetime) -> Target | None:
@@ -818,6 +818,14 @@ class SituationalPicture(pydantic.BaseModel):
 
 class Controller(abc.ABC):
     @abc.abstractmethod
+    def get_monostatic_radars(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Radar]:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
     def get_receivers(
         self,
         situational_picture: SituationalPicture,
@@ -844,23 +852,22 @@ class Controller(abc.ABC):
 
 class Snapshot(pydantic.BaseModel):
     time: datetime.datetime
-    blue_transmitters: list[Transmitter]
-    blue_receivers: list[Receiver]
+    blue_monostatic_radars: list[Radar]
     blue_targets: list[Target]
-    red_transmitters: list[Transmitter]
-    red_receivers: list[Receiver]
+    red_monostatic_radars: list[Radar]
     red_targets: list[Target]
 
 
 class Track(pydantic.BaseModel):
+    id: int
     states: list[tuple[datetime.datetime, np.ndarray]]
 
     _times: list[float] = pydantic.PrivateAttr()
     _y: np.ndarray = pydantic.PrivateAttr()
     _f: CubicSpline = pydantic.PrivateAttr()
 
-    def __init__(self, states: list[tuple[datetime.datetime, np.ndarray]]):
-        super().__init__(states=states)
+    def __init__(self, id: int, states: list[tuple[datetime.datetime, np.ndarray]]):
+        super().__init__(id=id, states=states)
 
         self._times = []
         self._y = np.empty((len(states), 6), dtype=np.float64)
