@@ -4,7 +4,6 @@ import datetime
 from enum import Enum
 
 from fastapi import FastAPI
-import numpy as np
 import pydantic
 
 from theia.coordinates import CoordinateTransformations
@@ -35,6 +34,7 @@ class TrackPoint(pydantic.BaseModel):
 
 
 class ExtrapolatedTrack(pydantic.BaseModel):
+    id: int
     points: list[TrackPoint]
 
 
@@ -44,11 +44,9 @@ class ExtrapolatedSituationalPicture(pydantic.BaseModel):
     enemy_tracks: list[ExtrapolatedTrack]
 
 
-class GroundTruth(pydantic.BaseModel):
-    pass
-
-
-# def extrapolate_track(track: Track):
+class ExtrapolatedGroundtruth(pydantic.BaseModel):
+    target_id: int
+    points: list[TrackPoint]
 
 
 def create_app(
@@ -65,28 +63,16 @@ def create_app(
         # The differences would be negligible, anyway.
         return buffer.get_situational_picture(True).time
 
-    @app.get("/situational_picture/{which}")
-    def get_situational_picture(which: Team) -> ExtrapolatedSituationalPicture:
+    @app.post("/situational_picture/{which}")
+    def get_situational_picture(
+        which: Team, times: list[datetime.datetime]
+    ) -> ExtrapolatedSituationalPicture:
         picture = buffer.get_situational_picture(which == Team.blue)
 
         extrapolated_tracks: list[ExtrapolatedTrack] = []
         print("N enemies: ", len(picture.enemy_targets))
         for track in picture.enemy_targets:
-            times = track._times
-            states = np.vsplit(track._y, track._y.shape[0])
-            print(states)
-
-            # t0 = datetime.datetime.fromtimestamp(
-            #     times[-1],
-            #     tz=datetime.timezone.utc,
-            # )
-            # t = t0
-            # while t < t0 + max_extrapolation_time:
-            #     times.append(t)
-            #     states.append(track(t))
-            #     t += extrapolation_resolution
-
-            states = [s.flatten() for s in states]
+            states = [track(t).flatten() for t in times]
 
             track_points = []
             for t, y in zip(times, states, strict=True):
@@ -103,16 +89,49 @@ def create_app(
                         lat=lat,
                         lon=lon,
                         alt=alt,
+                        # TODO: Implement velocity conversion ECEF -> ENU
                         v_east=0.0,
                         v_north=0.0,
                         v_up=0.0,
                     )
                 )
-            extrapolated_tracks.append(ExtrapolatedTrack(points=track_points))
+            extrapolated_tracks.append(
+                ExtrapolatedTrack(id=track.id, points=track_points)
+            )
         return ExtrapolatedSituationalPicture(
             time=picture.time,
             friendly_radars=picture.friendly_radars,
             enemy_tracks=extrapolated_tracks,
         )
+
+    @app.post("/ground_truth/{which}")
+    def get_ground_truth(
+        which: Team, times: list[datetime.datetime]
+    ) -> list[ExtrapolatedGroundtruth]:
+        trajectories = buffer.get_ground_truth_trajectories(which == Team.blue)
+        results = []
+        for trajectory in trajectories:
+            points = []
+            for time in times:
+                target = trajectory(time)
+                points.append(
+                    TrackPoint(
+                        time=time,
+                        lat=target.lat,
+                        lon=target.lon,
+                        alt=target.alt,
+                        # TODO: Implement velocity conversion ECEF -> ENU
+                        v_east=0.0,
+                        v_north=0.0,
+                        v_up=0.0,
+                    )
+                )
+            results.append(
+                ExtrapolatedGroundtruth(
+                    target_id=trajectory.target_id,
+                    points=points,
+                )
+            )
+        return results
 
     return app

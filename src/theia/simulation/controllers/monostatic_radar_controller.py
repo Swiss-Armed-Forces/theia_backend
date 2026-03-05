@@ -12,6 +12,13 @@ from theia.types import (
 class MonostaticRadarController(Controller):
     def __init__(self, radar: Radar):
         self._radar = radar
+    
+    def get_monostatic_radars(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Radar]:
+        return [self._radar]
 
     def get_receivers(
         self,

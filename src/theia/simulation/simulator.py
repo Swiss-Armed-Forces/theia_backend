@@ -14,11 +14,9 @@ from theia.types import (
     Controller,
     MonostaticRadarMeasurementModel,
     Radar,
-    Receiver,
     SituationalPicture,
     Snapshot,
     Target,
-    Transmitter,
 )
 
 
@@ -89,34 +87,26 @@ class Simulator:
         self._listener = listener
         self._simulate_clutter = simulate_clutter
 
-        self._blue_receivers: list[Receiver] = []
-        self._blue_transmitters: list[Transmitter] = []
+        self._blue_monostatic_radars: list[Radar] = []
         self._blue_targets: list[Target] = []
-        self._red_receivers: list[Receiver] = []
-        self._red_transmitters: list[Transmitter] = []
+        self._red_monostatic_radars: list[Radar] = []
         self._red_targets: list[Target] = []
         self._active_detection_id = 0
         self._time_of_last_active_detection: dict[int, datetime.datetime] = {}
         """Time of latest detection for each active radar receiver ID."""
 
     def get_situational_picture_blue(self) -> SituationalPicture:
-        radars = []
-        for rx, tx in itertools.product(self._blue_receivers, self._blue_transmitters):
-            radars.append(Radar(receiver=rx, transmitter=tx))
         return SituationalPicture(
             time=self._t,
-            friendly_radars=radars,
+            friendly_radars=self._blue_monostatic_radars,
             friendly_targets=self._blue_targets,
             enemy_targets=self._blue_tracker.get_tracks(),
         )
 
     def get_situational_picture_red(self) -> SituationalPicture:
-        radars = []
-        for rx, tx in itertools.product(self._red_receivers, self._red_transmitters):
-            radars.append(Radar(receiver=rx, transmitter=tx))
         return SituationalPicture(
             time=self._t,
-            friendly_radars=radars,
+            friendly_radars=self._red_monostatic_radars,
             friendly_targets=self._red_targets,
             enemy_targets=[],
         )
@@ -124,24 +114,11 @@ class Simulator:
     def take_snapshot(self) -> Snapshot:
         return Snapshot(
             time=self._t,
-            blue_transmitters=self._blue_transmitters,
-            blue_receivers=self._blue_receivers,
+            blue_monostatic_radars=self._blue_monostatic_radars,
             blue_targets=self._blue_targets,
-            red_transmitters=self._red_transmitters,
-            red_receivers=self._red_receivers,
+            red_monostatic_radars=self._red_monostatic_radars,
             red_targets=self._red_targets,
         )
-
-    @property
-    def _blue_active_radars(self) -> list[Radar]:
-        return [
-            Radar(transmitter=tx, receiver=rx)
-            for rx, tx in itertools.product(
-                self._blue_receivers,
-                self._blue_transmitters,
-            )
-            if rx.point == tx.point
-        ]
 
     def _calculate_blue_monostatic_detections(self) -> list[MonostaticRadarDetection]:
         """
@@ -155,7 +132,7 @@ class Simulator:
         No angular update is implemented.
         """
         detections: list[MonostaticRadarDetection] = []
-        for radar in self._blue_active_radars:
+        for radar in self._blue_monostatic_radars:
             error_model = MonostaticRadarMeasurementModel(radar=radar)
             max_range = calculate_maximum_monostatic_range(radar)
             time_of_last_detection = self._time_of_last_active_detection.get(
@@ -213,6 +190,10 @@ class Simulator:
         self._listener.on_situational_picture(red_situational_picture, False)
 
         # Update world according to behaviour informed by situational picture.
+        self._blue_monostatic_radars = self._blue_controller.get_monostatic_radars(
+            blue_situational_picture,
+            self._dt,
+        )
         self._blue_receivers = self._blue_controller.get_receivers(
             blue_situational_picture,
             self._dt,
@@ -223,6 +204,10 @@ class Simulator:
         )
         self._blue_targets = self._blue_controller.get_targets(
             blue_situational_picture,
+            self._dt,
+        )
+        self._red_monostatic_radars = self._red_controller.get_monostatic_radars(
+            red_situational_picture,
             self._dt,
         )
         self._red_receivers = self._red_controller.get_receivers(

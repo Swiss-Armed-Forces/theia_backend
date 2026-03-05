@@ -13,6 +13,14 @@ class ControllerGroup(Controller):
     def __init__(self, controllers: list[Controller]):
         self._controllers = controllers
 
+    def get_monostatic_radars(
+        self, situational_picture: SituationalPicture, dt: datetime.timedelta
+    ):
+        all_radars = [
+            c.get_monostatic_radars(situational_picture, dt) for c in self._controllers
+        ]
+        return list(itertools.chain.from_iterable(all_radars))
+
     def get_transmitters(
         self, situational_picture: SituationalPicture, dt: datetime.timedelta
     ) -> list[Transmitter]:

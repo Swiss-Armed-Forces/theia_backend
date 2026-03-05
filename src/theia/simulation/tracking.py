@@ -110,7 +110,7 @@ class MonostaticSingleSensorTracker(AbstractTracker):
         tracks: list[theia.types.Track] = []
         for track in self._tracks:
             states = [(s.timestamp, s.state_vector.flatten()) for s in track.states]
-            tracks.append(theia.types.Track(states))
+            tracks.append(theia.types.Track(id=track.id, states=states))
         return tracks
 
 

@@ -7,6 +7,7 @@ from theia.coordinates import CoordinateTransformations
 from theia.types import (
     Controller,
     Point,
+    Radar,
     RcsModel,
     Receiver,
     SituationalPicture,
@@ -38,6 +39,13 @@ class WaypointTargetController(Controller):
         )
         self._f = CubicSpline(times, positions_xyz, extrapolate=False)
         self._v = self._f.derivative()
+
+    def get_monostatic_radars(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Radar]:
+        return []
 
     def get_receivers(
         self,
