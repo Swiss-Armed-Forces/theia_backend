@@ -209,6 +209,9 @@ class Simulator:
         blue_situational_picture = self.get_situational_picture_blue()
         red_situational_picture = self.get_situational_picture_red()
 
+        self._listener.on_situational_picture(blue_situational_picture, True)
+        self._listener.on_situational_picture(red_situational_picture, False)
+
         # Update world according to behaviour informed by situational picture.
         self._blue_receivers = self._blue_controller.get_receivers(
             blue_situational_picture,
@@ -246,10 +249,12 @@ class Simulator:
 
         # Track.
         self._blue_tracker.add_detections(
-            set([
-                MonostaticDetectionFactory.from_theia(d)
-                for d in blue_active_radar_detections
-            ])
+            set(
+                [
+                    MonostaticDetectionFactory.from_theia(d)
+                    for d in blue_active_radar_detections
+                ]
+            )
         )
 
         # Log.
@@ -263,3 +268,9 @@ class Simulator:
         time.sleep(max(0, self._minimum_time_per_step - time_step_on_update))
 
         return True
+
+
+def run_simulation_until_completion(simulator: Simulator):
+    is_running = True
+    while is_running:
+        is_running = simulator.advance()
