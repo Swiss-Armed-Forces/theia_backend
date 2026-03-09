@@ -859,14 +859,14 @@ class Snapshot(pydantic.BaseModel):
 
 
 class Track(pydantic.BaseModel):
-    id: int
+    id: str
     states: list[tuple[datetime.datetime, np.ndarray]]
 
     _times: list[float] = pydantic.PrivateAttr()
     _y: np.ndarray = pydantic.PrivateAttr()
     _f: CubicSpline = pydantic.PrivateAttr()
 
-    def __init__(self, id: int, states: list[tuple[datetime.datetime, np.ndarray]]):
+    def __init__(self, id: str, states: list[tuple[datetime.datetime, np.ndarray]]):
         super().__init__(id=id, states=states)
 
         self._times = []

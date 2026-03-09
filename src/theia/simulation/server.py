@@ -34,7 +34,7 @@ class TrackPoint(pydantic.BaseModel):
 
 
 class ExtrapolatedTrack(pydantic.BaseModel):
-    id: int
+    id: str
     points: list[TrackPoint]
 
 
