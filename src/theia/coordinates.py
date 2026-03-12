@@ -1,4 +1,4 @@
-
+import numba
 import numpy as np
 import pyproj
 from theia.terrain import elevationAt
@@ -171,6 +171,7 @@ class CoordinateTransformations:
         return (float(p_ecef[0]), float(p_ecef[1]), float(p_ecef[2]))
 
 
+@numba.njit
 def _ecef_to_enu_rotation_matrix(lat: float, lon: float) -> np.array:
     """
     Calculate rotation matrix that converts earth-centered-earth-fixed to East-North-Up
@@ -190,13 +191,12 @@ def _ecef_to_enu_rotation_matrix(lat: float, lon: float) -> np.array:
     """
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
-    R_ecef_to_enu = np.array(
-        [
-            [-np.sin(lon), np.cos(lon), 0.0],
-            [-np.sin(lat) * np.cos(lon), -np.sin(lat) * np.sin(lon), np.cos(lat)],
-            [np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)],
-        ]
-    )
+    # fmt: off
+    R_ecef_to_enu = np.empty(shape=(3, 3), dtype=np.float32)
+    R_ecef_to_enu[0, :] = (-np.sin(lon)              ,  np.cos(lon)              ,         0.0)
+    R_ecef_to_enu[1, :] = (-np.sin(lat) * np.cos(lon), -np.sin(lat) * np.sin(lon), np.cos(lat))
+    R_ecef_to_enu[2, :] = ( np.cos(lat) * np.cos(lon),  np.cos(lat) * np.sin(lon), np.sin(lat))
+    # fmt: on
     return R_ecef_to_enu
 
 
@@ -225,13 +225,33 @@ def calculate_azimuth_angle(p_observer: Point, p_target: Point) -> float:
     https://geographiclib.sourceforge.io/2009-03/geodesic.html
 
     """
-    tgt_ecef = np.array(CoordinateTransformations.geodetic_to_cartesian(*p_target.as_tuple()))
+    tgt_ecef = np.array(
+        CoordinateTransformations.geodetic_to_cartesian(*p_target.as_tuple())
+    )
     east, north, up = CoordinateTransformations.ecef_to_enu(p_observer, tgt_ecef)
     return np.arctan2(east, north) % (2 * np.pi)
 
 
 # The following function was generated using Claude AI Sonnet 4.5
 # and adapted by the author.
+@numba.njit
+def calculate_elevation_angle_ecef(
+    p_observer: np.array,
+    p_target: np.array,
+) -> float:
+    delta = p_target - p_observer
+
+    # Local "up" vector at p1 (radial direction from Earth's center).
+    # This is simply the normalized position vector of p1.
+    up = p_observer / np.linalg.norm(p_observer)
+
+    # The elevation angle is 90° minus the angle between los and "up"
+    # Or equivalently: arcsin(dot_product / los_magnitude)
+    elevation_angle_rad = np.asin(np.dot(up, delta) / np.linalg.norm(delta))
+
+    return elevation_angle_rad
+
+
 def calculate_elevation_angle(p_observer: Point, p_target: Point):
     """
     Calculate the elevation angle from observer to target [rad].
@@ -259,17 +279,7 @@ def calculate_elevation_angle(p_observer: Point, p_target: Point):
         CoordinateTransformations.geodetic_to_cartesian(*p_target.as_tuple())
     )
 
-    delta = p2_xyz - p1_xyz
-
-    # Local "up" vector at p1 (radial direction from Earth's center).
-    # This is simply the normalized position vector of p1.
-    up = p1_xyz / np.linalg.norm(p1_xyz)
-
-    # The elevation angle is 90° minus the angle between los and "up"
-    # Or equivalently: arcsin(dot_product / los_magnitude)
-    elevation_angle_rad = np.asin(np.dot(up, delta) / np.linalg.norm(delta))
-
-    return elevation_angle_rad
+    return calculate_elevation_angle_ecef(p1_xyz, p2_xyz)
 
 
 def latitude_direction(p: Point) -> np.ndarray:
