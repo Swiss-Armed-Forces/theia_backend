@@ -2,11 +2,17 @@
 
 import datetime
 from enum import Enum
+from typing import Any
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import pydantic
+import shapely
 
+from theia.config import FRONTEND_URL
 from theia.coordinates import CoordinateTransformations
+from theia.coverage import calculate_coverage
+from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.logging import SituationalPictureBuffer
 from theia.types import Radar
 
@@ -47,6 +53,24 @@ class ExtrapolatedSituationalPicture(pydantic.BaseModel):
 class ExtrapolatedGroundtruth(pydantic.BaseModel):
     target_id: int
     points: list[TrackPoint]
+
+
+class GeoJSONPolygon(pydantic.BaseModel):
+    type: str = "Polygon"
+    coordinates: list[list[list[float]]]
+
+    @classmethod
+    def from_shapely(cls, polygon: shapely.Polygon) -> "GeoJSONPolygon":
+        geojson = shapely.geometry.mapping(polygon)
+        return cls(
+            coordinates=[list(map(list, ring)) for ring in geojson["coordinates"]]
+        )
+
+
+class GeoJSONFeature(pydantic.BaseModel):
+    type: str = "Feature"
+    geometry: GeoJSONPolygon
+    properties: dict[str, Any] = {}
 
 
 def create_app(
@@ -133,5 +157,38 @@ def create_app(
                 )
             )
         return results
+
+    @app.post("/calculate_monostatic_coverage")
+    def calculate_monostatic_coverage(
+        radar: Radar,
+        target_alt: float,
+        rcs: float,
+        probability_threshold: float,
+        azimuth_resolution_degree: float,
+    ) -> GeoJSONFeature:
+        max_dist = calculate_maximum_monostatic_range(
+            radar=radar,
+            target_rcs=rcs,
+            probability_threshold=probability_threshold,
+        )
+        polygon = calculate_coverage(
+            radar.receiver.point,
+            max_dist,
+            target_alt,
+            d_theta=azimuth_resolution_degree,
+        )
+        # print(polygon)
+        # return
+        return GeoJSONFeature(
+            geometry=GeoJSONPolygon.from_shapely(polygon),
+            properties={"name": "my polygon"},
+        )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[FRONTEND_URL],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     return app
