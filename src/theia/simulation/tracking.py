@@ -20,6 +20,15 @@ import theia
 from theia.types import AbstractTracker
 
 
+class DummyTracker(AbstractTracker):
+    def add_detections(self, detections):
+        pass
+
+    def get_tracks(self):
+        return []
+
+
+
 class MonostaticSingleSensorTracker(AbstractTracker):
     def __init__(
         self,

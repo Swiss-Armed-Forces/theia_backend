@@ -1,6 +1,6 @@
 import abc
+import cProfile
 import datetime
-import itertools
 import time
 
 import numpy as np
@@ -259,3 +259,26 @@ def run_simulation_until_completion(simulator: Simulator):
     is_running = True
     while is_running:
         is_running = simulator.advance()
+    print("============================")
+    print("DONE!")
+    print("============================")
+
+
+def run_with_profile(fn, profile_path: str):
+    def wrapper(*args, **kwargs):
+        cProfile.runctx(
+            "fn(*args, **kwargs)",
+            globals={"fn": fn},
+            locals={"args": args, "kwargs": kwargs},
+            filename=profile_path,
+        )
+
+    return wrapper
+
+
+def profile_simulation_until_completion(
+    simulator: Simulator,
+    profile_path: str = "sim_thread.prof",
+):
+    f = run_with_profile(run_simulation_until_completion, profile_path=profile_path)
+    f(simulator)
