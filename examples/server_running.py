@@ -18,9 +18,10 @@ from theia.simulation.server import create_app
 from theia.simulation.simulator import (
     Simulator,
     TimeCriterion,
+    profile_simulation_until_completion,
     run_simulation_until_completion,
 )
-from theia.simulation.tracking import MonostaticSingleSensorTracker
+from theia.simulation.tracking import DummyTracker, MonostaticSingleSensorTracker
 from theia.types import Point, Polarization, Radar, Receiver, Transmitter
 
 print("Initialise...")
@@ -85,6 +86,7 @@ scripted_target_controller = ControllerGroup(
 
 # Build the simulator.
 start_time = min([t.times[0] for t in trajectories])
+# stop_time = start_time + datetime.timedelta(minutes=2)
 stop_time = max([t.times[-1] for t in trajectories])
 
 time_step = datetime.timedelta(seconds=1)
@@ -92,10 +94,11 @@ time_step = datetime.timedelta(seconds=1)
 simulator = Simulator(
     blue_controller=MonostaticRadarController(radar),
     red_controller=scripted_target_controller,
-    blue_tracker=MonostaticSingleSensorTracker(),
+    # blue_tracker=MonostaticSingleSensorTracker(),
+    blue_tracker=DummyTracker(),
     start_time=start_time,
     time_step=time_step,
-    min_time_per_step=datetime.timedelta(seconds=0),
+    min_time_per_step=datetime.timedelta(seconds=1),
     termination_criterion=TimeCriterion(stop_time),
     seed=4054080,
     listener=buffer,
@@ -112,6 +115,7 @@ app = create_app(buffer)
 sim_thread = threading.Thread(
     target=functools.partial(
         run_simulation_until_completion,
+        # profile_simulation_until_completion,
         simulator=simulator,
     ),
     daemon=False,
