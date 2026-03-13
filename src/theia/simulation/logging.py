@@ -337,6 +337,8 @@ class SituationalPictureBuffer(AbstractSimulationListener):
             vxs = []
             vys = []
             vzs = []
+            if len(target_history) < 2:
+                continue
             for time, target in target_history:
                 times.append(time)
                 lats.append(target.lat)
