@@ -276,6 +276,64 @@ class LogLoader:
             )
 
 
+class CompositeSimulationListener(AbstractSimulationListener):
+    def __init__(self, listeners: list[AbstractSimulationListener]):
+        self._listeners = listeners
+
+    def on_snapshot(self, snapshot: Snapshot):
+        for listener in self._listeners:
+            listener.on_snapshot(snapshot)
+
+    def on_situational_picture(
+        self,
+        situational_picture: SituationalPicture,
+        is_blue: bool,
+    ):
+        for listener in self._listeners:
+            listener.on_situational_picture(situational_picture, is_blue)
+
+    def on_detections(
+        self,
+        active_radar_detections: list[MonostaticRadarDetection],
+        is_blue: bool,
+    ):
+        for listener in self._listeners:
+            listener.on_detections(active_radar_detections, is_blue)
+
+    def on_end(self):
+        for listener in self._listeners:
+            listener.on_end()
+
+
+class FilterSimulationListener(AbstractSimulationListener):
+    def __init__(
+        self,
+        listener: AbstractSimulationListener,
+        forward_snapshots: bool,
+        forward_situational_pictures: bool,
+        forward_detections: bool,
+    ):
+        self._listener = listener
+        self._forward_snapshots = forward_snapshots
+        self._forward_detections = forward_detections
+        self._forward_situational_pictures = forward_situational_pictures
+
+    def on_snapshot(self, snapshot):
+        if self._forward_snapshots:
+            self._listener.on_snapshot(snapshot)
+
+    def on_situational_picture(self, situational_picture, is_blue):
+        if self._forward_situational_pictures:
+            self._listener.on_situational_picture(situational_picture, is_blue)
+
+    def on_detections(self, active_radar_detections, is_blue):
+        if self._forward_detections:
+            self._listener.on_detections(active_radar_detections, is_blue)
+
+    def on_end(self):
+        self._listener.on_end()
+
+
 class SituationalPictureBuffer(AbstractSimulationListener):
     def __init__(self):
         self._red_ground_truth_history: dict[
