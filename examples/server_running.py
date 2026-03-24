@@ -21,7 +21,7 @@ from theia.simulation.simulator import (
     profile_simulation_until_completion,
     run_simulation_until_completion,
 )
-from theia.simulation.tracking import DummyTracker, MonostaticSingleSensorTracker
+from theia.simulation.tracking import DummyTracker, MonostaticPseudoTracker, MonostaticSingleSensorTracker
 from theia.types import Point, Polarization, Radar, Receiver, Transmitter
 
 print("Initialise...")
@@ -95,7 +95,8 @@ simulator = Simulator(
     blue_controller=MonostaticRadarController(radar),
     red_controller=scripted_target_controller,
     # blue_tracker=MonostaticSingleSensorTracker(),
-    blue_tracker=DummyTracker(),
+    # blue_tracker=DummyTracker(),
+    blue_tracker=MonostaticPseudoTracker(),
     start_time=start_time,
     time_step=time_step,
     min_time_per_step=datetime.timedelta(seconds=1),
