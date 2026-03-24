@@ -138,33 +138,33 @@ class PrintLogger(AbstractSimulationListener):
 
 class InMemoryLogger(AbstractSimulationListener):
     def __init__(self):
-        self.situational_pictures = []
-        self.active_radar_detections = []
-        self.snapshots = []
+        self.situational_pictures_blue: list[SituationalPicture] = []
+        self.situational_pictures_red: list[SituationalPicture] = []
+        self.monostatic_radar_detections_blue: list[MonostaticRadarDetection] = []
+        self.snapshots: list[Snapshot] = []
 
     def on_snapshot(self, snapshot):
         self.snapshots.append(snapshot)
 
     def on_situational_picture(
-        self, situational_picture: SituationalPicture, is_blue: bool
+        self,
+        situational_picture: SituationalPicture,
+        is_blue: bool,
     ):
-        self.situational_pictures.append(
-            {
-                "is_blue": is_blue,
-                "situational_picture": situational_picture.model_dump(mode="json"),
-            }
+        pictures = (
+            self.situational_pictures_blue if is_blue else self.situational_pictures_red
         )
+        pictures.append(situational_picture)
 
     def on_detections(
-        self, active_radar_detections: list[MonostaticRadarDetection], is_blue: bool
+        self,
+        active_radar_detections: list[MonostaticRadarDetection],
+        is_blue: bool,
     ):
+        if not is_blue:
+            raise NotImplementedError()
         for det in active_radar_detections:
-            self.active_radar_detections.append(
-                {
-                    "is_blue": is_blue,
-                    "detection": det.model_dump(mode="json"),
-                }
-            )
+            self.monostatic_radar_detections_blue.append(det)
 
     def on_end(self):
         pass

@@ -737,8 +737,6 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
         N_expected_false_alarms = self.radar.receiver.pfa * N_cells
         N = rng.poisson(N_expected_false_alarms)
 
-        # print(N)
-
         clutter = []
         for _ in range(N):
             # Two-step sampling:
@@ -861,6 +859,7 @@ class Snapshot(pydantic.BaseModel):
 class Track(pydantic.BaseModel):
     id: str
     states: list[tuple[datetime.datetime, np.ndarray]]
+    inactive_time: datetime.timedelta = datetime.timedelta(seconds=30)
 
     _times: list[float] = pydantic.PrivateAttr()
     _y: np.ndarray = pydantic.PrivateAttr()
@@ -879,7 +878,9 @@ class Track(pydantic.BaseModel):
         self._f = CubicSpline(self._times, self._y)
 
     def __call__(self, time: datetime.datetime) -> np.ndarray:
-        return self._f(time.timestamp())
+        t = time.timestamp()
+        t = min(t, self._times[-1] + self.inactive_time.seconds)
+        return self._f(t)
 
     class Config:
         arbitrary_types_allowed = True
@@ -888,6 +889,7 @@ class Track(pydantic.BaseModel):
 class AbstractTracker(abc.ABC):
     @abc.abstractmethod
     def add_detections(self, detections: list[MonostaticRadarDetection]):
+        """Add detections of a single iteration to this tracker."""
         raise NotImplementedError()
 
     @abc.abstractmethod

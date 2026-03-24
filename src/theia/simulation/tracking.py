@@ -1,3 +1,6 @@
+import datetime
+import itertools
+
 import numpy as np
 from stonesoup.deleter.error import CovarianceBasedDeleter
 from stonesoup.deleter.time import UpdateTimeStepsDeleter
@@ -17,7 +20,9 @@ from stonesoup.types.state import GaussianState
 from stonesoup.types.track import Track
 
 import theia
-from theia.types import AbstractTracker
+from theia.measurement import MonostaticMeasurementTransformations
+from theia.stonesoup_interface import MonostaticDetectionFactory
+from theia.types import CLUTTER_TARGET, AbstractTracker, MonostaticRadarDetection, Point
 
 
 class DummyTracker(AbstractTracker):
@@ -26,7 +31,6 @@ class DummyTracker(AbstractTracker):
 
     def get_tracks(self):
         return []
-
 
 
 class MonostaticSingleSensorTracker(AbstractTracker):
@@ -83,7 +87,8 @@ class MonostaticSingleSensorTracker(AbstractTracker):
         # Initialise the tracks.
         self._tracks: set[Track] = set()
 
-    def add_detections(self, detections: set[Detection]):
+    def add_detections(self, detections: set[MonostaticRadarDetection]):
+        detections = set([MonostaticDetectionFactory.from_theia(d) for d in detections])
         if len(detections) == 0:
             return
         any_detection = next(iter(detections))
@@ -165,4 +170,9 @@ class MonostaticPseudoTracker(AbstractTracker):
             history.append((detection.time, state))
 
     def get_tracks(self) -> list[theia.types.Track]:
-        return []
+        tracks: list[theia.types.Track] = []
+        for target_id, timepoints in self._states.items():
+            if len(timepoints) < 2:
+                continue
+            tracks.append(theia.types.Track(id=str(target_id), states=timepoints))
+        return tracks
