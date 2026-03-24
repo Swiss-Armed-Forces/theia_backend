@@ -233,14 +233,7 @@ class Simulator:
         # TODO: Implement PET detections.
 
         # Track.
-        self._blue_tracker.add_detections(
-            set(
-                [
-                    MonostaticDetectionFactory.from_theia(d)
-                    for d in blue_active_radar_detections
-                ]
-            )
-        )
+        self._blue_tracker.add_detections(blue_active_radar_detections)
 
         # Log.
         self._listener.on_snapshot(self.take_snapshot())
