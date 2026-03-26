@@ -81,9 +81,9 @@ def calculate_monostatic_detection(
         sigma_elevation = 0.0
         sigma_azimuth = 0.0
         if error_model is not None:
-            sigma_range = error_model.calculate_range_uncertainty(snr_dB)
-            sigma_elevation = error_model.calculate_elevation_uncertainty(snr_dB)
-            sigma_azimuth = error_model.calculate_azimuth_uncertainty(snr_dB)
+            sigma_range = error_model.calculate_range_uncertainty(radar, snr_dB)
+            sigma_elevation = error_model.calculate_elevation_uncertainty(radar, snr_dB)
+            sigma_azimuth = error_model.calculate_azimuth_uncertainty(radar, snr_dB)
             target_range += rng.normal(loc=0.0, scale=sigma_range)
             elevation += rng.normal(loc=0.0, scale=sigma_elevation)
             azimuth += rng.normal(loc=0.0, scale=sigma_azimuth)
