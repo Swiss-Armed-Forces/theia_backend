@@ -313,6 +313,7 @@ class Receiver(pydantic.BaseModel):
 class Radar(pydantic.BaseModel):
     transmitter: Transmitter
     receiver: Receiver
+    error_model: MonostaticRadarMeasurementModel
 
 
 class Target(pydantic.BaseModel):
@@ -638,39 +639,37 @@ It is needed because a detection needs to be associated to a target.
 
 
 class MonostaticRadarMeasurementModel(pydantic.BaseModel):
-    radar: Radar
     min_range_uncertainty: float = 100.0
     min_angular_uncertainty: float = np.deg2rad(1.0)
 
-    @property
-    def range_resolution(self) -> float:
+    def range_resolution(self, radar: Radar) -> float:
         """Resolution of the detected range [m]"""
-        return sc.speed_of_light / (2 * self.radar.receiver.bandwidth * 1e6)
+        return sc.speed_of_light / (2 * radar.receiver.bandwidth * 1e6)
 
-    @property
-    def elevation_resolution(self) -> float:
+    def elevation_resolution(self, radar: Radar) -> float:
         """Resolution of the detected elevation [rad]"""
         return (
             sc.speed_of_light
-            / (self.radar.transmitter.frequency * 1e6)
-            / self.radar.receiver.diameter
+            / (radar.transmitter.frequency * 1e6)
+            / radar.receiver.diameter
         )
 
-    @property
-    def azimuth_resolution(self) -> float:
+    def azimuth_resolution(self, radar: Radar) -> float:
         """Resolution of the detected azimuth [rad]"""
         return (
             sc.speed_of_light
-            / (self.radar.transmitter.frequency * 1e6)
-            / self.radar.receiver.diameter
+            / (radar.transmitter.frequency * 1e6)
+            / radar.receiver.diameter
         )
 
-    def calculate_range_uncertainty(self, snr: float) -> float:
+    def calculate_range_uncertainty(self, radar: Radar, snr: float) -> float:
         """
         Calculate range uncertainty [m].
 
         Parameters
         ----------
+        radar: Radar
+            Monostatic radar
         snr: float
             Signal-to-noise ratio of the detection [dB]
 
@@ -679,15 +678,17 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
         float
             Uncertainty of the range [m]
         """
-        cramer_rao_bound = self.range_resolution / (2 * np.sqrt(from_dB(snr)))
+        cramer_rao_bound = self.range_resolution(radar) / (2 * np.sqrt(from_dB(snr)))
         return max(cramer_rao_bound, self.min_range_uncertainty)
 
-    def calculate_elevation_uncertainty(self, snr: float) -> float:
+    def calculate_elevation_uncertainty(self, radar: Radar, snr: float) -> float:
         """
         Calculate elevation uncertainty [rad].
 
         Parameters
         ----------
+        radar: Radar
+            Monostatic radar
         snr: float
             Signal-to-noise ratio of the detection [dB]
 
@@ -700,15 +701,19 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
         -----
         This is the Cramér-Rao lower bound.
         """
-        cramer_rao_bound = self.elevation_resolution / (2 * np.sqrt(from_dB(snr)))
+        cramer_rao_bound = self.elevation_resolution(radar) / (
+            2 * np.sqrt(from_dB(snr))
+        )
         return max(cramer_rao_bound, self.min_angular_uncertainty)
 
-    def calculate_azimuth_uncertainty(self, snr: float) -> float:
+    def calculate_azimuth_uncertainty(self, radar: Radar, snr: float) -> float:
         """
         Calculate azimuth uncertainty [rad].
 
         Parameters
         ----------
+        radar: Radar
+            Monostatic radar
         snr: float
             Signal-to-noise ratio of the detection [dB]
 
@@ -721,20 +726,21 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
         -----
         This is the Cramér-Rao lower bound.
         """
-        cramer_rao_bound = self.azimuth_resolution / (2 * np.sqrt(from_dB(snr)))
+        cramer_rao_bound = self.azimuth_resolution(radar) / (2 * np.sqrt(from_dB(snr)))
         return max(cramer_rao_bound, self.min_angular_uncertainty)
 
     def sample_clutter(
         self,
+        radar: Radar,
         rng: np.random.Generator,
         max_range: float,
     ) -> list[MonostaticRadarDetection]:
-        N_range_cells = int(np.ceil(max_range / self.range_resolution))
-        N_azimuth_cells = int(np.ceil(2 * np.pi / self.azimuth_resolution))
-        N_elevation_cells = int(np.ceil(np.pi / self.elevation_resolution))
+        N_range_cells = int(np.ceil(max_range / self.range_resolution(radar)))
+        N_azimuth_cells = int(np.ceil(2 * np.pi / self.azimuth_resolution(radar)))
+        N_elevation_cells = int(np.ceil(np.pi / self.elevation_resolution(radar)))
 
         N_cells = N_range_cells * N_azimuth_cells * N_elevation_cells
-        N_expected_false_alarms = self.radar.receiver.pfa * N_cells
+        N_expected_false_alarms = radar.receiver.pfa * N_cells
         N = rng.poisson(N_expected_false_alarms)
 
         clutter = []
@@ -750,16 +756,16 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
             # We neglect the curvature of a resolution cell and simply sample
             # elevation, azimuth and range uniformly in each coordinate.
             clutter_range = rng.uniform(
-                range_index * self.range_resolution,
-                (range_index + 1) * self.range_resolution,
+                range_index * self.range_resolution(radar),
+                (range_index + 1) * self.range_resolution(radar),
             )
             clutter_azimuth = rng.uniform(
-                azimuth_index * self.azimuth_resolution,
-                (azimuth_index + 1) * self.azimuth_resolution,
+                azimuth_index * self.azimuth_resolution(radar),
+                (azimuth_index + 1) * self.azimuth_resolution(radar),
             )
             clutter_elevation = rng.uniform(
-                -np.pi / 2.0 + elevation_index * self.elevation_resolution,
-                -np.pi / 2.0 + (elevation_index + 1) * self.elevation_resolution,
+                -np.pi / 2.0 + elevation_index * self.elevation_resolution(radar),
+                -np.pi / 2.0 + (elevation_index + 1) * self.elevation_resolution(radar),
             )
 
             # We have to clip the values due to rounding the number of cells up.
@@ -779,7 +785,7 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
                 MonostaticRadarDetection(
                     detection_id=-1,
                     time=datetime.datetime.fromtimestamp(0),
-                    radar=self.radar,
+                    radar=radar,
                     target=CLUTTER_TARGET,
                     snr=np.nan,
                     target_range=clutter_range,
@@ -788,9 +794,9 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
                     # The noise model is inferred from standard deviation of the
                     # uniform distribution:
                     # sigma_x = |interval| / sqrt(12)
-                    sigma_target_range=self.range_resolution / np.sqrt(12.0),
-                    sigma_elevation=self.elevation_resolution / np.sqrt(12.0),
-                    sigma_azimuth=self.azimuth_resolution / np.sqrt(12.0),
+                    sigma_target_range=self.range_resolution(radar) / np.sqrt(12.0),
+                    sigma_elevation=self.elevation_resolution(radar) / np.sqrt(12.0),
+                    sigma_azimuth=self.azimuth_resolution(radar) / np.sqrt(12.0),
                 )
             )
         return clutter
