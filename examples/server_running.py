@@ -21,8 +21,19 @@ from theia.simulation.simulator import (
     profile_simulation_until_completion,
     run_simulation_until_completion,
 )
-from theia.simulation.tracking import DummyTracker, MonostaticPseudoTracker, MonostaticSingleSensorTracker
-from theia.types import Point, Polarization, Radar, Receiver, Transmitter
+from theia.simulation.tracking import (
+    DummyTracker,
+    MonostaticPseudoTracker,
+    MonostaticSingleSensorTracker,
+)
+from theia.types import (
+    MonostaticRadarMeasurementModel,
+    Point,
+    Polarization,
+    Radar,
+    Receiver,
+    Transmitter,
+)
 
 print("Initialise...")
 
@@ -73,6 +84,7 @@ radar = Radar(
         vertical_attenuation=None,
         horizontal_attenuation=None,
     ),
+    error_model=MonostaticRadarMeasurementModel(),
 )
 
 # Load trajectories from OpenSky.

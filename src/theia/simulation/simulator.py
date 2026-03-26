@@ -159,7 +159,11 @@ class Simulator:
             self._time_of_last_active_detection[radar.receiver.id] = self._t
             # Simulate clutter.
             if self._simulate_clutter:
-                clutter_detections = error_model.sample_clutter(self._rng, max_range)
+                clutter_detections = error_model.sample_clutter(
+                    radar,
+                    self._rng,
+                    max_range,
+                )
                 for d in clutter_detections:
                     d.detection_id = self._active_detection_id
                     self._active_detection_id += 1
