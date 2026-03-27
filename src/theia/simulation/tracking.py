@@ -22,7 +22,7 @@ from stonesoup.types.track import Track
 import theia
 from theia.measurement import MonostaticMeasurementTransformations
 from theia.stonesoup_interface import MonostaticDetectionFactory
-from theia.types import CLUTTER_TARGET, AbstractTracker, MonostaticRadarDetection, Point
+from theia.types import CLUTTER_TARGET, AbstractTracker, MonostaticRadarDetection
 
 
 class DummyTracker(AbstractTracker):
