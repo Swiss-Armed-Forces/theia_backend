@@ -11,6 +11,7 @@ from theia.data_loading import load_openburst_trajectory_file
 from theia.types import (
     AttenuationModel,
     ConstantRcsModel,
+    MonostaticRadarMeasurementModel,
     PassiveRadarDetection,
     Point,
     Polarization,
@@ -198,6 +199,7 @@ def load_pcl_reference_data(
                             t for t in transmitters if t.id == row["tx_id"]
                         ),
                         receiver=next(r for r in receivers if r.id == row["rx_id"]),
+                        error_model=MonostaticRadarMeasurementModel(),
                     ),
                     target=Target(
                         id=int(row["targ_id"]),
