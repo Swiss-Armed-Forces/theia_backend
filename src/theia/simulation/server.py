@@ -94,7 +94,6 @@ def create_app(
         picture = buffer.get_situational_picture(which == Team.blue)
 
         extrapolated_tracks: list[ExtrapolatedTrack] = []
-        print("N enemies: ", len(picture.enemy_targets))
         for track in picture.enemy_targets:
             states = [track(t).flatten() for t in times]
 
