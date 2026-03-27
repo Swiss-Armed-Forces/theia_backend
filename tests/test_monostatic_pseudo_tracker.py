@@ -21,7 +21,7 @@ class MonostaticPseudoTrackerTest(unittest.TestCase):
         )
         traj = next(traj for traj in trajectories if traj.target_id == 29)
 
-        tracker = MonostaticPseudoTracker()
+        tracker = MonostaticPseudoTracker(removal_patience=1_000_000)
         for i, t in enumerate(traj.times):
             target = traj(t)
             p = CoordinateTransformations.geodetic_to_cartesian(
@@ -79,7 +79,7 @@ class MonostaticPseudoTrackerTest(unittest.TestCase):
         times = set(itertools.chain.from_iterable([t.times for t in trajectories]))
         times = sorted(list(times))
 
-        tracker = MonostaticPseudoTracker()
+        tracker = MonostaticPseudoTracker(removal_patience=1_000_000)
         for i, t in enumerate(times):
             detections = []
             for trajectory in trajectories:

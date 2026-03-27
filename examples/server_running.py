@@ -56,7 +56,7 @@ simulator = Simulator(
     red_controller=scripted_target_controller,
     # blue_tracker=MonostaticSingleSensorTracker(),
     # blue_tracker=DummyTracker(),
-    blue_tracker=MonostaticPseudoTracker(),
+    blue_tracker=MonostaticPseudoTracker(removal_patience=30),
     start_time=start_time,
     time_step=time_step,
     min_time_per_step=datetime.timedelta(seconds=1),
