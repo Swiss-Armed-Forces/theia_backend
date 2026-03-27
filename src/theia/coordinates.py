@@ -11,6 +11,7 @@ LATLON_BOUNDS = {
 
 POSITIONS_OF_INTEREST = {
     "CH_CENTER": {"lat": 46.801111, "lon": 8.226667},
+    "Uetliberg": {"lat": 47.349491, "lon": 8.492063, "alt": 856.2037851199802},
 }
 
 

@@ -1,11 +1,11 @@
 import datetime
-import json
 from pathlib import Path
 import unittest
 
 import numpy as np
 from tqdm import tqdm
 
+from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.data_loading import load_trajectory_file
 from theia.data_loading_testing import load_pcl_reference_data
 from theia.simulation.controllers.controller_group import ControllerGroup
@@ -28,11 +28,14 @@ BANDWIDTH = 5 # MHz
 
 class SimulatorTest(unittest.TestCase):
     def test_run_zueri_westbound(self):
+        radar_lat = POSITIONS_OF_INTEREST["Uetliberg"]["lat"]
+        radar_lon = POSITIONS_OF_INTEREST["Uetliberg"]["lon"]
+        radar_alt = POSITIONS_OF_INTEREST["Uetliberg"]["alt"]
         # Define monostatic radars.
         radar = Radar(
             transmitter=Transmitter(
                 id=0,
-                point=Point(lat=47.349491, lon=8.492063, alt=856.2037851199802),
+                point=Point(lat=radar_lat, lon=radar_lon, alt=radar_alt),
                 power=POWER,
                 erp=1000.0,
                 antenna_height=10.0,
@@ -48,7 +51,7 @@ class SimulatorTest(unittest.TestCase):
             ),
             receiver=Receiver(
                 id=0,
-                point=Point(lat=47.349491, lon=8.492063, alt=856.2037851199802),
+                point=Point(lat=radar_lat, lon=radar_lon, alt=radar_alt),
                 antenna_height=10.0,
                 diameter=DIAMETER,
                 cpi_pulses=1.0,
@@ -97,10 +100,14 @@ class SimulatorTest(unittest.TestCase):
             pass
     
     def test_opensky(self):
+        radar_lat = POSITIONS_OF_INTEREST["Uetliberg"]["lat"]
+        radar_lon = POSITIONS_OF_INTEREST["Uetliberg"]["lon"]
+        radar_alt = POSITIONS_OF_INTEREST["Uetliberg"]["alt"]
+
         radar = Radar(
             transmitter=Transmitter(
                 id=0,
-                point=Point(lat=47.349491, lon=8.492063, alt=856.2037851199802),
+                point=Point(lat=radar_lat, lon=radar_lon, alt=radar_alt),
                 power=POWER,
                 erp=1000.0,
                 antenna_height=10.0,
@@ -116,7 +123,7 @@ class SimulatorTest(unittest.TestCase):
             ),
             receiver=Receiver(
                 id=0,
-                point=Point(lat=47.349491, lon=8.492063, alt=856.2037851199802),
+                point=Point(lat=radar_lat, lon=radar_lon, alt=radar_alt),
                 antenna_height=10.0,
                 diameter=DIAMETER,
                 cpi_pulses=1.0,
