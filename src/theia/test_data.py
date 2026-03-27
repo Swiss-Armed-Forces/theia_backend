@@ -1,5 +1,7 @@
 import copy
 from typing import Literal
+
+import numpy as np
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.terrain import elevationAt
 from theia.types import (
@@ -164,3 +166,42 @@ def get_uetliberg_radar(
             max_angular_uncertainty=0.0,
         ),
     )
+
+
+def sample_position(
+    rng: np.random.Generator,
+    lat_min: float = -90.0,
+    lat_max: float = 90.0,
+    lon_min: float = -180.0,
+    lon_max: float = 180.0,
+    alt_min: float = 0.0,
+    alt_max: float = 10_000.0,
+    alt_magl: bool = True,
+) -> Point:
+    """
+    Parameters
+    ----------
+    rng: np.random.Generator
+        (Pseudo) random number generator
+    lat_min: float, default -90.0
+        Minimum latitude to sample [°]
+    lat_max: float, default 90.0
+        Maximum latitude to sample [°]
+    lon_min: float, default -90.0
+        Minimum longitude to sample [°]
+    lon_max: float, default 90.0
+        Maximum longitude to sample [°]
+    alt_min: float, default 0.0
+        Minimum altitude to sample [m]
+    alt_max: float, default 10_000.0
+        Maximum altitude to sample [m]
+    alt_magl: float, default True
+        Whether to interpret the altitude bounds as meters above ground level
+        (``True``) or meters above sea level (``False``)
+    """
+    lat = rng.uniform(lat_min, lat_max)
+    lon = rng.uniform(lon_min, lon_max)
+    alt = rng.uniform(alt_min, alt_max)
+    if alt_magl:
+        alt += elevationAt(lat, lon)
+    return Point(lat=lat, lon=lon, alt=alt)
