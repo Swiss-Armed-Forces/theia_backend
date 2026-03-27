@@ -5,6 +5,7 @@ import threading
 
 import uvicorn
 
+from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.data_loading import load_trajectory_file
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.monostatic_radar_controller import (
@@ -48,10 +49,14 @@ POWER = 500_000  # W
 DIAMETER = 4.0  # m
 BANDWIDTH = 5  # MHz
 
+radar_lat = POSITIONS_OF_INTEREST["Uetliberg"]["lat"]
+radar_lon = POSITIONS_OF_INTEREST["Uetliberg"]["lon"]
+radar_alt = POSITIONS_OF_INTEREST["Uetliberg"]["alt"]
+
 radar = Radar(
     transmitter=Transmitter(
         id=0,
-        point=Point(lat=47.349491, lon=8.492063, alt=856.2037851199802),
+        point=Point(lat=radar_lat, lon=radar_lon, alt=radar_alt),
         power=POWER,
         erp=1000.0,
         antenna_height=10.0,
@@ -67,7 +72,7 @@ radar = Radar(
     ),
     receiver=Receiver(
         id=0,
-        point=Point(lat=47.349491, lon=8.492063, alt=856.2037851199802),
+        point=Point(lat=radar_lat, lon=radar_lon, alt=radar_alt),
         antenna_height=10.0,
         diameter=DIAMETER,
         cpi_pulses=1.0,
