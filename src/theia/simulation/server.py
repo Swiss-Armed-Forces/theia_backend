@@ -14,6 +14,7 @@ from theia.coordinates import CoordinateTransformations
 from theia.coverage import calculate_coverage
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.logging import SituationalPictureBuffer
+from theia.simulation.simulation_director import SimulationDirector
 from theia.types import Radar
 
 
@@ -75,6 +76,7 @@ class GeoJSONFeature(pydantic.BaseModel):
 
 def create_app(
     buffer: SituationalPictureBuffer,
+    director: SimulationDirector,
     max_extrapolation_time: datetime.timedelta = datetime.timedelta(minutes=1),
     extrapolation_resolution: datetime.timedelta = datetime.timedelta(seconds=1),
 ) -> FastAPI:
@@ -186,6 +188,18 @@ def create_app(
     @app.get("/health")
     def check_health():
         return "OK"
+    
+    @app.post("/pause")
+    def pause():
+        director.pause()
+    
+    @app.post("/resume")
+    def resume():
+        director.resume()
+    
+    @app.get("/is_paused")
+    def is_paused() -> bool:
+        return director.is_paused()
 
     app.add_middleware(
         CORSMiddleware,
