@@ -5,7 +5,6 @@ import threading
 
 import uvicorn
 
-from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.data_loading import load_trajectory_file
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.monostatic_radar_controller import (
@@ -19,22 +18,12 @@ from theia.simulation.server import create_app
 from theia.simulation.simulator import (
     Simulator,
     TimeCriterion,
-    profile_simulation_until_completion,
     run_simulation_until_completion,
 )
 from theia.simulation.tracking import (
-    DummyTracker,
     MonostaticPseudoTracker,
-    MonostaticSingleSensorTracker,
 )
-from theia.types import (
-    MonostaticRadarMeasurementModel,
-    Point,
-    Polarization,
-    Radar,
-    Receiver,
-    Transmitter,
-)
+from theia.test_data import get_uetliberg_radar
 
 print("Initialise...")
 
@@ -44,58 +33,7 @@ buffer = SituationalPictureBuffer()
 # Setup the simulation.
 ################################################
 
-FREQUENCY = 3_000  # Hz
-POWER = 500_000  # W
-DIAMETER = 4.0  # m
-BANDWIDTH = 5  # MHz
-
-radar_lat = POSITIONS_OF_INTEREST["Uetliberg"]["lat"]
-radar_lon = POSITIONS_OF_INTEREST["Uetliberg"]["lon"]
-radar_alt = POSITIONS_OF_INTEREST["Uetliberg"]["alt"]
-
-radar = Radar(
-    transmitter=Transmitter(
-        id=0,
-        point=Point(lat=radar_lat, lon=radar_lon, alt=radar_alt),
-        power=POWER,
-        erp=1000.0,
-        antenna_height=10.0,
-        antenna_diameter=DIAMETER,
-        frequency=FREQUENCY,
-        pulse_width=1.0,
-        polarization=Polarization.VERTICAL,
-        bandwidth=BANDWIDTH,
-        max_coherent_integration_time=0.5,
-        antenna_efficiency_value=0.6,
-        vertical_attenuation=None,
-        horizontal_attenuation=None,
-    ),
-    receiver=Receiver(
-        id=0,
-        point=Point(lat=radar_lat, lon=radar_lon, alt=radar_alt),
-        antenna_height=10.0,
-        diameter=DIAMETER,
-        cpi_pulses=1.0,
-        pfa=1e-06,
-        min_elevation=-20.0,
-        max_elevation=60.0,
-        rotation_time=10.0,
-        bandwidth=BANDWIDTH,
-        gain=0,
-        losses=0,
-        noise_temperature=300.0,
-        noise_figure=1.9,
-        antenna_efficiency_value=0.6,
-        vertical_attenuation=None,
-        horizontal_attenuation=None,
-    ),
-    error_model=MonostaticRadarMeasurementModel(
-        min_range_uncertainty=0.0,
-        max_range_uncertainty=0.0,
-        min_angular_uncertainty=0.0,
-        max_angular_uncertainty=0.0,
-    ),
-)
+radar = get_uetliberg_radar()
 
 # Load trajectories from OpenSky.
 trajectories, _ = load_trajectory_file(
