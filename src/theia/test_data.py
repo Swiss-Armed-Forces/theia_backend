@@ -1,6 +1,6 @@
 import copy
 from typing import Literal
-from theia.coordinates import CoordinateTransformations
+from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.terrain import elevationAt
 from theia.types import (
     ConstantRcsModel,
@@ -24,8 +24,8 @@ class TestSituationLoader:
         | Literal["south"]
         | Literal["west"] = "south",
     ) -> Situation:
-        radar_lat = 47.349491
-        radar_lon = 8.492063
+        radar_lat = POSITIONS_OF_INTEREST["Uetliberg"]["lat"]
+        radar_lon = POSITIONS_OF_INTEREST["Uetliberg"]["lon"]
         point = Point(
             lat=radar_lat, lon=radar_lon, alt=elevationAt(radar_lat, radar_lon)
         )
