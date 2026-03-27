@@ -139,15 +139,20 @@ class MonostaticPseudoTracker(AbstractTracker):
     time stamp,the one with the least range is used (heuristic).
     """
 
-    def __init__(self):
+    def __init__(self, removal_patience: int):
         self._states: dict[int, list[tuple[datetime.datetime, np.ndarray]]] = {}
         """History of positions per target ID"""
+        self._iterations_without_update: dict[int, int] = {}
+        """How many iterations (value) since the last update per target ID (key)"""
+        self._removal_patience = removal_patience
+        """Number of iterations a track is kept without updates"""
 
     def add_detections(self, detections):
         def f(d: MonostaticRadarDetection):
             return d.target.id
 
         detections = sorted(detections, key=f)
+        updated_targets: set[int] = set()
         for target_id, target_detections in itertools.groupby(detections, f):
             if target_id == CLUTTER_TARGET.id:
                 continue
@@ -168,6 +173,17 @@ class MonostaticPseudoTracker(AbstractTracker):
             state = np.array([x, 0.0, y, 0.0, z, 0.0])
             history = self._states.setdefault(target_id, [])
             history.append((detection.time, state))
+            self._iterations_without_update[target_id] = 0
+            updated_targets.add(target_id)
+
+        # Remove targets that haven't been updated in a while.
+        # The list() is important: It allows to modify the states dict during iteration.
+        for target_id in list(self._states.keys()):
+            if target_id not in updated_targets:
+                self._iterations_without_update[target_id] += 1
+                if self._iterations_without_update[target_id] > self._removal_patience:
+                    del self._states[target_id]
+                    del self._iterations_without_update[target_id]
 
     def get_tracks(self) -> list[theia.types.Track]:
         tracks: list[theia.types.Track] = []
