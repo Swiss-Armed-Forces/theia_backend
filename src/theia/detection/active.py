@@ -4,10 +4,11 @@ from typing import Optional
 import numpy as np
 import scipy.constants as sc
 from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, RF_LOSS
-from theia.coordinates import calculate_azimuth_angle, calculate_elevation_angle
+from theia.coordinates import CoordinateTransformations
 from theia.distance import line_of_sight_distance
 from theia.doppler import calculate_doppler_shift
 from theia.line_of_sight import has_line_of_sight
+from theia.measurement import MonostaticMeasurementTransformations
 from theia.snr import calculate_snr
 from theia.types import (
     MonostaticRadarDetection,
@@ -65,17 +66,16 @@ def calculate_monostatic_detection(
         radar.receiver.pfa,
     )
     if rng.uniform(low=0, high=1) <= p:
-        target_range = line_of_sight_distance(
-            *radar.transmitter.point.as_tuple(),
-            *target.point.as_tuple(),
+        target_position_cartesian = CoordinateTransformations.geodetic_to_cartesian(
+            target.lat,
+            target.lon,
+            target.alt,
         )
-        elevation = calculate_elevation_angle(
-            radar.transmitter.point,
-            target.point,
-        )
-        azimuth = calculate_azimuth_angle(
-            radar.transmitter.point,
-            target.point,
+        elevation, azimuth, target_range = (
+            MonostaticMeasurementTransformations.cartesian_to_elevation_azimuth_range(
+                radar.receiver.point,
+                target_position_cartesian,
+            )
         )
         sigma_range = 0.0
         sigma_elevation = 0.0
