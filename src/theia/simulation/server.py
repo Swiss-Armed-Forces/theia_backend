@@ -184,6 +184,10 @@ def create_app(
             properties={"name": "my polygon"},
         )
 
+    @app.get("/health")
+    def check_health():
+        return "OK"
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[FRONTEND_URL],
