@@ -9,6 +9,20 @@ CONSISTENCY_DELTA = 1e-12
 
 
 class CoordinateTransformationTest(unittest.TestCase):
+    def test_cartesian_to_geodetic(self):
+        rng = np.random.Generator(np.random.PCG64(seed=4987897849))
+        for _ in range(10_000):
+            lat = rng.uniform(-90, 90)
+            lon = rng.uniform(-180, 180)
+            alt = rng.uniform(0, 10_000)
+    
+            x, y, z = CoordinateTransformations.geodetic_to_cartesian(lat, lon, alt)
+            lat_new, lon_new, alt_new = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
+
+            self.assertAlmostEqual(lat, lat_new, delta=1e-10)
+            self.assertAlmostEqual(lon, lon_new, delta=CONSISTENCY_DELTA)
+            self.assertAlmostEqual(alt, alt_new, delta=1e-5)
+
     def test_velocity_transformation_consistency_geodetic_cartesian_geodetic(self):
         rng = np.random.Generator(np.random.PCG64(seed=4987897849))
         for _ in range(100):
