@@ -99,6 +99,6 @@ class MonostaticMeasurementTransformations:
         range_m = np.sqrt(east**2 + north**2 + up**2)
         horizontal_range = np.sqrt(east**2 + north**2)
         elevation = np.arctan2(up, horizontal_range)
-        azimuth = np.arctan2(east, north)
+        azimuth = np.arctan2(east, north)% (2 * np.pi)
 
         return elevation, azimuth, range_m
