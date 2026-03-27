@@ -1,7 +1,7 @@
 import unittest
 
 from theia.radar_equation import calculate_maximum_monostatic_range
-from theia.types import Point, Polarization, Radar, Receiver, Transmitter
+from theia.types import MonostaticRadarMeasurementModel, Point, Polarization, Radar, Receiver, Transmitter
 
 
 class MonostaticMaxRangeTest(unittest.TestCase):
@@ -40,6 +40,7 @@ class MonostaticMaxRangeTest(unittest.TestCase):
                 rotation_time=10.0,
                 bandwidth=bandwidth,
             ),
+            error_model=MonostaticRadarMeasurementModel(),
         )
 
         target_cross_section: float = 2.0

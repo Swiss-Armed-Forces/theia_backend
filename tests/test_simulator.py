@@ -18,7 +18,7 @@ from theia.simulation.controllers.waypoint_target_controller import (
 from theia.simulation.logging import FileLogger, InMemoryLogger
 from theia.simulation.simulator import Simulator, TimeCriterion
 from theia.simulation.tracking import DummyTracker
-from theia.types import Point, Polarization, Radar, Receiver, Transmitter
+from theia.types import MonostaticRadarMeasurementModel, Point, Polarization, Radar, Receiver, Transmitter
 
 FREQUENCY = 3_000 # Hz
 POWER = 500_000 # W
@@ -65,6 +65,7 @@ class SimulatorTest(unittest.TestCase):
                 vertical_attenuation=None,
                 horizontal_attenuation=None,
             ),
+            error_model=MonostaticRadarMeasurementModel(),
         )
         # Load targets.
         trajectories, _ = load_pcl_reference_data(
@@ -94,8 +95,6 @@ class SimulatorTest(unittest.TestCase):
         # Simulate until the end.
         while simulator.advance():
             pass
-        with open("log.json", "w") as file:
-            json.dump(logger.active_radar_detections, file)
     
     def test_opensky(self):
         radar = Radar(
@@ -134,6 +133,7 @@ class SimulatorTest(unittest.TestCase):
                 vertical_attenuation=None,
                 horizontal_attenuation=None,
             ),
+            error_model=MonostaticRadarMeasurementModel(),
         )
 
         # Load trajectories from OpenSky.

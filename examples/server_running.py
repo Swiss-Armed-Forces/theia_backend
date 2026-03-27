@@ -84,7 +84,12 @@ radar = Radar(
         vertical_attenuation=None,
         horizontal_attenuation=None,
     ),
-    error_model=MonostaticRadarMeasurementModel(),
+    error_model=MonostaticRadarMeasurementModel(
+        min_range_uncertainty=0.0,
+        max_range_uncertainty=0.0,
+        min_angular_uncertainty=0.0,
+        max_angular_uncertainty=0.0,
+    ),
 )
 
 # Load trajectories from OpenSky.
