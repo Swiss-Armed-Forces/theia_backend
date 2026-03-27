@@ -6,7 +6,8 @@ from theia.simulation.simulator import Simulator
 class SimulationDirector:
     def __init__(self, simulator: Simulator):
         self._simulator = simulator
-        self._is_paused: bool = True
+        self._is_paused: bool = False
+        self.resume()
 
     def resume(self):
         self._is_paused = False
@@ -25,4 +26,4 @@ class SimulationDirector:
         self._is_paused = True
 
     def is_paused(self) -> bool:
-        return not self._is_paused
+        return self._is_paused
