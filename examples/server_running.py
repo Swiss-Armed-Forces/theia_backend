@@ -63,6 +63,7 @@ simulator = Simulator(
     termination_criterion=TimeCriterion(stop_time),
     seed=4054080,
     listener=buffer,
+    simulate_clutter=False,
 )
 
 ################################################
