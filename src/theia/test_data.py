@@ -4,6 +4,7 @@ from theia.coordinates import CoordinateTransformations
 from theia.terrain import elevationAt
 from theia.types import (
     ConstantRcsModel,
+    MonostaticRadarMeasurementModel,
     Point,
     Polarization,
     Radar,
@@ -57,6 +58,7 @@ class TestSituationLoader:
                 rotation_time=10,
                 bandwidth=100.0,
             ),
+            error_model=MonostaticRadarMeasurementModel(),
         )
 
         p_target = copy.deepcopy(point)

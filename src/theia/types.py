@@ -6,7 +6,7 @@ from typing import Iterable, Optional, Self
 from matplotlib import pyplot as plt
 import numpy as np
 import pydantic
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicSpline, make_interp_spline, BSpline
 import scipy.constants as sc
 import shapely
 
@@ -640,7 +640,9 @@ It is needed because a detection needs to be associated to a target.
 
 class MonostaticRadarMeasurementModel(pydantic.BaseModel):
     min_range_uncertainty: float = 100.0
+    max_range_uncertainty: float = np.inf
     min_angular_uncertainty: float = np.deg2rad(1.0)
+    max_angular_uncertainty: float = np.deg2rad(360.0)
 
     def range_resolution(self, radar: Radar) -> float:
         """Resolution of the detected range [m]"""
@@ -679,7 +681,11 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
             Uncertainty of the range [m]
         """
         cramer_rao_bound = self.range_resolution(radar) / (2 * np.sqrt(from_dB(snr)))
-        return max(cramer_rao_bound, self.min_range_uncertainty)
+        return np.clip(
+            cramer_rao_bound,
+            self.min_range_uncertainty,
+            self.max_range_uncertainty,
+        )
 
     def calculate_elevation_uncertainty(self, radar: Radar, snr: float) -> float:
         """
@@ -704,7 +710,11 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
         cramer_rao_bound = self.elevation_resolution(radar) / (
             2 * np.sqrt(from_dB(snr))
         )
-        return max(cramer_rao_bound, self.min_angular_uncertainty)
+        return np.clip(
+            cramer_rao_bound,
+            self.min_angular_uncertainty,
+            self.max_angular_uncertainty,
+        )
 
     def calculate_azimuth_uncertainty(self, radar: Radar, snr: float) -> float:
         """
@@ -727,7 +737,11 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
         This is the Cramér-Rao lower bound.
         """
         cramer_rao_bound = self.azimuth_resolution(radar) / (2 * np.sqrt(from_dB(snr)))
-        return max(cramer_rao_bound, self.min_angular_uncertainty)
+        return np.clip(
+            cramer_rao_bound,
+            self.min_angular_uncertainty,
+            self.max_angular_uncertainty,
+        )
 
     def sample_clutter(
         self,
@@ -869,7 +883,7 @@ class Track(pydantic.BaseModel):
 
     _times: list[float] = pydantic.PrivateAttr()
     _y: np.ndarray = pydantic.PrivateAttr()
-    _f: CubicSpline = pydantic.PrivateAttr()
+    _f: BSpline = pydantic.PrivateAttr()
 
     def __init__(self, id: str, states: list[tuple[datetime.datetime, np.ndarray]]):
         super().__init__(id=id, states=states)
@@ -881,7 +895,7 @@ class Track(pydantic.BaseModel):
             self._times.append(time.timestamp())
             self._y[i, :] = state
 
-        self._f = CubicSpline(self._times, self._y)
+        self._f = make_interp_spline(self._times, self._y, k=1)
 
     def __call__(self, time: datetime.datetime) -> np.ndarray:
         t = time.timestamp()

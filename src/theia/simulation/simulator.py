@@ -133,7 +133,6 @@ class Simulator:
         """
         detections: list[MonostaticRadarDetection] = []
         for radar in self._blue_monostatic_radars:
-            error_model = MonostaticRadarMeasurementModel(radar=radar)
             max_range = calculate_maximum_monostatic_range(radar)
             time_of_last_detection = self._time_of_last_active_detection.get(
                 radar.receiver.id,
@@ -149,7 +148,7 @@ class Simulator:
                     radar,
                     target,
                     rng=self._rng,
-                    error_model=error_model,
+                    error_model=radar.error_model,
                 )
                 if det is not None:
                     det.time = self._t
@@ -159,7 +158,7 @@ class Simulator:
             self._time_of_last_active_detection[radar.receiver.id] = self._t
             # Simulate clutter.
             if self._simulate_clutter:
-                clutter_detections = error_model.sample_clutter(
+                clutter_detections = radar.error_model.sample_clutter(
                     radar,
                     self._rng,
                     max_range,

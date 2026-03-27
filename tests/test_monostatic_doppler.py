@@ -3,7 +3,7 @@ import unittest
 from theia.coordinates import CoordinateTransformations
 from theia.doppler import calculate_doppler_shift
 from theia.test_data import TestSituationLoader
-from theia.types import ConstantRcsModel, Point, Polarization, Radar, Receiver, Target, Transmitter
+from theia.types import ConstantRcsModel, MonostaticRadarMeasurementModel, Point, Polarization, Radar, Receiver, Target, Transmitter
 
 
 class MonostaticDopplerTest(unittest.TestCase):
@@ -94,6 +94,7 @@ class MonostaticDopplerTest(unittest.TestCase):
                 rotation_time=10,
                 bandwidth=100.0,
             ),
+            error_model=MonostaticRadarMeasurementModel(),
         )
 
         target = Target(
