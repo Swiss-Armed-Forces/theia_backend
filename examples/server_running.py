@@ -1,7 +1,5 @@
 import datetime
-import functools
 from pathlib import Path
-import threading
 
 import uvicorn
 
@@ -15,10 +13,10 @@ from theia.simulation.controllers.waypoint_target_controller import (
 )
 from theia.simulation.logging import SituationalPictureBuffer
 from theia.simulation.server import create_app
+from theia.simulation.simulation_director import SimulationDirector
 from theia.simulation.simulator import (
     Simulator,
     TimeCriterion,
-    run_simulation_until_completion,
 )
 from theia.simulation.tracking import (
     MonostaticPseudoTracker,
@@ -69,20 +67,7 @@ simulator = Simulator(
 ################################################
 # Setup the server.
 ################################################
-app = create_app(buffer)
-
-################################################
-# Start the simulation and the server.
-################################################
-sim_thread = threading.Thread(
-    target=functools.partial(
-        run_simulation_until_completion,
-        # profile_simulation_until_completion,
-        simulator=simulator,
-    ),
-    daemon=False,
-)
-sim_thread.start()
+app = create_app(buffer, SimulationDirector(simulator))
 
 print("Start simulation...")
 
