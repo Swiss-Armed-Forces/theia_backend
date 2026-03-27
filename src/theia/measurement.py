@@ -1,11 +1,26 @@
+import numba
 import numpy as np
 
-from theia.coordinates import CoordinateTransformations, calculate_azimuth_angle, calculate_elevation_angle
+from theia.coordinates import (
+    CoordinateTransformations,
+    calculate_azimuth_angle,
+    calculate_elevation_angle,
+)
 from theia.distance import line_of_sight_distance
 from theia.types import Point
 
 
-class MonostaticMeasurementTransformations():
+class MonostaticMeasurementTransformations:
+    @staticmethod
+    @numba.njit
+    def elevation_azimuth_range_to_enu(
+        elevation: float, azimuth: float, range_m: float
+    ) -> tuple[float, float, float]:
+        east = range_m * np.cos(elevation) * np.sin(azimuth)
+        north = range_m * np.cos(elevation) * np.cos(azimuth)
+        up = range_m * np.sin(elevation)
+
+        return east, north, up
 
     @staticmethod
     def elevation_azimuth_range_to_cartesian(
@@ -34,13 +49,14 @@ class MonostaticMeasurementTransformations():
         tuple[float, float, float]
             Observed point in Cartesian ECEF coordinates [m]
         """
-        east = range_m * np.cos(elevation) * np.sin(azimuth)
-        north = range_m * np.cos(elevation) * np.cos(azimuth)
-        up = range_m * np.sin(elevation)
 
         return CoordinateTransformations.enu_to_ecef(
             observer_point,
-            (east, north, up),
+            MonostaticMeasurementTransformations.elevation_azimuth_range_to_enu(
+                elevation,
+                azimuth,
+                range_m,
+            ),
         )
 
     @staticmethod
@@ -64,16 +80,25 @@ class MonostaticMeasurementTransformations():
             elevation angle [rad], azimuth angle [rad] and range
             (i. e. line-of-sight distance to the observer) [m]
         """
-        lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(*p)
-        p_target = Point(lat=lat, lon=lon, alt=alt)
-        elevation = calculate_elevation_angle(observer_point, p_target)
-        azimuth = calculate_azimuth_angle(observer_point, p_target)
-        range = line_of_sight_distance(
-            observer_point.lat,
-            observer_point.lon,
-            observer_point.alt,
-            lat,
-            lon,
-            alt,
+        east, north, up = CoordinateTransformations.ecef_to_enu(
+            observer_point,
+            p,
         )
-        return elevation, azimuth, range
+
+        return MonostaticMeasurementTransformations.enu_to_elevation_azimuth_range(
+            east,
+            north,
+            up,
+        )
+
+    @staticmethod
+    @numba.njit
+    def enu_to_elevation_azimuth_range(
+        east: float, north: float, up: float
+    ) -> tuple[float, float, float]:
+        range_m = np.sqrt(east**2 + north**2 + up**2)
+        horizontal_range = np.sqrt(east**2 + north**2)
+        elevation = np.arctan2(up, horizontal_range)
+        azimuth = np.arctan2(east, north)
+
+        return elevation, azimuth, range_m
