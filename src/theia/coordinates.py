@@ -192,7 +192,7 @@ def _ecef_to_enu_rotation_matrix(lat: float, lon: float) -> np.array:
     lon = np.deg2rad(lon)
     lat = np.deg2rad(lat)
     # fmt: off
-    R_ecef_to_enu = np.empty(shape=(3, 3), dtype=np.float32)
+    R_ecef_to_enu = np.empty(shape=(3, 3), dtype=np.float64)
     R_ecef_to_enu[0, :] = (-np.sin(lon)              ,  np.cos(lon)              ,         0.0)
     R_ecef_to_enu[1, :] = (-np.sin(lat) * np.cos(lon), -np.sin(lat) * np.sin(lon), np.cos(lat))
     R_ecef_to_enu[2, :] = ( np.cos(lat) * np.cos(lon),  np.cos(lat) * np.sin(lon), np.sin(lat))
