@@ -9,6 +9,7 @@ from stonesoup.types.detection import Detection
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 
 from theia.coordinates import CoordinateTransformations
+from theia.simulation.simulator import AbstractSimulationListener, Simulator
 from theia.stonesoup_interface import MonostaticDetectionFactory
 from theia.types import (
     ConstantRcsModel,
@@ -23,33 +24,10 @@ from theia.types import (
 )
 
 
-class AbstractSimulationListener(abc.ABC):
-    @abc.abstractmethod
-    def on_snapshot(self, snapshot: Snapshot):
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def on_situational_picture(
-        self,
-        situational_picture: SituationalPicture,
-        is_blue: bool,
-    ):
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def on_detections(
-        self,
-        active_radar_detections: list[MonostaticRadarDetection],
-        is_blue: bool,
-    ):
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def on_end(self):
-        raise NotImplementedError()
-
-
 class NoLogger(AbstractSimulationListener):
+    def register_simulator(self, simulator: Simulator):
+        pass
+
     def on_snapshot(self, snapshot):
         pass
 
@@ -74,6 +52,9 @@ class FileLogger(AbstractSimulationListener):
         self.snapshots = []
         self.situational_pictures = []
         self.active_radar_detections = []
+
+    def register_simulator(self, simulator: Simulator):
+        pass
 
     def on_snapshot(self, snapshot):
         self.snapshots.append(snapshot.model_dump(mode="json"))
@@ -117,6 +98,9 @@ class FileLogger(AbstractSimulationListener):
 
 
 class PrintLogger(AbstractSimulationListener):
+    def register_simulator(self, simulator: Simulator):
+        print("Register simulator")
+
     def on_snapshot(self, snapshot):
         print(snapshot)
 
@@ -142,6 +126,9 @@ class InMemoryLogger(AbstractSimulationListener):
         self.situational_pictures_red: list[SituationalPicture] = []
         self.monostatic_radar_detections_blue: list[MonostaticRadarDetection] = []
         self.snapshots: list[Snapshot] = []
+
+    def register_simulator(self, simulator: Simulator):
+        self.simulator = simulator
 
     def on_snapshot(self, snapshot):
         self.snapshots.append(snapshot)
@@ -280,6 +267,9 @@ class CompositeSimulationListener(AbstractSimulationListener):
     def __init__(self, listeners: list[AbstractSimulationListener]):
         self._listeners = listeners
 
+    def register_simulator(self, simulator: Simulator):
+        pass
+
     def on_snapshot(self, snapshot: Snapshot):
         for listener in self._listeners:
             listener.on_snapshot(snapshot)
@@ -318,6 +308,9 @@ class FilterSimulationListener(AbstractSimulationListener):
         self._forward_detections = forward_detections
         self._forward_situational_pictures = forward_situational_pictures
 
+    def register_simulator(self, simulator: Simulator):
+        pass
+
     def on_snapshot(self, snapshot):
         if self._forward_snapshots:
             self._listener.on_snapshot(snapshot)
@@ -353,6 +346,9 @@ class SituationalPictureBuffer(AbstractSimulationListener):
             enemy_targets=[],
         )
         self._has_completed = False
+
+    def register_simulator(self, simulator: Simulator):
+        self._simulator = simulator
 
     def on_snapshot(self, snapshot: Snapshot):
         for target in snapshot.red_targets:
@@ -425,6 +421,9 @@ class SituationalPictureBuffer(AbstractSimulationListener):
             return self._situational_picture_blue
         else:
             return self._situational_picture_red
+
+    def get_simulator(self) -> Simulator:
+        return self._simulator
 
     def has_comleted(self) -> bool:
         return self._has_completed
