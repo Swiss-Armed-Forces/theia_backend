@@ -1,3 +1,4 @@
+from __future__ import annotations
 import abc
 import cProfile
 import datetime
@@ -6,13 +7,10 @@ import time
 import numpy as np
 from theia.detection.active import calculate_monostatic_detection
 from theia.radar_equation import calculate_maximum_monostatic_range
-from theia.simulation.logging import AbstractSimulationListener
-from theia.stonesoup_interface import MonostaticDetectionFactory
 from theia.types import (
     AbstractTracker,
     MonostaticRadarDetection,
     Controller,
-    MonostaticRadarMeasurementModel,
     Radar,
     SituationalPicture,
     Snapshot,
@@ -94,6 +92,8 @@ class Simulator:
         self._active_detection_id = 0
         self._time_of_last_active_detection: dict[int, datetime.datetime] = {}
         """Time of latest detection for each active radar receiver ID."""
+
+        self._listener.register_simulator(self)
 
     def get_situational_picture_blue(self) -> SituationalPicture:
         return SituationalPicture(
@@ -250,6 +250,12 @@ class Simulator:
 
         return True
 
+    def set_speedup(self, speedup_factor: float):
+        self._minimum_seconds_per_step = self._dt.seconds / speedup_factor
+
+    def get_speedup(self) -> float:
+        return self._dt.seconds / self._minimum_seconds_per_step
+
 
 def run_simulation_until_completion(simulator: Simulator):
     is_running = True
@@ -270,6 +276,36 @@ def run_with_profile(fn, profile_path: str):
         )
 
     return wrapper
+
+
+class AbstractSimulationListener(abc.ABC):
+    @abc.abstractmethod
+    def register_simulator(self, simulator: Simulator):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def on_snapshot(self, snapshot: Snapshot):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def on_situational_picture(
+        self,
+        situational_picture: SituationalPicture,
+        is_blue: bool,
+    ):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def on_detections(
+        self,
+        active_radar_detections: list[MonostaticRadarDetection],
+        is_blue: bool,
+    ):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def on_end(self):
+        raise NotImplementedError()
 
 
 def profile_simulation_until_completion(
