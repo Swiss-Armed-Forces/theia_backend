@@ -188,18 +188,26 @@ def create_app(
     @app.get("/health")
     def check_health():
         return "OK"
-    
+
     @app.post("/pause")
     def pause():
         director.pause()
-    
+
     @app.post("/resume")
     def resume():
         director.resume()
-    
+
     @app.get("/is_paused")
     def is_paused() -> bool:
         return director.is_paused()
+
+    @app.get("/speedup")
+    def get_speedup_factor() -> float:
+        return buffer.get_simulator().get_speedup()
+
+    @app.post("/speedup")
+    def set_speedup_factor(speedup_factor: float):
+        buffer.get_simulator().set_speedup(speedup_factor)
 
     app.add_middleware(
         CORSMiddleware,
