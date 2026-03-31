@@ -80,7 +80,7 @@ class Simulator:
         self._blue_tracker = blue_tracker
         self._t = start_time
         self._dt = time_step
-        self._minimum_time_per_step = min_time_per_step.seconds
+        self._minimum_seconds_per_step: float = float(min_time_per_step.seconds)
         """Minimum amount of time to spend on an iteration."""
         self._termination_criterion = termination_criterion
         self._rng = np.random.Generator(np.random.PCG64(seed=seed))
@@ -246,7 +246,7 @@ class Simulator:
 
         # Sleep the remaining time for an update.
         time_step_on_update = stop_time - start_time
-        time.sleep(max(0, self._minimum_time_per_step - time_step_on_update))
+        time.sleep(max(0, self._minimum_seconds_per_step - time_step_on_update))
 
         return True
 
