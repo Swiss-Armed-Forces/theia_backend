@@ -97,7 +97,9 @@ class Velocity(pydantic.BaseModel):
 
 class AttenuationModel(pydantic.BaseModel):
     attenuation_table_angles: list[float]
+    """Attenuation values [dB]"""
     attenuation_table_values: list[float]
+    """Angles [rad]"""
     polarization: Polarization
 
     @staticmethod
