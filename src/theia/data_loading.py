@@ -106,7 +106,7 @@ def _parse_attenuation_str(attenuation: str | float) -> list[float] | None:
     if "VECTOR" not in attenuation:
         raise RuntimeError("Parsing failed")
     attenuation_values = [
-        float(v) for v in attenuation.replace("VECTOR", "").strip().split(" ")
+        float(v) for v in attenuation.replace("VECTOR 1", "").strip().split(" ")
     ]  # dB
 
     return attenuation_values
@@ -134,9 +134,10 @@ def _build_transmitter(
             num=len(attenuation_values_h),
             endpoint=True,
         )
+        assert len(attenuation_values_h) == 360
         attenuation_model_horizontal = AttenuationModel(
-            attenuation_table_angles=attenuation_values_h,
-            attenuation_table_values=angles,
+            attenuation_table_angles=angles,
+            attenuation_table_values=attenuation_values_h,
             polarization=Polarization.HORIZONTAL,
         )
 
@@ -149,9 +150,10 @@ def _build_transmitter(
             num=len(attenuation_values_v),
             endpoint=True,
         )
+        assert len(attenuation_values_v) == 181
         attenuation_model_vertical = AttenuationModel(
-            attenuation_table_angles=attenuation_values_v,
-            attenuation_table_values=angles,
+            attenuation_table_angles=angles,
+            attenuation_table_values=attenuation_values_v,
             polarization=Polarization.VERTICAL,
         )
 
