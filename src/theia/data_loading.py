@@ -1,16 +1,19 @@
 import datetime
 import logging
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 from theia.coordinates import CoordinateTransformations
+from theia.terrain import elevationAt
 from theia.types import (
     AttenuationModel,
     Point,
     Polarization,
     Radar,
     Trajectory,
+    Transmitter,
     Velocity,
     ConstantRcsModel,
 )
@@ -97,64 +100,141 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
     return trajectories, callsign_map
 
 
-def _load_transmitter_of_opportunity(series):
-    assert series["polar"] in ["V", "H"]
+def _parse_attenuation_str(attenuation: str | float) -> list[float] | None:
+    if type(attenuation) is not str and np.isnan(attenuation):
+        return None
+    if "VECTOR" not in attenuation:
+        raise RuntimeError("Parsing failed")
+    attenuation_values = [
+        float(v) for v in attenuation.replace("VECTOR", "").strip().split(" ")
+    ]  # dB
 
-    erp = series["erp_v_w"]
-    if series["polar"] == "H":
-        erp = series["erp_h_w"]
-    polarization = Polarization.VERTICAL
-    if series["polar"] == "H":
-        polarization = Polarization.HORIZONTAL
+    return attenuation_values
 
-    horizontal_attenuation_model = None
-    if type(series["attn_h_h"]) is str:
-        values = [float(v) for v in series["attn_h_h"].replace("VECTOR", "").split()]
-        horizontal_angles = np.linspace(0, 2 * np.pi, len(values))
-        horizontal_attenuation_model = AttenuationModel(
-            attenuation_table_angles=horizontal_angles,
-            attenuation_table_values=values,
+
+def _build_transmitter(
+    lat: float,
+    lon: float,
+    alt: float,
+    antenna_height: float,
+    frequency: float,
+    bandwidth: float,
+    erp_h: float,
+    erp_v: float,
+    polarization: Polarization,
+    attenuation_values_h: list[float] | None,
+    attenuation_values_v: list[float] | None,
+) -> Transmitter:
+    if attenuation_values_h is None:
+        attenuation_model_horizontal = None
+    else:
+        angles = np.linspace(
+            0,
+            2 * np.pi,
+            num=len(attenuation_values_h),
+            endpoint=True,
+        )
+        attenuation_model_horizontal = AttenuationModel(
+            attenuation_table_angles=attenuation_values_h,
+            attenuation_table_values=angles,
+            polarization=Polarization.HORIZONTAL,
         )
 
-    vertical_attenuation_model = None
-    if type(series["attn_h_v"]) is str:
-        values = [float(v) for v in series["attn_h_v"].replace("VECTOR", "").split()]
-        vertical_angles = np.linspace(-np.pi / 2, np.pi / 2, len(values))
-        vertical_attenuation_model = AttenuationModel(
-            attenuation_table_angles=vertical_angles,
-            attenuation_table_values=values,
+    if attenuation_values_v is None:
+        attenuation_model_vertical = None
+    else:
+        angles = np.linspace(
+            -np.pi / 2.0,
+            np.pi / 2.0,
+            num=len(attenuation_values_v),
+            endpoint=True,
+        )
+        attenuation_model_vertical = AttenuationModel(
+            attenuation_table_angles=attenuation_values_v,
+            attenuation_table_values=angles,
+            polarization=Polarization.VERTICAL,
         )
 
-    return Radar(
+    return Transmitter(
         id=-1,
         point=Point(
-            lat=series["Latitude"],
-            lon=series["Longitude"],
-            alt=series["site_alt"],
+            lat=lat,
+            lon=lon,
+            alt=alt,
         ),
-        power=erp,
-        frequency=series["frq_assign"],
-        erp=erp,  # Is this correct or do I need some unit conversion???
-        antenna_height=series["hgt_agl"],
-        diameter=2.0,  # not really needed
-        pulse_width=1.0,  # not really needed
-        cpi_pulses=1,  # not really needed
-        bandwidth=series["bdwdth"],
-        pfa=1e-6,  # not really needed?
-        min_elevation=-20.0,  # not really needed
-        max_elevation=60.0,  # not really needed
-        rotation_time=10.0,  # not really needed
+        power=np.nan,
+        erp=erp_h if not np.isnan(erp_h) else erp_v,
+        antenna_height=antenna_height,
+        antenna_diameter=np.nan,
+        frequency=frequency,
+        pulse_width=np.nan,
         polarization=polarization,
-        horizontal_attenuation=horizontal_attenuation_model,
-        vertical_attenuation_model=vertical_attenuation_model,
+        bandwidth=bandwidth / 1000.0,
+        vertical_attenuation=attenuation_model_vertical,
+        horizontal_attenuation=attenuation_model_horizontal,
     )
 
 
-def load_transmitters_of_opportunity(file: str) -> dict[str, Radar]:
-    df = pd.read_csv(file, delimiter=";").set_index("site_name")
-    return {
-        name: _load_transmitter_of_opportunity(series) for name, series in df.iterrows()
-    }
+def load_bakom_ukw_transmitters(
+    path: str = f"{Path(__file__).parent.parent.parent / 'data' / 'BCSDR_CONCESSION_221208_CSV.csv'}",
+    start_id: int = 0,
+) -> list[Transmitter]:
+    df = pd.read_csv(path, delimiter="\t")
+
+    logging.warning("Not using altitude of BAKOM to ensure consistency within Theia!")
+
+    failed = []
+    transmitters = []
+    for _, row in df.iterrows():
+        try:
+            name = f"{row['site_name']} {row['call_sign']} ({row['program.name']})"
+            lat = row["Latitude"]
+            lon = row["Longitude"]
+            alt = row["site_alt"]
+            antenna_height = row["hgt_agl"]
+            frequency = row["frq_assign"]  # MHz
+            bandwidth = row["bdwdth"]  # kHz
+            erp_h = row["erp_h_w"]  # W
+            erp_v = row["erp_v_w"]  # W
+            polarization_str = row["polar"]
+
+            assert np.logical_xor(np.isnan(erp_h), np.isnan(erp_v))
+
+            if polarization_str == "H":
+                polarization = Polarization.HORIZONTAL
+            elif polarization_str == "V":
+                polarization = Polarization.VERTICAL
+            else:
+                raise RuntimeError(f"Unknown polarization {polarization_str}")
+
+            attenuation_values_h = _parse_attenuation_str(row["attn_h_h"])
+            attenuation_values_v = _parse_attenuation_str(row["attn_h_v"])
+
+            tx = _build_transmitter(
+                lat,
+                lon,
+                elevationAt(lat, lon),
+                antenna_height,
+                frequency,
+                bandwidth,
+                erp_h,
+                erp_v,
+                polarization,
+                attenuation_values_h,
+                attenuation_values_v,
+            )
+            tx.id = start_id
+            start_id += 1
+            transmitters.append(tx)
+        except:
+            failed.append(name)
+
+    if len(failed) > 0:
+        logging.warning(
+            f"Ignoring {len(failed)} / {df.shape[0]} ({len(failed) / df.shape[0] * 100:.1f}%) UKW transmitters because they have polarity other than 'V' or 'H'"
+        )
+
+    return transmitters
 
 
 def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajectory]:
