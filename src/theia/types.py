@@ -232,6 +232,41 @@ class Transmitter(pydantic.BaseModel):
         """Pulse compression gain [dB]"""
         return 10 * np.log10(self.pulse_width * self.bandwidth)
 
+    def plot_attenuation_diagrams(self):
+        fig, axes = plt.subplots(
+            1,
+            2,
+            figsize=(8, 4.5),
+            subplot_kw={
+                "projection": "polar",
+            },
+        )
+        ax = axes[0]
+        model = self.vertical_attenuation
+        if model is None:
+            angles = np.linspace(0, 360, 361)
+            values = np.zeros_like(angles)
+        else:
+            angles = model.attenuation_table_angles
+            values = model.attenuation_table_values
+        ax.plot([a + np.pi / 2 for a in angles], values)
+        ax.set_title("Vertical Attenuation [dB]", fontsize=16)
+
+        ax = axes[1]
+        model = self.horizontal_attenuation
+        if model is None:
+            angles = np.linspace(0, 360, 361)
+            values = np.zeros_like(angles)
+        else:
+            angles = model.attenuation_table_angles
+            values = model.attenuation_table_values
+        ax.plot(angles, values)
+        ax.set_title("Horizontal Attenuation [dB]", fontsize=16)
+
+        fig.tight_layout()
+
+        return fig, axes
+
 
 class Receiver(pydantic.BaseModel):
     id: int
