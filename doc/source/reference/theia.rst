@@ -8,6 +8,7 @@ Subpackages
    :maxdepth: 4
 
    theia.detection
+   theia.simulation
 
 Submodules
 ----------
@@ -128,22 +129,6 @@ theia.radar\_equation module
 ----------------------------
 
 .. automodule:: theia.radar_equation
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-theia.scenario\_simulator module
---------------------------------
-
-.. automodule:: theia.scenario_simulator
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-theia.simulation module
------------------------
-
-.. automodule:: theia.simulation
    :members:
    :show-inheritance:
    :undoc-members:
