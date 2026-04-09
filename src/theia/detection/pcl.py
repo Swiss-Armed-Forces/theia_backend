@@ -1,12 +1,9 @@
 import datetime
 
+import pydantic
 import scipy.constants as sc
 
-from theia.config import (
-    DELAY_THRESHOLD_PCL,
-    DOPPLER_SHIFT_THRESHOLD_PCL,
-    SNR_THRESHOLD_PCL,
-)
+import theia.config
 from theia.coordinates import calculate_azimuth_angle, calculate_elevation_angle
 from theia.distance import (
     get_2d_distance_between_locs_heights,
@@ -18,7 +15,6 @@ from theia.types import (
     PassiveRadarDetection,
     Point,
     Radar,
-    RcsModel,
     Receiver,
     Target,
     Transmitter,
@@ -26,137 +22,211 @@ from theia.types import (
 from theia.util import get_clear_sky_attenuation
 
 
-def calculate_pcl_detection(
-    rx: Receiver,
-    tx: Transmitter,
-    tgt: Target,
-    rcs_model: RcsModel,
-    snr_thresh: float = SNR_THRESHOLD_PCL,
-    doppler_thresh: float = DOPPLER_SHIFT_THRESHOLD_PCL,
-    delay_thresh: float = DELAY_THRESHOLD_PCL,
-) -> PassiveRadarDetection | None:
+class PclDetector(pydantic.BaseModel):
+    snr_threshold: float = theia.config.SNR_THRESHOLD_PCL
+    """Signal-to-noise threshold [dB]"""
+    doppler_threshold: float = theia.config.DOPPLER_SHIFT_THRESHOLD_PCL
+    """Doppler threshold [Hz]"""
+    delay_threshold: float = theia.config.DELAY_THRESHOLD_PCL
     """
-    Calculate whether the given geometry leads to a detection using Passive
-    Coherent Location (PCL) radar.
+    Delay threshold [us].
 
-    Parameters
-    ----------
-    rx: Receiver
-        Receiver.
-    tx: Transmitter
-        Transmitter.
-    tgt: Target
-        Target.
-    rcs_model: RcsModel
-        Model to be used to estimate the radar cross section
-    snr_thresh: float, default theia.config.SNR_THRESHOLD_PCL
-        Signal-to-noise threshold [dB]
-    doppler_thresh: float, default theia.config.DOPPLER_SHIFT_THRESHOLD_PCL
-        Doppler threshold [Hz]
-    delay_thresh: float, default theia.config.DELAY_THRESHOLD_PCL
-        Delay threshold [us]. If the delay
-        (signal propagation time deviation from straight line between Tx and Rx)
-        is smaller than this value, the geometry is considered to fall into the
-        forward scattering domain and a ValueError is raised.
-
-    Raises
-    ------
-    ValueError
-        If the setup is not in the bistatic regime (e. g. the forward scattering)
-
-    Returns
-    -------
-    detection: PassiveRadarDetection | None
-        the detection that was made or None if no detection takes place.
+    If the delay
+    (signal propagation time deviation from straight line between Tx and Rx)
+    is smaller than this value, the geometry is considered to fall into the
+    forward scattering domain and a ValueError is raised.
     """
-    assert tgt.alt > 0
 
-    # Get bistatic range.
-    tx_pos = [tx.lat, tx.lon, tx.alt + tx.antenna_height]
-    rx_pos = [rx.lat, rx.lon, rx.alt + rx.antenna_height]
-    tgt_pos = [tgt.lat, tgt.lon, tgt.alt]
-    (bistatic_range_km, tgt_rx_range, tgt_tx_range, baseline_range) = (
-        get_bistatic_range(tx_pos, rx_pos, tgt_pos)
-    )
-
-    # Now check bistatic Doppler and return if Doppler shift too low.
-    doppler = calculate_doppler_shift(rx, tgt, tx)  # [Hz]
-
-    if abs(doppler) < doppler_thresh:
-        return None
-
-    # Check whether we are in the bistatic regime. Otherwise raise an exception.
-    # dist_delay_limit [m], delay_thresh [us], baseline_range in [km] * 1000 in [m]
-    dist_delay_limit = delay_thresh * sc.speed_of_light / 1e6 + (baseline_range * 1000)
-
-    r_r = (
-        get_2d_distance_between_locs_heights(
-            rx.lat,
-            rx.lon,
-            rx.alt + rx.antenna_height,
-            tgt.lat,
-            tgt.lon,
-            tgt.alt,
+    def _calculate_bistatic_range_doppler(
+        self,
+        rx: Receiver,
+        tx: Transmitter,
+        target: Target,
+    ) -> tuple[float, float, float]:
+        """
+        Returns
+        -------
+        baseline_range: float
+            Baseline range (line-of-sight between tx-rx) [km]
+        bistatic_range: float
+            Bistatic range [km]
+        doppler: float
+            Bistatic Doppler shift [Hz]
+        """
+        # Get bistatic range.
+        tx_pos = [tx.lat, tx.lon, tx.alt + tx.antenna_height]
+        rx_pos = [rx.lat, rx.lon, rx.alt + rx.antenna_height]
+        tgt_pos = [target.lat, target.lon, target.alt]
+        (bistatic_range_km, tgt_rx_range, tgt_tx_range, baseline_range) = (
+            get_bistatic_range(tx_pos, rx_pos, tgt_pos)
         )
-        * 1000.0
-    )  # distance in meters
 
-    r_t = (
-        get_2d_distance_between_locs_heights(
-            tx.lat,
-            tx.lon,
-            tx.alt + tx.antenna_height,
-            tgt.lat,
-            tgt.lon,
-            tgt.alt,
+        # Now check bistatic Doppler and return if Doppler shift too low.
+        doppler = calculate_doppler_shift(rx, target, tx)  # [Hz]
+
+        return float(baseline_range), float(bistatic_range_km), float(doppler)
+
+    def calculate_raw_measurement(
+        self, rx: Receiver, tx: Transmitter, tgt: Target
+    ) -> tuple[float, float, float]:
+        """
+        Returns
+        -------
+        snr_over_rcs: float
+            Signal-to-noise-ratio divided by RCS [dB]
+        bistatic_range: float
+            Bistatic range [m]
+        doppler: float
+            Bistatic Doppler shift [Hz]
+        """
+        baseline_range, bistatic_range_km, doppler = (
+            self._calculate_bistatic_range_doppler(
+                rx,
+                tx,
+                tgt,
+            )
         )
-        * 1000.0
-    )  # distance in meters
 
-    if r_r + r_t < dist_delay_limit:  # checks if delay threshold is valid
-        raise ValueError("Delay is too small; we are in the forward scattering regime")
+        # Check whether we are in the bistatic regime. Otherwise raise an exception.
+        # dist_delay_limit [m], delay_thresh [us], baseline_range in [km] * 1000 in [m]
+        dist_delay_limit = self.delay_threshold * sc.speed_of_light / 1e6 + (
+            baseline_range * 1000
+        )
 
-    snr = calculate_snr(
-        wavelength=sc.speed_of_light / (tx.frequency * 1e6),
-        antenna_gain_transmitter=tx.antenna_gain,
-        antenna_gain_receiver=rx.antenna_gain(tx.frequency),
-        radar_cross_section=1.0,
-        distance_transmitter_target=r_t,
-        distance_receiver_target=r_r,
-        transmission_power=tx.power,
-        bandwidth=rx.bandwidth,
-        cpi_pulses=1,
-        equivalent_temperature=rx.noise_temperature,
-        L_t=0.0,
-        L_a=get_clear_sky_attenuation(tx.frequency) * (r_r + r_t) / 1000.0,
-        polarization_factor=0,
-        pattern_propagation_factor_transmitter=calculate_antenna_pattern(tx, tgt.point),
-        pattern_propagation_factor_receiver=calculate_antenna_pattern(rx, tgt.point),
-    )
-    min_detectable_rcs = calculate_minimum_detectable_rcs(snr, snr_thresh)
+        r_r = (
+            get_2d_distance_between_locs_heights(
+                rx.lat,
+                rx.lon,
+                rx.alt + rx.antenna_height,
+                tgt.lat,
+                tgt.lon,
+                tgt.alt,
+            )
+            * 1000.0
+        )  # distance in meters
 
-    assert min_detectable_rcs > 0.0
+        r_t = (
+            get_2d_distance_between_locs_heights(
+                tx.lat,
+                tx.lon,
+                tx.alt + tx.antenna_height,
+                tgt.lat,
+                tgt.lon,
+                tgt.alt,
+            )
+            * 1000.0
+        )  # distance in meters
 
-    # Doppler shift was good enough if we reached this far, see above.
-    # So just check the rcs_thresholds.
-    if min_detectable_rcs <= rcs_model(
-        transmitter=tx,
-        receiver=rx,
-        target=tgt,
-    ):
-        return PassiveRadarDetection(
-            detection_id=-1,
-            time=datetime.datetime.fromtimestamp(0),
-            radar=Radar(
-                transmitter=tx,
-                receiver=rx,
+        # print(f"r_r = {r_r:.3f} m")
+        # print(f"r_t = {r_t:.3f} m")
+
+        if r_r + r_t < dist_delay_limit:  # checks if delay threshold is valid
+            raise ValueError(
+                "Delay is too small; we are in the forward scattering regime"
+            )
+
+        # print(f"Tx wavelength      = {sc.speed_of_light / (tx.frequency * 1e6)} m")
+        # print(f"Tx frequency       = {tx.frequency} MHz")
+        # print(f"Tx antenna gain    = {tx.antenna_gain:.1f} dB")
+        # print(f"Rx antenna gain    = {rx.antenna_gain(tx.frequency):.1f} dB")
+        # print(f"Distance Tx-target = {r_t:.1f} m")
+        # print(f"Distance Rx-target = {r_r:.1f} m")
+        # print(f"Transmission Power = {tx.power:.1f} W")
+        # print(f"Bandwidth          = {rx.bandwidth:.1f} MHz")
+        # print(
+        #     f"Tx Pattern propagation factor = {calculate_antenna_pattern(tx, tgt.point):.3f} dB"
+        # )
+        # print(
+        #     f"Rx Pattern propagation factor = {calculate_antenna_pattern(rx, tgt.point):.3f} dB"
+        # )
+        # print(f"L_t                = {get_clear_sky_attenuation(tx.frequency) * (r_r + r_t) / 1000.0:.1f} dB")
+        # print(f"T_N                = {rx.noise_temperature:.1f} K")
+
+        snr = calculate_snr(
+            wavelength=sc.speed_of_light / (tx.frequency * 1e6),
+            antenna_gain_transmitter=tx.antenna_gain,
+            antenna_gain_receiver=rx.antenna_gain(tx.frequency),
+            radar_cross_section=1.0,
+            distance_transmitter_target=r_t,
+            distance_receiver_target=r_r,
+            transmission_power=tx.power,
+            bandwidth=rx.bandwidth,
+            cpi_pulses=rx.cpi_pulses,
+            equivalent_temperature=rx.noise_temperature,
+            L_t=0.0,
+            L_a=get_clear_sky_attenuation(tx.frequency) * (r_r + r_t) / 1000.0,
+            polarization_factor=0,
+            pattern_propagation_factor_transmitter=calculate_antenna_pattern(
+                tx, tgt.point
             ),
-            target=tgt,
-            bistatic_range=bistatic_range_km * 1000.0,
-            doppler_shift=doppler,
+            pattern_propagation_factor_receiver=calculate_antenna_pattern(
+                rx, tgt.point
+            ),
         )
-    else:
-        return None
+
+        return snr, bistatic_range_km * 1000.0, doppler
+
+    def calculate_pcl_detection(
+        self,
+        rx: Receiver,
+        tx: Transmitter,
+        tgt: Target,
+    ) -> PassiveRadarDetection | None:
+        """
+        Calculate whether the given geometry leads to a detection using Passive
+        Coherent Location (PCL) radar.
+
+        Parameters
+        ----------
+        rx: Receiver
+            Receiver.
+        tx: Transmitter
+            Transmitter.
+        tgt: Target
+            Target.
+
+        Raises
+        ------
+        ValueError
+            If the setup is not in the bistatic regime (e. g. the forward scattering)
+
+        Returns
+        -------
+        detection: PassiveRadarDetection | None
+            the detection that was made or None if no detection takes place.
+        """
+        assert tgt.alt > 0
+        snr, bistatic_range, doppler = self.calculate_raw_measurement(rx, tx, tgt)
+
+        if abs(doppler) < self.doppler_threshold:
+            return None
+
+        min_detectable_rcs = calculate_minimum_detectable_rcs(
+            snr,
+            self.snr_threshold,
+        )
+        assert min_detectable_rcs > 0.0
+
+        # Doppler shift was good enough if we reached this far, see above.
+        # So just check the rcs_thresholds.
+        if min_detectable_rcs <= tgt.cross_section_model(
+            transmitter=tx,
+            receiver=rx,
+            target=tgt,
+        ):
+            return PassiveRadarDetection(
+                detection_id=-1,
+                time=datetime.datetime.fromtimestamp(0),
+                radar=Radar(
+                    transmitter=tx,
+                    receiver=rx,
+                ),
+                target=tgt,
+                bistatic_range=bistatic_range,
+                doppler_shift=doppler,
+            )
+        else:
+            return None
 
 
 def calculate_minimum_detectable_rcs(
@@ -201,7 +271,7 @@ def calculate_minimum_detectable_rcs(
 
     """
     rcs = 10.0 ** ((snr_threshold - snr_over_rcs) / 10.0)
-    return rcs
+    return float(rcs)
 
 
 def calculate_antenna_pattern(
@@ -225,7 +295,15 @@ def calculate_antenna_pattern(
         p_target=point_of_interest,
     )
 
-    horiz_att = transmitter_or_receiver.horizontal_attenuation(theta_bearing)
-    vert_att = transmitter_or_receiver.vertical_attenuation(theta_vert)
+    horiz_att = (
+        transmitter_or_receiver.horizontal_attenuation(theta_bearing)
+        if transmitter_or_receiver.horizontal_attenuation is not None
+        else 0.0
+    )
+    vert_att = (
+        transmitter_or_receiver.vertical_attenuation(theta_vert)
+        if transmitter_or_receiver.vertical_attenuation is not None
+        else 0.0
+    )
 
-    return horiz_att + vert_att
+    return -horiz_att - vert_att
