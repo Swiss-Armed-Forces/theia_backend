@@ -53,15 +53,15 @@ class PclReceiver(pydantic.BaseModel):
     status: int = 1
     txcallsigns: str = ""
     bandwidth: int = 8000
+    """Bandwidth [kHz]"""
     horiz_diagr_att: int = 0
     vert_diagr_att: int = 0
-    gain: int = 0
-    losses: int = 0
+    gain: float = 0
+    """Gain [dB]"""
+    losses: float = 0
+    """Losses [dB]"""
     temp_sys: int = 300
     update_time: int = -1
-    txcallsigns: str | None = None
-    x: float | None = None
-    y: float | None = None
 
 
 class PclEmitter(pydantic.BaseModel):
@@ -83,7 +83,6 @@ class PclEmitter(pydantic.BaseModel):
     signal_type: Literal["FM"]
     losrxids: list[int]
     status: Literal[1]
-    power: float
 
 
 class OpenburstClient:
@@ -98,11 +97,13 @@ class OpenburstClient:
         geoplot_port: int = 9943,
         pcl_port: int = 7999,
         util_port: int = 3875,
+        debugging: bool = False,
     ):
         self._url_radterrain = f"ws://{base_url}:{radterrain_port}/dem"
         self._url_geoplot = f"ws://{base_url}:{geoplot_port}/geoplot"
         self._url_pcl = f"ws://{base_url}:{pcl_port}/pcl"
         self._url_active_detection = f"http://{base_url}:{util_port}/rad_detection"
+        self._debugging = debugging
 
     def calculate_coverage(
         self,
@@ -142,20 +143,22 @@ class OpenburstClient:
 
         # Calculate radar coverage.
         with connect(self._url_radterrain) as ws:
-            ws.send(",".join([str(p) for p in properties]))
+            msg = ",".join([str(p) for p in properties])
+            if self._debugging:
+                print(msg)
+            ws.send(msg)
             answer = ws.recv()
 
         # Convert radar coverage to KML.
         with connect(self._url_geoplot) as ws:
-            ws.send(
-                json.dumps(
-                    {
-                        "request_type": "activeCoveragePoints",
-                        "nbr_args": 1,
-                        "args": ['"' + answer + '"'],
-                    }
-                )
-            )
+            msg = {
+                "request_type": "activeCoveragePoints",
+                "nbr_args": 1,
+                "args": ['"' + answer + '"'],
+            }
+            if self._debugging:
+                print(msg)
+            ws.send(json.dumps(msg))
             answer2 = ws.recv()
             kml = json.loads(json.loads(answer2)["args"][0])
 
@@ -199,18 +202,19 @@ class OpenburstClient:
             Suggested emitters to be used for PCL.
         """
         with connect(self._url_pcl) as ws:
-            ws.send(
-                json.dumps(
-                    {
-                        "request_type": "findTxForRx_all",
-                        "nbr_args": 2,
-                        "args": [
-                            [r.model_dump_json() for r in receivers],
-                            take_non_los_emitters,
-                        ],
-                    }
-                ).encode("utf-8")
-            )
+            msg = json.dumps(
+                {
+                    "request_type": "findTxForRx_all",
+                    "nbr_args": 2,
+                    "args": [
+                        [r.model_dump_json() for r in receivers],
+                        take_non_los_emitters,
+                    ],
+                }
+            ).encode("utf-8")
+            if self._debugging:
+                print(msg)
+            ws.send(msg)
             answer = json.loads(ws.recv())
 
             receivers_obtained = [
@@ -298,7 +302,10 @@ class OpenburstClient:
                 int(oitm),
                 radar.transmitter.erp,
             ]
-            ws.send(",".join([str(p) for p in params]))
+            msg = ",".join([str(p) for p in params])
+            if self._debugging:
+                print(msg)
+            ws.send(msg)
         answer = ws.recv()
 
         # Load the image.
@@ -334,7 +341,11 @@ class OpenburstClient:
         return img, free_space_loss, longley_rice_loss, terrain_shielding_loss
 
     def active_radar_probability_of_detection(
-        self, radar: Radar, target: Target, rcs: float, doppler_shift_threshold: float = 5.0
+        self,
+        radar: Radar,
+        target: Target,
+        rcs: float,
+        doppler_shift_threshold: float = 5.0,
     ) -> float:
         radar = radar.model_copy()
         # Convert MHz to GHz.
