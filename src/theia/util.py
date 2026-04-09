@@ -24,7 +24,8 @@ def erp_to_power(erp: float, losses: float, gain: float) -> float:
     power: float
         Output power of the transmitter [W]
     """
-    power_dBW = erp + losses - gain
+    # Add 2.15dBW so we use EIRP in the radar equation.
+    power_dBW = erp + 2.15 + losses - gain
     return from_dB(power_dBW)
 
 

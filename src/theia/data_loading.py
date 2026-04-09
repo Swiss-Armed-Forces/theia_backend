@@ -11,7 +11,6 @@ from theia.types import (
     AttenuationModel,
     Point,
     Polarization,
-    Radar,
     Trajectory,
     Transmitter,
     Velocity,
@@ -157,6 +156,8 @@ def _build_transmitter(
             polarization=Polarization.VERTICAL,
         )
 
+    erp = erp_h if not np.isnan(erp_h) else erp_v
+
     return Transmitter(
         id=-1,
         point=Point(
@@ -164,8 +165,8 @@ def _build_transmitter(
             lon=lon,
             alt=alt,
         ),
-        power=np.nan,
-        erp=erp_h if not np.isnan(erp_h) else erp_v,
+        power=erp,
+        erp=erp,
         antenna_height=antenna_height,
         antenna_diameter=np.nan,
         frequency=frequency,
@@ -207,6 +208,7 @@ def load_bakom_ukw_transmitters(
             elif polarization_str == "V":
                 polarization = Polarization.VERTICAL
             else:
+                # TODO Use the polarity of the highest ERP if polarization_str == "M" (openBURST approach)
                 raise RuntimeError(f"Unknown polarization {polarization_str}")
 
             attenuation_values_h = _parse_attenuation_str(row["attn_h_h"])
