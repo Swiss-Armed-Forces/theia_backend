@@ -184,7 +184,7 @@ def calculate_monostatic_snr(
         distance_transmitter_target=dist,
         distance_receiver_target=dist,
         transmission_power=radar.transmitter.power,
-        bandwidth=radar.transmitter.bandwidth,
+        bandwidth=radar.receiver.bandwidth,
         cpi_pulses=radar.receiver.cpi_pulses,
         equivalent_temperature=radar.receiver.noise_temperature,
         L_t=rf_loss,
