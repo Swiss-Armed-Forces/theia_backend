@@ -5,12 +5,14 @@ import scipy.constants as sc
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.terrain import elevationAt
 from theia.snr import calculate_snr
-from theia.types import Point, Polarization, Transmitter
-from theia.util import from_dB, to_dB
+from theia.types import Point, Polarization, Transmitter, calculate_antenna_gain
+from theia.util import frequency_to_wavelength, from_dB, to_dB
 
 
 class SnrTest(unittest.TestCase):
     def setUp(self):
+        frequency = 2.95 * 1e3  # MHz
+        antenna_efficiency = 0.6
         p = Point(
             lat=POSITIONS_OF_INTEREST["CH_CENTER"]["lat"],
             lon=POSITIONS_OF_INTEREST["CH_CENTER"]["lon"],
@@ -29,7 +31,13 @@ class SnrTest(unittest.TestCase):
             erp=6.2 * 1e3,  # guess
             antenna_height=10,  # guess
             antenna_diameter=10,  # guess?
-            frequency=2.95 * 1e3,
+            antenna_gain=calculate_antenna_gain(
+                10,
+                frequency_to_wavelength(frequency),
+                efficiency_value=antenna_efficiency,
+            ),
+            antenna_efficiency_value=antenna_efficiency,
+            frequency=frequency,
             pulse_width=6.5,
             polarization=Polarization.VERTICAL,  # guess?
             bandwidth=100,  # based on specification of 2.9-3.0 GHz
@@ -399,7 +407,7 @@ class SnrTest(unittest.TestCase):
                 snr_linear_scaled,
                 snr_linear_scaled_expected,
             )
-        
+
             # polarization factor: Quadratic behaviour.
             snr_linear_scaled = from_dB(
                 calculate_snr(

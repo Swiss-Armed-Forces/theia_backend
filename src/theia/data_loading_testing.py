@@ -120,6 +120,7 @@ def load_pcl_reference_data(
         cpi_pulses = 1
         pfa = 1e-6
         rotation_time = 1
+        frequency = row["freq"]
 
         transmitters.append(
             Transmitter(
@@ -132,8 +133,9 @@ def load_pcl_reference_data(
                 power=erp_to_power(erp, losses, gain),
                 erp=from_dB(erp),
                 antenna_height=row["ahmagl"],
-                antenna_diameter=np.nan,
-                frequency=row["freq"],
+                antenna_diameter=antenna_diameter,
+                antenna_gain=0.0,
+                frequency=frequency,
                 pulse_width=pulse_width,
                 polarization=Polarization.HORIZONTAL,  # dummy value
                 bandwidth=row["bandwidth"] / 1000.0,  # convert kHz -> MHz

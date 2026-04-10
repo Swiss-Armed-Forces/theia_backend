@@ -19,7 +19,7 @@ def calculate_antenna_gain(
     efficiency_value: float = 0.6,
 ) -> float:
     r"""
-    Calculate antenna gain [dB].
+    Calculate antenna gain assuming a round geometry [dB].
 
     Parameters
     ----------
@@ -170,6 +170,8 @@ class Transmitter(pydantic.BaseModel):
     """Antenna height [m]"""
     antenna_diameter: float
     """Antenna diameter [m]"""
+    antenna_gain: float
+    """Antenna gain [dB]"""
     frequency: float
     """Signal frequency [MHz]"""
     pulse_width: float
@@ -217,15 +219,6 @@ class Transmitter(pydantic.BaseModel):
     def processing_gain(self) -> float:
         """Processing gain [dB]"""
         return 10 * np.log10(self.max_coherent_integration_time * self.bandwidth * 1e6)
-
-    @property
-    def antenna_gain(self) -> float:
-        """Antenna gain [dB]"""
-        return calculate_antenna_gain(
-            self.antenna_diameter,
-            sc.speed_of_light / (self.frequency * 1e6),
-            efficiency_value=self.antenna_efficiency_value,
-        )
 
     @property
     def pulse_compression_gain(self) -> float:
@@ -341,10 +334,6 @@ class Receiver(pydantic.BaseModel):
             efficiency_value=self.antenna_efficiency_value,
         )
 
-    @property
-    def coherent_integration_gain(self) -> float:
-        """Coherent integration gain [dB]."""
-        return 10 * np.log10(self.cpi_pulses)
 
 
 class Radar(pydantic.BaseModel):

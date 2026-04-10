@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import integrate, special
+import scipy.constants as sc
 
 
 def erp_to_power(erp: float, losses: float, gain: float) -> float:
@@ -51,7 +52,7 @@ def marcum_q_function(alpha: float, beta: float) -> float:
         alpha parameter; must be <= 30
     beta: float
         beta parameter
-    
+
     Returns
     -------
     float
@@ -99,3 +100,20 @@ def get_clear_sky_attenuation(transmitter_freq: float) -> float:
     atten_db = max(np.interp(transmitter_freq, freq_mhz, atten), 0)
 
     return atten_db
+
+
+def frequency_to_wavelength(frequency: float) -> float:
+    """
+    Calculate wavelength for given frequency.
+
+    Parameters
+    ----------
+    frequency:
+        Frequency [MHz]
+
+    Returns
+    -------
+    wavelength: float
+        Wavelength [m]
+    """
+    return sc.speed_of_light / (frequency * 1e6)
