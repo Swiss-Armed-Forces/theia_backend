@@ -1,8 +1,8 @@
 import unittest
 
-from theia.data_loading_testing import load_pcl_reference_data
-from theia.detection.pcl import calculate_pcl_detection
-from theia.types import ConstantRcsModel
+# from theia.data_loading_testing import load_pcl_reference_data
+# from theia.detection.pcl import calculate_pcl_detection
+# from theia.types import ConstantRcsModel
 
 
 # class BistaticDetectionTest(unittest.TestCase):

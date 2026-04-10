@@ -1,7 +1,16 @@
 import unittest
 
 from theia.radar_equation import calculate_maximum_monostatic_range
-from theia.types import MonostaticRadarMeasurementModel, Point, Polarization, Radar, Receiver, Transmitter
+from theia.types import (
+    MonostaticRadarMeasurementModel,
+    Point,
+    Polarization,
+    Radar,
+    Receiver,
+    Transmitter,
+    calculate_antenna_gain,
+)
+from theia.util import frequency_to_wavelength
 
 
 class MonostaticMaxRangeTest(unittest.TestCase):
@@ -15,6 +24,8 @@ class MonostaticMaxRangeTest(unittest.TestCase):
         ah = 10.0
         bandwidth = 1
         diameter = 2.0
+        frequency = 1000.0
+        antenna_efficiency = 0.6
         radar = Radar(
             transmitter=Transmitter(
                 id=585,
@@ -23,7 +34,12 @@ class MonostaticMaxRangeTest(unittest.TestCase):
                 erp=800,
                 antenna_height=ah,
                 antenna_diameter=diameter,
-                frequency=1000.0,
+                antenna_gain=calculate_antenna_gain(
+                    diameter,
+                    frequency_to_wavelength(frequency),
+                    antenna_efficiency,
+                ),
+                frequency=frequency,
                 pulse_width=1,
                 bandwidth=bandwidth,
                 polarization=Polarization.HORIZONTAL,

@@ -14,7 +14,9 @@ from theia.types import (
     Situation,
     Target,
     Transmitter,
+    calculate_antenna_gain,
 )
+from theia.util import frequency_to_wavelength
 
 
 class TestSituationLoader:
@@ -32,35 +34,10 @@ class TestSituationLoader:
             lat=radar_lat, lon=radar_lon, alt=elevationAt(radar_lat, radar_lon)
         )
 
-        antenna_height = 10.0
-        antenna_diameter = 2.0
-
-        radar = Radar(
-            transmitter=Transmitter(
-                id=0,
-                point=point,
-                power=1_000,
-                erp=1000.0,
-                antenna_height=antenna_height,
-                antenna_diameter=antenna_diameter,
-                frequency=1000.0,
-                pulse_width=1.0,
-                polarization=Polarization.VERTICAL,
-                bandwidth=100,
-            ),
-            receiver=Receiver(
-                id=0,
-                point=point,
-                antenna_height=antenna_height,
-                diameter=antenna_diameter,
-                cpi_pulses=1,
-                pfa=1e-6,
-                min_elevation=-20.0,
-                max_elevation=60.0,
-                rotation_time=10,
-                bandwidth=100.0,
-            ),
-            error_model=MonostaticRadarMeasurementModel(),
+        radar = get_uetliberg_radar(
+            frequency=1000.0,
+            diameter=2.0,
+            bandwidth=100,
         )
 
         p_target = copy.deepcopy(point)
@@ -105,6 +82,10 @@ def get_uetliberg_radar(
     power: float = 500_000,
     diameter: float = 4.0,
     bandwidth: float = 5.0,
+    min_range_uncertainty: float = 100,
+    max_range_uncertainty: float = np.inf,
+    min_angular_uncertainty: float = np.deg2rad(1),
+    max_angular_uncertainty: float = np.deg2rad(360),
 ):
     """
     Parameters
@@ -122,6 +103,7 @@ def get_uetliberg_radar(
     radar_lat = POSITIONS_OF_INTEREST["Uetliberg"]["lat"]
     radar_lon = POSITIONS_OF_INTEREST["Uetliberg"]["lon"]
     radar_alt = POSITIONS_OF_INTEREST["Uetliberg"]["alt"]
+    antenna_efficiency = 0.6
 
     return Radar(
         transmitter=Transmitter(
@@ -131,12 +113,17 @@ def get_uetliberg_radar(
             erp=1000.0,
             antenna_height=10.0,
             antenna_diameter=diameter,
+            antenna_gain=calculate_antenna_gain(
+                diameter,
+                frequency_to_wavelength(frequency),
+                efficiency_value=antenna_efficiency,
+            ),
             frequency=frequency,
             pulse_width=1.0,
             polarization=Polarization.VERTICAL,
             bandwidth=bandwidth,
             max_coherent_integration_time=0.5,
-            antenna_efficiency_value=0.6,
+            antenna_efficiency_value=antenna_efficiency,
             vertical_attenuation=None,
             horizontal_attenuation=None,
         ),
@@ -160,10 +147,10 @@ def get_uetliberg_radar(
             horizontal_attenuation=None,
         ),
         error_model=MonostaticRadarMeasurementModel(
-            min_range_uncertainty=0.0,
-            max_range_uncertainty=0.0,
-            min_angular_uncertainty=0.0,
-            max_angular_uncertainty=0.0,
+            min_range_uncertainty=min_range_uncertainty,
+            max_range_uncertainty=max_range_uncertainty,
+            min_angular_uncertainty=min_angular_uncertainty,
+            max_angular_uncertainty=max_angular_uncertainty,
         ),
     )
 
