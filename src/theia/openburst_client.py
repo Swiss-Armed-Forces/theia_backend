@@ -14,7 +14,8 @@ from websockets.sync.client import connect
 
 from theia.coordinates import CoordinateTransformations
 from theia.grids import LatLonHeightGrid
-from theia.types import Radar, RadioClimate, Target
+from theia.types import Polarization, Radar, RadioClimate, Receiver, Target, Transmitter
+from theia.util import to_dB
 
 
 def grid_to_openburst(grid: LatLonHeightGrid) -> dict[str, float]:
@@ -230,36 +231,44 @@ class OpenburstClient:
 
     def calculate_min_det_rcs_coverage(
         self,
-        pcl_receivers: list[PclReceiver],
-        pcl_emitters: list[PclEmitter],
+        receiver: Receiver,
+        transmitter: Transmitter,
         grid: LatLonHeightGrid,
         snr_threshold: float = 15.0,
         delay_threshold: float = 1.0,
         integration_time: float = 0.1,
     ) -> list[np.ndarray]:
+        rx = OpenBurstConverter.receiver_to_pcl_receiver(
+            receiver,
+            transmitter.frequency,
+        )
+        tx = OpenBurstConverter.transmitter_to_pcl_emitter(transmitter)
+        rx.txcallsigns = tx.callsign
+        tx.losrxids = [rx.rx_id]
         with connect(self._url_pcl, ping_timeout=None) as ws:
-            ws.send(
-                json.dumps(
-                    {
-                        "request_type": "calcMinDetRCScoverage",
-                        "nbr_args": 8,
-                        "args": [
-                            [r.model_dump_json() for r in pcl_receivers],
-                            [e.model_dump_json() for e in pcl_emitters],
-                            str(snr_threshold),
-                            str(delay_threshold),
-                            str(integration_time),
-                            json.dumps(grid.to_openburst()),
-                            "0",
-                            "",
-                        ],
-                    }
-                ).encode("utf-8")
-            )
+            msg = json.dumps(
+                {
+                    "request_type": "calcMinDetRCScoverage",
+                    "nbr_args": 8,
+                    "args": [
+                        [rx.model_dump_json()],
+                        [tx.model_dump_json()],
+                        str(snr_threshold),
+                        str(delay_threshold),
+                        str(integration_time),
+                        json.dumps(OpenBurstConverter.grid_to_openburst(grid)),
+                        "0",
+                        "",
+                    ],
+                }
+            ).encode("utf-8")
+            if self._debugging:
+                print(msg)
+            ws.send(msg)
             answer = ws.recv()
 
         cubes_all_receivers = json.loads(json.loads(answer)["args"][0])
-        assert len(cubes_all_receivers) == len(pcl_receivers)
+        assert len(cubes_all_receivers) == 1
         cubes_all_receivers = [
             np.asarray(json.loads(cube)) for cube in cubes_all_receivers
         ]
@@ -395,3 +404,67 @@ def target_to_openburst_json(target: Target, rcs: float) -> str:
             "vz": float(valt),
         }
     ).replace("'", '"')
+
+
+class OpenBurstConverter:
+    @staticmethod
+    def transmitter_to_pcl_emitter(tx: Transmitter) -> PclEmitter:
+        return PclEmitter(
+            tx_id=tx.id,
+            callsign=str(tx.id),
+            sitename=str(tx.id),
+            lat=tx.lat,
+            lon=tx.lon,
+            masl=tx.alt,
+            ahmagl=tx.antenna_height,
+            freq=tx.frequency,
+            bandwidth=tx.bandwidth * 1000,
+            erp_h=to_dB(tx.erp) if tx.polarization == Polarization.HORIZONTAL else "UNDEFINED",
+            erp_v=to_dB(tx.erp) if tx.polarization == Polarization.VERTICAL else "UNDEFINED",
+            type="directional",
+            horiz_diagr_att=tx.horizontal_attenuation.attenuation_table_values
+            if tx.horizontal_attenuation is not None
+            else 0.0,
+            vert_diagr_att=tx.vertical_attenuation.attenuation_table_values
+            if tx.vertical_attenuation is not None
+            else 0.0,
+            pol="H" if tx.polarization == Polarization.HORIZONTAL else "V",
+            signal_type="FM",
+            losrxids=[],
+            status=1,
+        )
+
+    @staticmethod
+    def receiver_to_pcl_receiver(rx: Receiver, frequency_Mz: float) -> PclReceiver:
+        return PclReceiver(
+            name=str(rx.id),
+            rx_id=rx.id,
+            masl=int(np.round(rx.alt)),
+            lat=rx.lat,
+            lon=rx.lon,
+            ahmagl=rx.antenna_height,
+            signal_type="FM",
+            bandwidth=rx.bandwidth * 1000.0,
+            gain=rx.antenna_gain(frequency_Mz),
+        )
+
+    @staticmethod
+    def grid_to_openburst(grid: LatLonHeightGrid) -> dict[str, float]:
+        return {
+            "lat_start": grid.lat_start,
+            "lat_stop": grid.lat_stop,
+            "lon_start": grid.lon_start,
+            "lon_stop": grid.lon_stop,
+            "min_x": grid.lon_start,
+            "max_x": grid.lon_stop,
+            "min_y": grid.lat_start,
+            "max_y": grid.lat_stop,
+            "min_z": grid.height_start,
+            "max_z": grid.height_stop,
+            "res_x": grid.lon_res,
+            "res_y": grid.lat_res,
+            "res_z": grid.height_res,
+            "amt_pts_x": grid.n_points_lon,
+            "amt_pts_y": grid.n_points_lat,
+            "amt_pts_z": grid.n_points_height,
+        }
