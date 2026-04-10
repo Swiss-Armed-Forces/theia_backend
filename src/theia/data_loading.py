@@ -169,6 +169,7 @@ def _build_transmitter(
         erp=erp,
         antenna_height=antenna_height,
         antenna_diameter=np.nan,
+        antenna_gain=0.0,
         frequency=frequency,
         pulse_width=np.nan,
         polarization=polarization,
