@@ -42,7 +42,7 @@ def calculate_snr(
     transmission_power: float
         Power of the signal [W]
     bandwidth: float
-        Bandwidth of the signal [MHz]
+        Receiver bandwidth of the signal [MHz]
     cpi_pulses:
         Number of pulses within a Coherent Processing Interval (CPI)
     equivalent_temperature: float
@@ -87,7 +87,7 @@ def calculate_snr(
 
     bw_dB = 10 * np.log10(bandwidth * 1e6)
 
-    return (
+    snr = (
         power_dB
         + coherent_integration_gain_dB
         + antenna_gain_transmitter
@@ -95,8 +95,8 @@ def calculate_snr(
         + lambda_sq_dB
         + rcs_dB
         + 2 * polarization_factor
-        + 2 * pattern_propagation_factor_transmitter
-        + 2 * pattern_propagation_factor_receiver
+        + pattern_propagation_factor_transmitter
+        + pattern_propagation_factor_receiver
         - four_pi_dB
         - ktb
         - bw_dB
@@ -105,6 +105,27 @@ def calculate_snr(
         - L_t
         - L_a
     )
+
+    # print(f"power                     = {power_dB:.3f} dB")
+    # print(f"coherent integration gain = {coherent_integration_gain_dB:.3f} dB")
+    # print(f"Tx antenna gain           = {antenna_gain_transmitter:.3f} dB")
+    # print(f"Rx antenna gain           = {antenna_gain_receiver:.3f} dB")
+    # print(f"lambda                    = {wavelength:.3f} m")
+    # print(f"lambda^2                  = {lambda_sq_dB:.3f} dB")
+    # print(f"RCS                       = {rcs_dB:.3f} dB")
+    # print(f"(4pi)^3                   = {four_pi_dB:.3f} dB")
+    # print(f"k_B T                     = {ktb:.3f} dB")
+    # print(f"Bandwidth                 = {bw_dB:.3f} dB")
+    # print(f"Polarization factor       = {polarization_factor:.13f} dB")
+    # print(f"r_t                       = {distance_transmitter_target:.3f} m")
+    # print(f"r_r                       = {distance_receiver_target:.3f} m")
+    # print(f"L_t                       = {L_t:.3f} dB")
+    # print(f"L_a                       = {L_a:.3f} dB")
+    # print(f"pattern_propagation_factor_transmitter = {pattern_propagation_factor_transmitter:.3f} dB")
+    # print(f"pattern_propagation_factor_receiver = {pattern_propagation_factor_receiver:.3f} dB")
+    # print(f"SNR                       = {snr:.3f} dB")
+
+    return snr
 
 
 # PET.

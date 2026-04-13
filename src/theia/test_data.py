@@ -82,6 +82,8 @@ def get_uetliberg_radar(
     power: float = 500_000,
     diameter: float = 4.0,
     bandwidth: float = 5.0,
+    tx_bandwidth: float | None = None,
+    integration_time: float = 0.1,
     min_range_uncertainty: float = 100,
     max_range_uncertainty: float = np.inf,
     min_angular_uncertainty: float = np.deg2rad(1),
@@ -98,12 +100,28 @@ def get_uetliberg_radar(
         Diameter [m]
     bandwidth: float, default 5.0
         Bandwidth [MHz]
+    tx_bandwidth: float | None, default None
+        Bandwidth of the transmitter [MHz]
+        If None (default), the receiver's bandwidth is assumed
+    integration_time: float, default 1 / (5 * 1e6)
+        Integration time of the receiver [s]
+    min_range_uncertainty: float, default 100
+        Minimum range uncertainty for the error model [m]
+    max_range_uncertainty: float, default np.inf
+        Maximum range uncertainty for the error model [m]
+    min_angular_uncertainty: float, default np.deg2rad(1)
+        Minimum angular uncertainty for the error model [rad]
+    max_angular_uncertainty: float, default np.deg2rad(360)
+        Maximum angular uncertainty for the error model [rad]
     """
 
     radar_lat = POSITIONS_OF_INTEREST["Uetliberg"]["lat"]
     radar_lon = POSITIONS_OF_INTEREST["Uetliberg"]["lon"]
     radar_alt = POSITIONS_OF_INTEREST["Uetliberg"]["alt"]
     antenna_efficiency = 0.6
+
+    if tx_bandwidth is None:
+        tx_bandwidth = bandwidth
 
     return Radar(
         transmitter=Transmitter(
@@ -132,7 +150,7 @@ def get_uetliberg_radar(
             point=Point(lat=radar_lat, lon=radar_lon, alt=radar_alt),
             antenna_height=10.0,
             diameter=diameter,
-            cpi_pulses=1.0,
+            cpi_pulses=int(np.floor(integration_time * tx_bandwidth * 1e6)),
             pfa=1e-06,
             min_elevation=-20.0,
             max_elevation=60.0,
