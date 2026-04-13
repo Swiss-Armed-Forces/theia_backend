@@ -1,5 +1,6 @@
 import datetime
 
+import numpy as np
 import pydantic
 import scipy.constants as sc
 
@@ -12,12 +13,14 @@ from theia.distance import (
 from theia.doppler import calculate_doppler_shift
 from theia.snr import calculate_snr
 from theia.types import (
+    ConstantRcsModel,
     PassiveRadarDetection,
     Point,
     Radar,
     Receiver,
     Target,
     Transmitter,
+    Velocity,
 )
 from theia.util import get_clear_sky_attenuation
 
@@ -78,6 +81,11 @@ class PclDetector(pydantic.BaseModel):
             Bistatic range [m]
         doppler: float
             Bistatic Doppler shift [Hz]
+        
+        Raises
+        ------
+        ValueError
+            If the geometry is not in the bistatic regime (delay too small)
         """
         baseline_range, bistatic_range_km, doppler = (
             self._calculate_bistatic_range_doppler(
@@ -165,6 +173,27 @@ class PclDetector(pydantic.BaseModel):
         )
 
         return snr, bistatic_range_km * 1000.0, doppler
+
+    def minimum_detectable_rcs_vector(
+        self, rx: Receiver, tx: Transmitter, points: np.ndarray
+    ) -> np.ndarray:
+        results = np.empty(points.shape[0], dtype=np.float64)
+        for i, point in enumerate(points):
+            tgt = Target(
+                id=-1,
+                point=Point(lat=point[0], lon=point[1], alt=point[2]),
+                cross_section_model=ConstantRcsModel(rcs=1.0),
+                velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+            )
+            try:
+                snr, _, _ = self.calculate_raw_measurement(rx, tx, tgt)
+            except ValueError:
+                snr = np.nan
+            results[i] = calculate_minimum_detectable_rcs(
+                snr,
+                self.snr_threshold,
+            )
+        return results
 
     def calculate_pcl_detection(
         self,
