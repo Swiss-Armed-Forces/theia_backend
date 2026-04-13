@@ -16,6 +16,7 @@ from theia.types import (
     Velocity,
     ConstantRcsModel,
 )
+from theia.util import erp_to_power, to_dB
 
 
 def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
@@ -165,7 +166,7 @@ def _build_transmitter(
             lon=lon,
             alt=alt,
         ),
-        power=erp,
+        power=erp_to_power(to_dB(erp), 0.0, 0.0),
         erp=erp,
         antenna_height=antenna_height,
         antenna_diameter=np.nan,
