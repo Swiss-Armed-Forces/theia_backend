@@ -16,7 +16,13 @@ The signal-to-noise ratio (SNR) for the monostatic case is given by Equ. (1.18)
 
 .. math::
 
-   SNR = \frac{P_t \tau n G_t G_r \lambda^2 \sigma F_p^2 F_t^2 F_r^2}{(4 \pi)^3 k_B T_S R^4 L_t L_a}.
+   SNR = \frac{P_t n G_t G_r \lambda^2 \sigma F_p^2 F_t^2 F_r^2}{(4 \pi)^3 k_B B T_S R^4 L_t L_a}.
+
+
+.. caution:: The code treats :math:`F_t^2, F_r^2` as the elementary quantities
+  because the transmitters of opportunity published by the Bundesamt für
+  Kommunikation (BAKOM) seem to ship :math:`F_t^{-2}, F_r^{-2}`, NOT :math:`F_t, F_r`.
+
 
 PCL
 ^^^
@@ -30,7 +36,7 @@ In PET, the formula needs to be adjusted since there is no scatterer
 
 .. math::
 
-   SNR = \frac{P_t \tau n G_t G_r \lambda^2 F_p^2 F_t^2 F_r^2}{(4 \pi)^2 k_B T_S R^2 L_t L_a}.
+   SNR = \frac{P_t n G_t G_r \lambda^2 F_p^2 F_t^2 F_r^2}{(4 \pi)^2 k_B T_S R^2 L_t L_a}.
 
 Quantities
 ----------
@@ -97,6 +103,10 @@ The following table summarises the meaning of each quantity.
      - K
      - Effective noise temperature of the receiver
      - This term summarises all kinds of thermal noise within and outside the radar.
+   * - :math:`B`
+     - MHz
+     - Transmitter bandwidth
+     - 
    * - :math:`R`
      - m
      - Range

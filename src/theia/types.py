@@ -96,6 +96,11 @@ class Velocity(pydantic.BaseModel):
 
 
 class AttenuationModel(pydantic.BaseModel):
+    """
+    Representation of an antenna attenuation diagram.
+    
+    Actually represents the squared attenuation coefficients :math:`F_t, F_r`.
+    """
     attenuation_table_angles: list[float]
     """Attenuation values [dB]"""
     attenuation_table_values: list[float]
