@@ -11,7 +11,6 @@ from theia.types import (
     Polarization,
     Radar,
     Receiver,
-    Situation,
     Target,
     Transmitter,
     calculate_antenna_gain,
@@ -27,7 +26,7 @@ class TestSituationLoader:
         | Literal["east"]
         | Literal["south"]
         | Literal["west"] = "south",
-    ) -> Situation:
+    ) -> tuple[list[Radar], list[Target]]:
         radar_lat = POSITIONS_OF_INTEREST["Uetliberg"]["lat"]
         radar_lon = POSITIONS_OF_INTEREST["Uetliberg"]["lon"]
         point = Point(
@@ -69,12 +68,7 @@ class TestSituationLoader:
             velocity=v,
         )
 
-        return Situation(
-            radars=[radar],
-            targets=[target],
-            transmitter_labels={0: "Tx"},
-            target_labels={0: "Target (southbound)"},
-        )
+        return [radar], [target]
 
 
 def get_uetliberg_radar(

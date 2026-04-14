@@ -2,7 +2,7 @@ from __future__ import annotations
 import abc
 import datetime
 import enum
-from typing import Iterable, Optional, Self
+from typing import Optional, Self
 from matplotlib import pyplot as plt
 import numpy as np
 import pydantic
@@ -98,9 +98,10 @@ class Velocity(pydantic.BaseModel):
 class AttenuationModel(pydantic.BaseModel):
     """
     Representation of an antenna attenuation diagram.
-    
+
     Actually represents the squared attenuation coefficients :math:`F_t, F_r`.
     """
+
     attenuation_table_angles: list[float]
     """Attenuation values [dB]"""
     attenuation_table_values: list[float]
@@ -340,7 +341,6 @@ class Receiver(pydantic.BaseModel):
         )
 
 
-
 class Radar(pydantic.BaseModel):
     transmitter: Transmitter
     receiver: Receiver
@@ -513,41 +513,6 @@ class Trajectory(pydantic.BaseModel):
             vzs=[target.velocity.vz for _ in times],
             cross_section_model=target.cross_section_model,
         )
-
-
-class TargetSimulator(abc.ABC):
-    @abc.abstractmethod
-    def get_targets(self, time: datetime.datetime) -> Iterable[Target]:
-        """Return an iterator over targets at the given time."""
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def get_minimum_time(self) -> datetime.datetime:
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def get_maximum_time(self) -> datetime.datetime:
-        raise NotImplementedError()
-
-
-class RadarSimulator(abc.ABC):
-    @abc.abstractmethod
-    def get_all_radars(self) -> list[Radar]:
-        """Return a list of all radars that might be active at some point."""
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def get_radars(self, time: datetime.datetime) -> Iterable[Radar]:
-        """Return an iterator over radars at the given time."""
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def get_minimum_time(self) -> datetime.datetime:
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def get_maximum_time(self) -> datetime.datetime:
-        raise NotImplementedError()
 
 
 class MonostaticRadarDetection(pydantic.BaseModel):
@@ -845,17 +810,6 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
                 )
             )
         return clutter
-
-
-class Situation(pydantic.BaseModel):
-    radars: list[Radar]
-    targets: list[Target]
-    transmitter_labels: dict[int, str] = {}
-    """Labels per transmitter ID"""
-    receiver_labels: dict[int, str] = {}
-    """Labels per receiver ID"""
-    target_labels: dict[int, str] = {}
-    """Labels per target ID"""
 
 
 class SituationalPicture(pydantic.BaseModel):

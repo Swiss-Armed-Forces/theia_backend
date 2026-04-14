@@ -20,53 +20,53 @@ from theia.util import frequency_to_wavelength
 class MonostaticDopplerTest(unittest.TestCase):
     def test_zueri_northbound(self):
         doppler_correct = -1334.2564
-        situation = TestSituationLoader.load_zuerich_single_target(
+        radars, targets = TestSituationLoader.load_zuerich_single_target(
             speed=200.0,
             move_direction="north",
         )
         doppler = calculate_doppler_shift(
-            situation.radars[0].receiver,
-            situation.targets[0],
-            situation.radars[0].transmitter,
+            radars[0].receiver,
+            targets[0],
+            radars[0].transmitter,
         )
         self.assertAlmostEqual(doppler_correct, doppler, delta=1e-2)
 
     def test_zueri_eastbound(self):
         doppler_correct = 0
-        situation = TestSituationLoader.load_zuerich_single_target(
+        radars, targets = TestSituationLoader.load_zuerich_single_target(
             speed=200.0,
             move_direction="east",
         )
         doppler = calculate_doppler_shift(
-            situation.radars[0].receiver,
-            situation.targets[0],
-            situation.radars[0].transmitter,
+            radars[0].receiver,
+            targets[0],
+            radars[0].transmitter,
         )
         self.assertAlmostEqual(doppler_correct, doppler, delta=1e-2)
 
     def test_zueri_southbound(self):
         doppler_correct = 1334.2564
-        situation = TestSituationLoader.load_zuerich_single_target(
+        radars, targets = TestSituationLoader.load_zuerich_single_target(
             speed=200.0,
             move_direction="south",
         )
         doppler = calculate_doppler_shift(
-            situation.radars[0].receiver,
-            situation.targets[0],
-            situation.radars[0].transmitter,
+            radars[0].receiver,
+            targets[0],
+            radars[0].transmitter,
         )
         self.assertAlmostEqual(doppler_correct, doppler, delta=1e-2)
 
     def test_zueri_westbound(self):
         doppler_correct = 0
-        situation = TestSituationLoader.load_zuerich_single_target(
+        radars, targets = TestSituationLoader.load_zuerich_single_target(
             speed=200.0,
             move_direction="west",
         )
         doppler = calculate_doppler_shift(
-            situation.radars[0].receiver,
-            situation.targets[0],
-            situation.radars[0].transmitter,
+            radars[0].receiver,
+            targets[0],
+            radars[0].transmitter,
         )
         self.assertAlmostEqual(doppler_correct, doppler, delta=1e-2)
 
