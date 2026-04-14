@@ -55,8 +55,8 @@ class SnrTest(unittest.TestCase):
         L_t = to_dB(2.0)
         L_a = to_dB(1.0)
         pol = to_dB(1.0)
-        F_t = to_dB(3.0)
-        F_r = to_dB(1.0)
+        F_t2 = to_dB(3.0)
+        F_r2 = to_dB(1.0)
 
         wavelength = sc.speed_of_light / (self.transmitter.frequency * 1e6)
 
@@ -74,14 +74,14 @@ class SnrTest(unittest.TestCase):
             L_t,
             L_a,
             pol,
-            F_t,
-            F_r,
+            F_t2,
+            F_r2,
         )
 
         # Value calculated "by hand" according to the SNR formula in the documentation.
-        snr_true = to_dB(7.011275526 * 1e-5)
+        snr_true = 37.924 + 2 * (-9.930) + 3.010 + 0 + 4.771 + 0 - (32.976 - 228.599 + 24.771 + 80 + 4 * 40 + 3.010 + 0)
 
-        self.assertAlmostEqual(snr, snr_true, delta=0.005)
+        self.assertAlmostEqual(float(snr), snr_true, delta=0.005)
 
         # Test scaling behaviour.
         FACTORS = [0.001, 0.01, 0.1, 10, 100, 1000]
@@ -103,8 +103,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a**2
@@ -130,8 +130,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a
@@ -156,8 +156,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a
@@ -182,8 +182,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a
@@ -208,8 +208,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
 
@@ -235,8 +235,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
 
@@ -262,8 +262,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
 
@@ -289,8 +289,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
 
@@ -316,8 +316,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
 
@@ -343,8 +343,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
 
@@ -370,8 +370,8 @@ class SnrTest(unittest.TestCase):
                     to_dB(a * from_dB(L_t)),
                     L_a,
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
 
@@ -397,8 +397,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     to_dB(a * from_dB(L_a)),
                     pol,
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
 
@@ -424,8 +424,8 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     to_dB(a * from_dB(pol)),
-                    F_t,
-                    F_r,
+                    F_t2,
+                    F_r2,
                 )
             )
 
@@ -451,12 +451,12 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    to_dB(a * from_dB(F_t)),
-                    F_r,
+                    to_dB(a * from_dB(F_t2)),
+                    F_r2,
                 )
             )
 
-            snr_linear_scaled_expected = snr_linear * a**2
+            snr_linear_scaled_expected = snr_linear * a
             self.assertAlmostEqual(
                 snr_linear_scaled,
                 snr_linear_scaled_expected,
@@ -478,12 +478,12 @@ class SnrTest(unittest.TestCase):
                     L_t,
                     L_a,
                     pol,
-                    F_t,
-                    to_dB(a * from_dB(F_r)),
+                    F_t2,
+                    to_dB(a * from_dB(F_r2)),
                 )
             )
 
-            snr_linear_scaled_expected = snr_linear * a**2
+            snr_linear_scaled_expected = snr_linear * a
             self.assertAlmostEqual(
                 snr_linear_scaled,
                 snr_linear_scaled_expected,
