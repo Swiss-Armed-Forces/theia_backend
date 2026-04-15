@@ -14,7 +14,7 @@ from theia.doppler import calculate_doppler_shift
 from theia.snr import calculate_snr
 from theia.types import (
     ConstantRcsModel,
-    PassiveRadarDetection,
+    PclDetection,
     Point,
     Radar,
     Receiver,
@@ -200,7 +200,7 @@ class PclDetector(pydantic.BaseModel):
         rx: Receiver,
         tx: Transmitter,
         tgt: Target,
-    ) -> PassiveRadarDetection | None:
+    ) -> PclDetection | None:
         """
         Calculate whether the given geometry leads to a detection using Passive
         Coherent Location (PCL) radar.
@@ -243,7 +243,7 @@ class PclDetector(pydantic.BaseModel):
             receiver=rx,
             target=tgt,
         ):
-            return PassiveRadarDetection(
+            return PclDetection(
                 detection_id=-1,
                 time=datetime.datetime.fromtimestamp(0),
                 radar=Radar(
