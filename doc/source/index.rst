@@ -18,4 +18,5 @@ documentation for details.
    physical_model
    api
    passive_radar
+   pseudo_tracker
    ./reference/modules
