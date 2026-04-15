@@ -47,6 +47,13 @@ class WaypointTargetController(Controller):
     ) -> list[Radar]:
         return []
 
+    def get_pcl_sensors(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Radar]:
+        return []
+
     def get_receivers(
         self,
         situational_picture: SituationalPicture,
@@ -74,12 +81,14 @@ class WaypointTargetController(Controller):
             # Out-of-bounds time.
             return []
         else:
-            return [Target(
-                id=self._target_id,
-                point=Point(lat=lat, lon=lon, alt=alt),
-                cross_section_model=self._rcs_model,
-                velocity=Velocity(vx=v_xyz[0], vy=v_xyz[1], vz=v_xyz[2]),
-            )]
+            return [
+                Target(
+                    id=self._target_id,
+                    point=Point(lat=lat, lon=lon, alt=alt),
+                    cross_section_model=self._rcs_model,
+                    velocity=Velocity(vx=v_xyz[0], vy=v_xyz[1], vz=v_xyz[2]),
+                )
+            ]
 
     @staticmethod
     def from_trajectory(trajectory: Trajectory) -> WaypointTargetController:

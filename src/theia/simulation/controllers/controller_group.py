@@ -2,6 +2,7 @@ import datetime
 import itertools
 from theia.types import (
     Controller,
+    Radar,
     Receiver,
     SituationalPicture,
     Target,
@@ -15,9 +16,19 @@ class ControllerGroup(Controller):
 
     def get_monostatic_radars(
         self, situational_picture: SituationalPicture, dt: datetime.timedelta
-    ):
+    ) -> list[Radar]:
         all_radars = [
             c.get_monostatic_radars(situational_picture, dt) for c in self._controllers
+        ]
+        return list(itertools.chain.from_iterable(all_radars))
+
+    def get_pcl_sensors(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Radar]:
+        all_radars = [
+            c.get_pcl_sensors(situational_picture, dt) for c in self._controllers
         ]
         return list(itertools.chain.from_iterable(all_radars))
 
