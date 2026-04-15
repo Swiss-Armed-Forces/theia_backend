@@ -197,27 +197,11 @@ class Simulator:
             blue_situational_picture,
             self._dt,
         )
-        self._blue_receivers = self._blue_controller.get_receivers(
-            blue_situational_picture,
-            self._dt,
-        )
-        self._blue_transmitters = self._blue_controller.get_transmitters(
-            blue_situational_picture,
-            self._dt,
-        )
         self._blue_targets = self._blue_controller.get_targets(
             blue_situational_picture,
             self._dt,
         )
         self._red_monostatic_radars = self._red_controller.get_monostatic_radars(
-            red_situational_picture,
-            self._dt,
-        )
-        self._red_receivers = self._red_controller.get_receivers(
-            red_situational_picture,
-            self._dt,
-        )
-        self._red_transmitters = self._red_controller.get_transmitters(
             red_situational_picture,
             self._dt,
         )
