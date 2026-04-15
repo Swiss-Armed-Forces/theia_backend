@@ -1,0 +1,2 @@
+"rx_id","name","team","lat","lon","status","masl","ahmagl","signal_type","bandwidth","horiz_diagr_att","vert_diagr_att","gain","losses","temp_sys","limit_distance","update_time","txcallsigns"
+1,"PCL_SENSOR_0","blue","47.37037246983374","8.536007690429686",0,408,15,"FM","8000","0","0","0","0","300",50000,"-1","GOTTY1,WATT,HGH,ETZ1,UTL"
