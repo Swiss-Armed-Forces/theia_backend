@@ -31,7 +31,13 @@ buffer = SituationalPictureBuffer()
 # Setup the simulation.
 ################################################
 
-radar = get_uetliberg_radar()
+radar = get_uetliberg_radar(
+    min_range_uncertainty=0.0,
+    max_range_uncertainty=0.0,
+    min_angular_uncertainty=0.0,
+    max_angular_uncertainty=0.0,
+)
+radar.receiver.cpi_pulses = 1
 
 # Load trajectories from OpenSky.
 trajectories, _ = load_trajectory_file(
