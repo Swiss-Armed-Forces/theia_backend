@@ -6,6 +6,7 @@ import time
 
 import numpy as np
 from theia.detection.active import calculate_monostatic_detection
+from theia.detection.pcl import PclDetector
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.types import (
     AbstractTracker,
@@ -36,6 +37,7 @@ class TimeCriterion(TerminationCriterion):
 class Simulator:
     def __init__(
         self,
+        pcl_detector: PclDetector,
         blue_controller: Controller,
         red_controller: Controller,
         blue_tracker: AbstractTracker,
@@ -50,6 +52,8 @@ class Simulator:
         """
         Parameters
         ----------
+        pcl_detector: PclDetector
+            PCL Detector
         blue_controller: Controller
             Handles all blue behaviour
         red_controller: Controller
@@ -74,6 +78,7 @@ class Simulator:
         simulate_clutter: bool, default True
             Whether to simulate clutter detections
         """
+        self._pcl_detector = pcl_detector
         self._blue_controller = blue_controller
         self._red_controller = red_controller
         self._blue_tracker = blue_tracker
@@ -87,12 +92,14 @@ class Simulator:
         self._simulate_clutter = simulate_clutter
 
         self._blue_monostatic_radars: list[Sensor] = []
+        self._blue_pcl_sensors: list[Sensor] = []
         self._blue_targets: list[Target] = []
         self._red_monostatic_radars: list[Sensor] = []
+        self._red_pcl_sensors: list[Sensor] = []
         self._red_targets: list[Target] = []
-        self._active_detection_id = 0
-        self._time_of_last_active_detection: dict[int, datetime.datetime] = {}
-        """Time of latest detection for each active radar receiver ID."""
+        self._detection_id = 0
+        self._time_of_last_detection: dict[int, datetime.datetime] = {}
+        """Time of latest detection for each sensor ID."""
 
         self._listener.register_simulator(self)
 
@@ -116,8 +123,10 @@ class Simulator:
         return Snapshot(
             time=self._t,
             blue_monostatic_radars=self._blue_monostatic_radars,
+            blue_pcl_sensors=self._blue_pcl_sensors,
             blue_targets=self._blue_targets,
             red_monostatic_radars=self._red_monostatic_radars,
+            red_pcl_sensors=self._red_pcl_sensors,
             red_targets=self._red_targets,
         )
 
@@ -135,9 +144,14 @@ class Simulator:
         detections: list[MonostaticRadarDetection] = []
         for radar in self._blue_monostatic_radars:
             max_range = calculate_maximum_monostatic_range(radar)
-            time_of_last_detection = self._time_of_last_active_detection.get(
-                radar.receiver.id,
-                datetime.datetime(year=1900, month=1, day=1, tzinfo=self._t.tzinfo),
+            time_of_last_detection = self._time_of_last_detection.get(
+                radar.id,
+                datetime.datetime(
+                    year=1900,
+                    month=1,
+                    day=1,
+                    tzinfo=self._t.tzinfo,
+                ),
             )
             if (
                 self._t - time_of_last_detection
@@ -153,10 +167,10 @@ class Simulator:
                 )
                 if det is not None:
                     det.time = self._t
-                    det.detection_id = self._active_detection_id
-                    self._active_detection_id += 1
+                    det.detection_id = self._detection_id
+                    self._detection_id += 1
                     detections.append(det)
-            self._time_of_last_active_detection[radar.receiver.id] = self._t
+            self._time_of_last_detection[radar.receiver.id] = self._t
             # Simulate clutter.
             if self._simulate_clutter:
                 clutter_detections = radar.error_model.sample_clutter(
@@ -165,10 +179,54 @@ class Simulator:
                     max_range,
                 )
                 for d in clutter_detections:
-                    d.detection_id = self._active_detection_id
-                    self._active_detection_id += 1
+                    d.detection_id = self._detection_id
+                    self._detection_id += 1
                     d.time = self._t
                     detections.append(d)
+        return detections
+
+    def _calculate_blue_pcl_detections(self) -> list[PclDetection]:
+        """
+        Calculate blue PCL detections at the current time step,
+        i. e. the red targets detected by BLUE. Includes clutter.
+
+        Notes
+        -----
+        The detections are assumed to take place at a fixed period
+        (the receiver's rotation time) all at once.
+        No angular update is implemented.
+        """
+        detections: list[PclDetection] = []
+        for sensor in self._blue_pcl_sensors:
+            time_of_last_detection = self._time_of_last_detection.get(
+                sensor.id,
+                datetime.datetime(
+                    year=1900,
+                    month=1,
+                    day=1,
+                    tzinfo=self._t.tzinfo,
+                ),
+            )
+            if (
+                self._t - time_of_last_detection
+            ).seconds < sensor.receiver.rotation_time:
+                # No new detections.
+                continue
+            for target in self._red_targets:
+                det = self._pcl_detector.calculate_pcl_detection(
+                    sensor,
+                    target,
+                )
+                if det is not None:
+                    det.time = self._t
+                    det.detection_id = self._detection_id
+                    self._detection_id += 1
+                    detections.append(det)
+            self._time_of_last_detection[sensor.receiver.id] = self._t
+            # Simulate clutter.
+            if self._simulate_clutter:
+                # TODO: Implement PCL clutter sampling.
+                pass
         return detections
 
     def advance(self) -> bool:
@@ -198,11 +256,19 @@ class Simulator:
             blue_situational_picture,
             self._dt,
         )
+        self._blue_pcl_sensors = self._blue_controller.get_pcl_sensors(
+            blue_situational_picture,
+            self._dt,
+        )
         self._blue_targets = self._blue_controller.get_targets(
             blue_situational_picture,
             self._dt,
         )
         self._red_monostatic_radars = self._red_controller.get_monostatic_radars(
+            red_situational_picture,
+            self._dt,
+        )
+        self._red_pcl_sensors = self._red_controller.get_pcl_sensors(
             red_situational_picture,
             self._dt,
         )
@@ -216,6 +282,7 @@ class Simulator:
 
         # Detect RED targets.
         blue_active_radar_detections = self._calculate_blue_monostatic_detections()
+        blue_pcl_detections = self._calculate_blue_pcl_detections()
 
         # TODO: Implement PCL detections.
         # TODO: Implement PET detections.
@@ -225,7 +292,10 @@ class Simulator:
 
         # Log.
         self._listener.on_snapshot(self.take_snapshot())
-        self._listener.on_detections(blue_active_radar_detections, is_blue=True)
+        self._listener.on_detections(
+            blue_active_radar_detections + blue_pcl_detections,
+            is_blue=True,
+        )
 
         stop_time = time.time()
 

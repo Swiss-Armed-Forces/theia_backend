@@ -865,8 +865,10 @@ class Controller(abc.ABC):
 class Snapshot(pydantic.BaseModel):
     time: datetime.datetime
     blue_monostatic_radars: list[Sensor]
+    blue_pcl_sensors: list[Sensor]
     blue_targets: list[Target]
     red_monostatic_radars: list[Sensor]
+    red_pcl_sensors: list[Sensor]
     red_targets: list[Target]
 
 
