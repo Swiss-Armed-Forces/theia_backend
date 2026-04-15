@@ -8,7 +8,7 @@ from theia.types import (
     MonostaticRadarMeasurementModel,
     Point,
     Polarization,
-    Radar,
+    Sensor,
     Receiver,
     Target,
     Transmitter,
@@ -84,7 +84,8 @@ class MonostaticDopplerTest(unittest.TestCase):
             lon=8.537724304199216,
             alt=407.83600886023686,
         )
-        radar = Radar(
+        radar = Sensor(
+            id=0,
             transmitter=Transmitter(
                 id=0,
                 point=p,

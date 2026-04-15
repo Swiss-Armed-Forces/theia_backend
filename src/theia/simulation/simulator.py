@@ -11,7 +11,8 @@ from theia.types import (
     AbstractTracker,
     MonostaticRadarDetection,
     Controller,
-    Radar,
+    PclDetection,
+    Sensor,
     SituationalPicture,
     Snapshot,
     Target,
@@ -85,9 +86,9 @@ class Simulator:
         self._listener = listener
         self._simulate_clutter = simulate_clutter
 
-        self._blue_monostatic_radars: list[Radar] = []
+        self._blue_monostatic_radars: list[Sensor] = []
         self._blue_targets: list[Target] = []
-        self._red_monostatic_radars: list[Radar] = []
+        self._red_monostatic_radars: list[Sensor] = []
         self._red_targets: list[Target] = []
         self._active_detection_id = 0
         self._time_of_last_active_detection: dict[int, datetime.datetime] = {}

@@ -11,9 +11,9 @@ class BistaticDopplerTest(unittest.TestCase):
         for detection, snr in detections:
             doppler_ref = detection.doppler_shift
             doppler_calculated = calculate_doppler_shift(
-                detection.radar.receiver,
+                detection.sensor.receiver,
                 detection.target,
-                detection.radar.transmitter,
+                detection.sensor.transmitter,
             )
             self.assertAlmostEqual(doppler_ref, doppler_calculated, delta=0.21)
 

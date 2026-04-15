@@ -13,7 +13,7 @@ from theia.snr import calculate_snr
 from theia.types import (
     MonostaticRadarDetection,
     MonostaticRadarMeasurementModel,
-    Radar,
+    Sensor,
     RcsModel,
     Target,
 )
@@ -21,7 +21,7 @@ from theia.util import get_clear_sky_attenuation, marcum_q_function
 
 
 def calculate_monostatic_detection(
-    radar: Radar,
+    radar: Sensor,
     target: Target,
     rng: np.random.Generator,
     distance_step: float = 30.0,
@@ -108,7 +108,7 @@ def calculate_monostatic_detection(
 
 
 def calculate_monostatic_snr(
-    radar: Radar,
+    radar: Sensor,
     target: Target,
     rcs_model: RcsModel,
     distance_step: float,
@@ -120,7 +120,7 @@ def calculate_monostatic_snr(
 
     Parameters
     ----------
-    radar: Radar
+    radar: Sensor
         Radar
     target: Target
         Target

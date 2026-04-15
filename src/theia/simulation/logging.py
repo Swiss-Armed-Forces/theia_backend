@@ -14,7 +14,7 @@ from theia.stonesoup_interface import MonostaticDetectionFactory
 from theia.types import (
     ConstantRcsModel,
     MonostaticRadarDetection,
-    Radar,
+    Sensor,
     Receiver,
     SituationalPicture,
     Snapshot,
@@ -164,13 +164,17 @@ class LogLoader:
         with open(path, "r") as file:
             self._data = json.load(file)
         self._load_snapshots()
-        self._load_monostatic_radars(is_blue=True)
+        self._load_sensors(is_blue=True)
         self._load_target_ground_truth(is_blue=False)
         self._load_detections(is_blue=True)
 
     @property
-    def blue_monostatic_radars(self) -> list[Radar]:
-        return self._blue_monostatic_radars
+    def blue_monostatic_radars(self) -> list[Sensor]:
+        return [
+            sensor
+            for sensor in self._blue_sensors.values()
+            if sensor.receiver.point == sensor.transmitter.point
+        ]
 
     @property
     def blue_monostatic_radar_detections(self) -> list[Detection]:
@@ -183,22 +187,14 @@ class LogLoader:
     def _load_snapshots(self):
         self._snapshots = [Snapshot.model_validate(d) for d in self._data["snapshots"]]
 
-    def _load_monostatic_radars(self, is_blue: bool):
+    def _load_sensors(self, is_blue: bool):
         if not is_blue:
             raise NotImplementedError()
 
-        blue_transmitters: dict[int, Transmitter] = {}
-        blue_receivers: dict[int, Receiver] = {}
+        self._blue_sensors: dict[int, Sensor] = {}
         for snapshot in self._snapshots:
-            blue_transmitters.update({tx.id: tx for tx in snapshot.blue_transmitters})
-            blue_receivers.update({rx.id: rx for rx in snapshot.blue_receivers})
-
-        self._blue_monostatic_radars = []
-        for tx, rx in itertools.product(
-            blue_transmitters.values(), blue_receivers.values()
-        ):
-            if tx.point == rx.point:
-                self._blue_monostatic_radars.append(Radar(transmitter=tx, receiver=rx))
+            for sensor in snapshot.blue_monostatic_radars:
+                self._blue_sensors[sensor.id] = sensor
 
     def _load_target_ground_truth(self, is_blue: bool):
         if is_blue:

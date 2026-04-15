@@ -15,7 +15,7 @@ from theia.types import (
     PclDetection,
     Point,
     Polarization,
-    Radar,
+    Sensor,
     Receiver,
     Target,
     Trajectory,
@@ -78,7 +78,7 @@ def load_pcl_reference_data(
     # Load transmitters.
     df_tx = pd.read_csv(f"{data_directory}/tx.csv")
     transmitters = []
-    for _, row in df_tx.iterrows():
+    for sensor_id, row in df_tx.iterrows():
         is_horizontal = row["pol"] == "H"
         assert row["pol"] in ["H", "V"]
 
@@ -196,7 +196,8 @@ def load_pcl_reference_data(
                 PclDetection(
                     detection_id=id,
                     time=t_min + datetime.timedelta(milliseconds=row["recording_time"]),
-                    radar=Radar(
+                    sensor=Sensor(
+                        id=sensor_id,
                         transmitter=next(
                             t for t in transmitters if t.id == row["tx_id"]
                         ),

@@ -82,8 +82,8 @@ class BistaticRangeTest(unittest.TestCase):
         for i, (detection, snr) in enumerate(detections):
             bistatic_range_ref = detection.bistatic_range
             bistatic_range_calculated, _, _, _ = get_bistatic_range(
-                detection.radar.transmitter.point.as_tuple(),
-                detection.radar.receiver.point.as_tuple(),
+                detection.sensor.transmitter.point.as_tuple(),
+                detection.sensor.receiver.point.as_tuple(),
                 detection.target.point.as_tuple(),
             )
             bistatic_range_calculated *= 1000.0  # [m]
@@ -97,8 +97,8 @@ class BistaticRangeTest(unittest.TestCase):
         assert len(trajectories) == 1
         trajectory = trajectories[0]
 
-        txs = [d.radar.transmitter for d in detections]
-        rxs = [d.radar.receiver for d in detections]
+        txs = [d.sensor.transmitter for d in detections]
+        rxs = [d.sensor.receiver for d in detections]
 
         txs_no_duplicates = []
         for tx in txs:
@@ -114,7 +114,7 @@ class BistaticRangeTest(unittest.TestCase):
                 detections_ref_tx_rx = [
                     d
                     for d in detections
-                    if d.radar.transmitter.id == Tx.id and d.radar.receiver.id == Rx.id
+                    if d.sensor.transmitter.id == Tx.id and d.sensor.receiver.id == Rx.id
                 ]
                 detection_times_ref = [
                     detection.time for detection in detections_ref_tx_rx

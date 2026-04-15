@@ -9,7 +9,7 @@ from theia.types import (
     MonostaticRadarMeasurementModel,
     Point,
     Polarization,
-    Radar,
+    Sensor,
     Receiver,
     Target,
     Transmitter,
@@ -26,7 +26,7 @@ class TestSituationLoader:
         | Literal["east"]
         | Literal["south"]
         | Literal["west"] = "south",
-    ) -> tuple[list[Radar], list[Target]]:
+    ) -> tuple[list[Sensor], list[Target]]:
         radar_lat = POSITIONS_OF_INTEREST["Uetliberg"]["lat"]
         radar_lon = POSITIONS_OF_INTEREST["Uetliberg"]["lon"]
         point = Point(
@@ -117,7 +117,8 @@ def get_uetliberg_radar(
     if tx_bandwidth is None:
         tx_bandwidth = bandwidth
 
-    return Radar(
+    return Sensor(
+        id=0,
         transmitter=Transmitter(
             id=0,
             point=Point(lat=radar_lat, lon=radar_lon, alt=radar_alt),
