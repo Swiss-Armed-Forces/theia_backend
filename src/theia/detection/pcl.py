@@ -16,7 +16,7 @@ from theia.types import (
     ConstantRcsModel,
     PclDetection,
     Point,
-    Radar,
+    Sensor,
     Receiver,
     Target,
     Transmitter,
@@ -81,7 +81,7 @@ class PclDetector(pydantic.BaseModel):
             Bistatic range [m]
         doppler: float
             Bistatic Doppler shift [Hz]
-        
+
         Raises
         ------
         ValueError
@@ -197,8 +197,7 @@ class PclDetector(pydantic.BaseModel):
 
     def calculate_pcl_detection(
         self,
-        rx: Receiver,
-        tx: Transmitter,
+        sensor: Sensor,
         tgt: Target,
     ) -> PclDetection | None:
         """
@@ -207,10 +206,8 @@ class PclDetector(pydantic.BaseModel):
 
         Parameters
         ----------
-        rx: Receiver
-            Receiver.
-        tx: Transmitter
-            Transmitter.
+        sensor: Sensor
+            PCL sensor.
         tgt: Target
             Target.
 
@@ -225,7 +222,9 @@ class PclDetector(pydantic.BaseModel):
             the detection that was made or None if no detection takes place.
         """
         assert tgt.alt > 0
-        snr, bistatic_range, doppler = self.calculate_raw_measurement(rx, tx, tgt)
+        snr, bistatic_range, doppler = self.calculate_raw_measurement(
+            sensor.receiver, sensor.transmitter, tgt
+        )
 
         if abs(doppler) < self.doppler_threshold:
             return None
@@ -239,17 +238,14 @@ class PclDetector(pydantic.BaseModel):
         # Doppler shift was good enough if we reached this far, see above.
         # So just check the rcs_thresholds.
         if min_detectable_rcs <= tgt.cross_section_model(
-            transmitter=tx,
-            receiver=rx,
+            transmitter=sensor.transmitter,
+            receiver=sensor.receiver,
             target=tgt,
         ):
             return PclDetection(
                 detection_id=-1,
                 time=datetime.datetime.fromtimestamp(0),
-                radar=Radar(
-                    transmitter=tx,
-                    receiver=rx,
-                ),
+                sensor=sensor,
                 target=tgt,
                 bistatic_range=bistatic_range,
                 doppler_shift=doppler,
