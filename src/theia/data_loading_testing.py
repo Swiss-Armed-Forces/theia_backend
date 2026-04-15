@@ -12,7 +12,7 @@ from theia.types import (
     AttenuationModel,
     ConstantRcsModel,
     MonostaticRadarMeasurementModel,
-    PassiveRadarDetection,
+    PclDetection,
     Point,
     Polarization,
     Radar,
@@ -27,7 +27,7 @@ from theia.util import erp_to_power, from_dB
 def load_pcl_reference_data(
     data_directory: str = f"{os.path.dirname(os.path.realpath(__file__))}/../../tests/test_data/pcl_detection",
     rcs: float = 1,
-) -> tuple[list[Trajectory], list[tuple[PassiveRadarDetection, float]]]:
+) -> tuple[list[Trajectory], list[tuple[PclDetection, float]]]:
     # Load trajectories.
     trajectories = load_openburst_trajectory_file(f"{data_directory}/replay.npy")
     t_min = min([t.times[0] for t in trajectories])
@@ -193,7 +193,7 @@ def load_pcl_reference_data(
 
         detections.append(
             (
-                PassiveRadarDetection(
+                PclDetection(
                     detection_id=id,
                     time=t_min + datetime.timedelta(milliseconds=row["recording_time"]),
                     radar=Radar(

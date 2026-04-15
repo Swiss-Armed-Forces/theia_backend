@@ -555,7 +555,7 @@ class MonostaticRadarDetection(pydantic.BaseModel):
         return self
 
 
-class PassiveRadarDetection(pydantic.BaseModel):
+class PclDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
     """Date and time at which the detection takes place."""
@@ -901,7 +901,7 @@ class Track(pydantic.BaseModel):
 
 class AbstractTracker(abc.ABC):
     @abc.abstractmethod
-    def add_detections(self, detections: list[MonostaticRadarDetection]):
+    def add_detections(self, detections: list[MonostaticRadarDetection | PclDetection]):
         """Add detections of a single iteration to this tracker."""
         raise NotImplementedError()
 
