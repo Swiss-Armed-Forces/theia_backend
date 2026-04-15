@@ -19,6 +19,13 @@ class MonostaticRadarController(Controller):
         dt: datetime.timedelta,
     ) -> list[Radar]:
         return [self._radar]
+    
+    def get_pcl_sensors(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Radar]:
+        return []
 
     def get_receivers(
         self,
