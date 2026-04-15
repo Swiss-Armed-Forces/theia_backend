@@ -5,12 +5,12 @@ import scipy.constants as sc
 from theia.config import RCS_FOR_RANGE_CALCULATION, RF_LOSS
 from theia.detection.active import calculate_probability_of_detection
 from theia.snr import calculate_snr
-from theia.types import Radar
+from theia.types import Sensor
 from theia.util import get_clear_sky_attenuation
 
 
 def calculate_maximum_monostatic_range(
-    radar: Radar,
+    radar: Sensor,
     target_rcs: float = RCS_FOR_RANGE_CALCULATION,
     probability_threshold: float = 0.8,
     maximum_expected_range: float = 2**20,
@@ -22,7 +22,7 @@ def calculate_maximum_monostatic_range(
 
     Parameters
     ----------
-    radar: Radar
+    radar: Sensor
         Radar
     target_rcs: float, deafult RCS_FOR_RANGE_CALCULATION
         RCS of a target to be detected [m^2]

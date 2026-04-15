@@ -15,7 +15,7 @@ from theia.coverage import calculate_coverage
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.logging import SituationalPictureBuffer
 from theia.simulation.simulation_director import SimulationDirector
-from theia.types import Radar
+from theia.types import Sensor
 
 
 class Team(Enum):
@@ -47,7 +47,7 @@ class ExtrapolatedTrack(pydantic.BaseModel):
 
 class ExtrapolatedSituationalPicture(pydantic.BaseModel):
     time: datetime.datetime
-    friendly_radars: list[Radar]
+    friendly_radars: list[Sensor]
     enemy_tracks: list[ExtrapolatedTrack]
 
 
@@ -161,7 +161,7 @@ def create_app(
 
     @app.post("/calculate_monostatic_coverage")
     def calculate_monostatic_coverage(
-        radar: Radar,
+        radar: Sensor,
         target_alt: float,
         rcs: float,
         probability_threshold: float,

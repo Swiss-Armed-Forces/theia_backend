@@ -11,7 +11,7 @@ import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
 
 from theia.coordinates import POSITIONS_OF_INTEREST
-from theia.types import Radar, Target, Trajectory
+from theia.types import Sensor, Target, Trajectory
 
 
 # EPSG:4326 is standard lat/lon; we reproject to 3857 (Web Mercator) for contextily tiles
@@ -22,14 +22,14 @@ WEB_MERCATOR = "EPSG:3857"
 class RadarMap:
     def __init__(
         self,
-        radars: dict[str, Radar] = {},
+        sensors: dict[str, Sensor] = {},
         targets: dict[str, Target] = {},
         polygons: dict[str, Polygon] = {},
         paths: dict[str, LineString] = {},
         trajectories: dict[str, Trajectory] = {},
         latlon_popup: bool = True,
     ):
-        self.radars = radars
+        self.sensors = sensors
         self.targets = targets
         self.polygons = polygons
         self.paths = paths
@@ -49,7 +49,7 @@ class RadarMap:
         if self.latlon_popup:
             folium.LatLngPopup().add_to(map)
 
-        for name, radar in self.radars.items():
+        for name, radar in self.sensors.items():
             if radar.transmitter.point == radar.receiver.point:
                 folium.Marker(
                     location=(radar.transmitter.lat, radar.transmitter.lon),
@@ -134,7 +134,7 @@ class RadarMap:
         ax.add_image(tile_source, zoom)
 
         # --- Radars ---
-        for name, radar in self.radars.items():
+        for name, radar in self.sensors.items():
             if radar.transmitter.point == radar.receiver.point:
                 ax.plot(
                     radar.transmitter.lon,
@@ -291,7 +291,7 @@ class RadarMap:
 
         # --- Legend ---
         legend_handles = []
-        if self.radars:
+        if self.sensors:
             legend_handles.append(
                 mlines.Line2D(
                     [],
@@ -380,7 +380,7 @@ class RadarMap:
         fig = go.Figure()
 
         # --- Radars ---
-        for name, radar in self.radars.items():
+        for name, radar in self.sensors.items():
             is_monostatic = radar.transmitter.point == radar.receiver.point
 
             fig.add_trace(
@@ -516,7 +516,7 @@ class RadarMap:
 
 def plot_trajectories(
     times: list[datetime.datetime],
-    radars: dict[str, Radar],
+    sensors: dict[str, Sensor],
     trajectories: list[Trajectory],
 ):
     frames = []
@@ -524,7 +524,7 @@ def plot_trajectories(
         targets = [trajectory(time) for trajectory in trajectories]
         targets = [target for target in targets if target is not None]
         fig = RadarMap(
-            radars=radars,
+            sensors=sensors,
             targets={str(t.id): t for t in targets},
         ).to_plotly_map()
         frames.append(
@@ -537,7 +537,7 @@ def plot_trajectories(
 
     # --- Initial (first) frame data ---
     base_fig = RadarMap(
-        radars=radars,
+        sensors=sensors,
         targets={
             str(t.id): t for t in targets
         },  # or reuse frame_fig from last iteration

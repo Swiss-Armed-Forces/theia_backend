@@ -2,12 +2,12 @@
 import numpy as np
 import scipy.constants as sc
 from theia.coordinates import CoordinateTransformations
-from theia.types import Radar, Target
+from theia.types import Sensor, Target
 
 
 def _calculate_additional_detection_infos(
-    tx: Radar,
-    rx: Radar,
+    tx: Sensor,
+    rx: Sensor,
     tgt: Target,
     snr: float,
     doppler: float,
