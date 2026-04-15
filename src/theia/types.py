@@ -829,6 +829,14 @@ class Controller(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
+    def get_pcl_sensors(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Radar]:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
     def get_receivers(
         self,
         situational_picture: SituationalPicture,
