@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="160mm"
+   height="90mm"
+   viewBox="0 0 160 90"
+   version="1.1"
+   id="svg5"
+   sodipodi:docname="pseudo_tracker_pcl.svg"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="1.3932941"
+     inkscape:cx="250.48553"
+     inkscape:cy="106.22309"
+     inkscape:window-width="1920"
+     inkscape:window-height="1011"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:50.8px;font-family:Alata;-inkscape-font-specification:'Alata Bold';fill:#000000;stroke:#2a00ff;stroke-width:1;stroke-miterlimit:0;paint-order:markers stroke fill"
+       x="32.427891"
+       y="7.3934026"
+       id="text213"><tspan
+         sodipodi:role="line"
+         id="tspan211"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1"
+         x="32.427891"
+         y="7.3934026">Pseudo tracker PCL update</tspan></text>
+    <ellipse
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131"
+       cx="24.349556"
+       cy="39.685535"
+       rx="1.5188107"
+       ry="1.5195525" />
+    <ellipse
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-5"
+       cx="25.868366"
+       cy="65.085464"
+       rx="1.5188107"
+       ry="1.5195525" />
+    <ellipse
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-0"
+       cx="44.434578"
+       cy="28.05319"
+       rx="1.5188107"
+       ry="1.5195525" />
+    <ellipse
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3"
+       cx="70.641945"
+       cy="31.092295"
+       rx="1.5188107"
+       ry="1.5195525" />
+    <ellipse
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-6"
+       cx="7.1260214"
+       cy="75.76844"
+       rx="1.5188107"
+       ry="1.5195525" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:0;paint-order:markers stroke fill"
+       x="16.549952"
+       y="77.255043"
+       id="text1204"><tspan
+         sodipodi:role="line"
+         id="tspan1202"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93889px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:1"
+         x="16.549952"
+         y="77.255043">Previous detections (ECEF)</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:7.05556px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:0;paint-order:markers stroke fill"
+       x="16.549952"
+       y="85.342934"
+       id="text1204-2"><tspan
+         sodipodi:role="line"
+         id="tspan1202-0"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93889px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:1"
+         x="16.549952"
+         y="85.342934">New uncertain PCL Detection</tspan></text>
+    <path
+       style="fill:none;fill-opacity:1;stroke:#1f77b4;stroke-width:1;stroke-miterlimit:0;stroke-opacity:1;paint-order:markers stroke fill"
+       d="M 18.4631,66.605016 C 24.349556,41.205085 36.166237,35.034153 52.644685,29.572739 69.123133,24.111326 84.734428,24.490379 84.734428,24.490379"
+       id="path1260" />
+    <path
+       style="fill:none;fill-opacity:1;stroke:#1f77b4;stroke-width:1;stroke-miterlimit:0;stroke-opacity:1;paint-order:markers stroke fill"
+       d="M 94.459076,77.572836 99.51295,73.964039"
+       id="path1316" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.9389px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:none;fill-opacity:1;stroke:#2a00ff;stroke-width:1;stroke-miterlimit:0;stroke-opacity:1;paint-order:markers stroke fill"
+       x="102.07713"
+       y="77.620522"
+       id="text1320"><tspan
+         sodipodi:role="line"
+         id="tspan1318"
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1"
+         x="102.07713"
+         y="77.620522">Track</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.9389px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:none;fill-opacity:1;stroke:#2a00ff;stroke-width:1;stroke-miterlimit:0;stroke-opacity:1;paint-order:markers stroke fill"
+       x="102.07713"
+       y="84.831757"
+       id="text1320-0"><tspan
+         sodipodi:role="line"
+         id="tspan1318-6"
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1"
+         x="102.07713"
+         y="84.831757">Track (extrapolated)</tspan></text>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-miterlimit:0;stroke-opacity:1;paint-order:markers stroke fill"
+       id="rect1374"
+       width="160"
+       height="18.934502"
+       x="0"
+       y="71.065498" />
+    <rect
+       style="fill:none;fill-opacity:0.6;stroke:none;stroke-width:1;stroke-miterlimit:0;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.941176;paint-order:markers stroke fill"
+       id="rect6254"
+       width="23.544348"
+       height="10.388184"
+       x="89.294945"
+       y="19.184555" />
+    <ellipse
+       style="fill:#1f77b4;fill-opacity:0.6;stroke:#1f77b4;stroke-width:0.843;stroke-miterlimit:0;stroke-dasharray:0.84299999,0.84299999;stroke-dashoffset:0;stroke-opacity:0.941176;paint-order:markers stroke fill"
+       id="path7452"
+       cx="84.746567"
+       cy="23.98468"
+       rx="13.683242"
+       ry="13.761143" />
+    <ellipse
+       style="fill:#1f77b4;fill-opacity:0.6;stroke:#1f77b4;stroke-width:0.166063;stroke-miterlimit:0;stroke-dasharray:0.166063, 0.166063;stroke-dashoffset:0;stroke-opacity:0.941176;paint-order:markers stroke fill"
+       id="path7452-4"
+       cx="96.985718"
+       cy="83.548553"
+       rx="2.6954722"
+       ry="2.7108178" />
+    <ellipse
+       style="fill:none;fill-opacity:1;stroke:#ff7f0e;stroke-width:1;stroke-miterlimit:0;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.941176;paint-order:markers stroke fill"
+       id="path10248"
+       cx="136.18259"
+       cy="-31.715569"
+       rx="23.926729"
+       ry="13.516182"
+       transform="rotate(30.462243)" />
+    <ellipse
+       style="fill:none;fill-opacity:1;stroke:#ff7f0e;stroke-width:0.178745;stroke-miterlimit:0;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.941176;paint-order:markers stroke fill"
+       id="path10248-1"
+       cx="48.498558"
+       cy="68.402336"
+       rx="4.2767901"
+       ry="2.4159539"
+       transform="rotate(30.462243)" />
+    <ellipse
+       style="fill:#d62728;fill-opacity:1;stroke:none;stroke-width:0.67412;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3-6"
+       cx="112.09914"
+       cy="31.092295"
+       rx="1.0238612"
+       ry="1.0243611" />
+    <ellipse
+       style="fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:0.67412;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3-6-4"
+       cx="119.16006"
+       cy="25.408403"
+       rx="1.0238612"
+       ry="1.0243611" />
+    <ellipse
+       style="fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:0.67412;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3-6-9"
+       cx="129.22391"
+       cy="25.408403"
+       rx="1.0238612"
+       ry="1.0243611" />
+    <ellipse
+       style="fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:0.67412;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3-6-5"
+       cx="138.90942"
+       cy="29.043571"
+       rx="1.0238612"
+       ry="1.0243611" />
+    <ellipse
+       style="fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:0.67412;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3-6-0"
+       cx="147.11414"
+       cy="34.145554"
+       rx="1.0238612"
+       ry="1.0243611" />
+    <ellipse
+       style="fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:0.67412;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3-6-48"
+       cx="152.86876"
+       cy="41.702888"
+       rx="1.0238612"
+       ry="1.0243611" />
+    <ellipse
+       style="fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:0.67412;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3-6-7"
+       cx="154.91649"
+       cy="51.46302"
+       rx="1.0238612"
+       ry="1.0243611" />
+    <ellipse
+       style="fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:0.67412;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3-6-1"
+       cx="147.11414"
+       cy="57.997372"
+       rx="1.0238612"
+       ry="1.0243611" />
+    <ellipse
+       style="fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:0.67412;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3-6-72"
+       cx="135.11295"
+       cy="56.973011"
+       rx="1.0238612"
+       ry="1.0243611" />
+    <ellipse
+       style="fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:0.67412;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3-6-722"
+       cx="125.14443"
+       cy="52.487381"
+       rx="1.0238612"
+       ry="1.0243611" />
+    <ellipse
+       style="fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:0.67412;stroke-miterlimit:0;paint-order:markers stroke fill"
+       id="path1131-3-6-6"
+       cx="115.64732"
+       cy="43.975639"
+       rx="1.0238612"
+       ry="1.0243611" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.9389px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:0;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.941176;paint-order:markers stroke fill"
+       x="121.90878"
+       y="19.372227"
+       id="text10498"><tspan
+         sodipodi:role="line"
+         id="tspan10496"
+         style="fill:#6a6a6a;fill-opacity:1;stroke:none;stroke-width:1"
+         x="121.90878"
+         y="19.372227">Sampled points</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.9389px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#d62728;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:0;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.941176;paint-order:markers stroke fill"
+       x="113.05244"
+       y="37.79372"
+       id="text11020"><tspan
+         sodipodi:role="line"
+         id="tspan11018"
+         style="stroke-width:1;fill:#d62728;fill-opacity:1"
+         x="113.05244"
+         y="37.79372">Closest point</tspan></text>
+  </g>
+</svg>
