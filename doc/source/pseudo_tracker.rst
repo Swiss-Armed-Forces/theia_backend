@@ -62,3 +62,36 @@ latest update.
 .. [#efficiency] There might be more efficient approaches, e. g. by deriving closed
    form solutions. We keep it simple to implement because it might be enough and
    the pseudo tracker is an approximation in the first place.
+
+
+Example
+=======
+
+Consider a simple example situation with three transmitters (blue) and one receiver (black).
+
+.. raw:: html
+
+    <iframe
+        src="/home/user/Documents/theia_backend/doc/build/html/_static/pcl_example.html"
+        width="100%"
+        height="400px"
+        style"border:none;display=block;"
+    >
+    </iframe>
+
+The minimum detectable radar cross section (RCS) can be calculated for each
+position within the rectangle and each (transmitter, receiver) pair. A hypothetical
+target of RCS = :math:`1 m^2` can be detections in regions where the minimum detectable RCS
+is :math:`\leq 1 m^2`, which is plotted in the second row.
+
+.. image:: _static/pcl_example_coverages.png
+
+A track can be initialised if at least three PCL sensors are able to detect the target
+(almost) at the same time. That is, the region of PCL track init is given by the
+logical AND of each detection map.
+
+.. image:: _static/pcl_example_init_coverage.png
+
+This is the example used in the unit tests. The pseudo track will not initialise
+a track for a target travelling within the red zone.
+However, it will initialise a track if the target is within the green region.
