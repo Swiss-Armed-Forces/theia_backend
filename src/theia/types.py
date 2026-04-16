@@ -566,6 +566,10 @@ class PclDetection(pydantic.BaseModel):
     """Bistatic range [m]."""
     doppler_shift: float
     """Doppler shift [Hz]."""
+    sigma_bistatic_range: float = 0.0
+    """Standard deviation of the bistatic range [m]"""
+    sigma_doppler_shift: float = 0.0
+    """Standard deviation of the Doppler shift [Hz]"""
 
 
 class PetDetection(pydantic.BaseModel):
@@ -904,7 +908,11 @@ class Track(pydantic.BaseModel):
 
 class AbstractTracker(abc.ABC):
     @abc.abstractmethod
-    def add_detections(self, detections: list[MonostaticRadarDetection | PclDetection]):
+    def add_detections(
+        self,
+        monostatic_detections: list[MonostaticRadarDetection],
+        pcl_detections: list[PclDetection],
+    ):
         """Add detections of a single iteration to this tracker."""
         raise NotImplementedError()
 
