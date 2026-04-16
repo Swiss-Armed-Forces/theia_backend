@@ -177,6 +177,19 @@ class PclDetector(pydantic.BaseModel):
     def minimum_detectable_rcs_vector(
         self, rx: Receiver, tx: Transmitter, points: np.ndarray
     ) -> np.ndarray:
+        """
+        Calculate minimum detectable RCS for the given PCL sensor at multiple positions.
+
+        Parameters
+        ----------
+        rx: Receiver
+            Receiver
+        tx: Transmitter
+            Transmitter
+        points: np.ndarray
+            Geodetic positions at which to evaluate the minimum detectable RCS.
+            Shape: (N, 3)
+        """
         results = np.empty(points.shape[0], dtype=np.float64)
         for i, point in enumerate(points):
             tgt = Target(
