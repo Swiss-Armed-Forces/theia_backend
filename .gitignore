@@ -5,6 +5,8 @@
 *.csv
 *.json
 *.prof
+*.pvsm
+*.vts
 doc/build/
 doc/source/_static/pcl_example_coverages.png
 doc/source/_static/pcl_example_init_coverage.png
