@@ -1,6 +1,8 @@
 import numpy as np
 from scipy import integrate, special
 import scipy.constants as sc
+import shapely
+from skimage import measure
 
 
 def erp_to_power(erp: float, losses: float, gain: float) -> float:
@@ -117,3 +119,44 @@ def frequency_to_wavelength(frequency: float) -> float:
         Wavelength [m]
     """
     return sc.speed_of_light / (frequency * 1e6)
+
+
+def mask_to_polygon(
+    mask: np.ndarray,
+    x0: float,
+    dx: float,
+    y0: float,
+    dy: float,
+) -> list[shapely.Polygon]:
+    def index_to_lonlat(ix: int, iy: int) -> tuple[float, float]:
+        return (y0 + iy * dy, x0 + ix * dx)
+
+    def signed_area(points):
+        return 0.5 * sum(
+            points[i, 0] * points[(i + 1) % len(points), 1]
+            - points[(i + 1) % len(points), 0] * points[i, 1]
+            for i in range(len(points))
+        )
+
+    contours = measure.find_contours(mask, level=0.5)
+
+    outers = []
+    holes = []
+    for contour in contours:
+        points = np.array([index_to_lonlat(p[0], p[1]) for p in contour])
+        if signed_area(points) > 0:
+            outers.append(points)
+        else:
+            holes.append(points)
+
+    final_polygons = []
+    for outer in outers:
+        outer_poly = shapely.Polygon(outer)
+        inner_holes = []
+
+        for hole in holes:
+            if outer_poly.contains(shapely.Point(hole[0])):
+                inner_holes.append(hole)
+
+        final_polygons.append(shapely.Polygon(outer, holes=inner_holes))
+    return final_polygons

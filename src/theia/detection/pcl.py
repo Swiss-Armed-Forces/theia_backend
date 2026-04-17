@@ -11,6 +11,7 @@ from theia.distance import (
     get_bistatic_range,
 )
 from theia.doppler import calculate_doppler_shift
+from theia.grids import LatLonHeightGrid
 from theia.snr import calculate_snr
 from theia.types import (
     ConstantRcsModel,
@@ -207,6 +208,24 @@ class PclDetector(pydantic.BaseModel):
                 self.snr_threshold,
             )
         return results
+
+    def minimum_detectable_rcs_grid(
+        self, rx: Receiver, tx: Transmitter, grid: LatLonHeightGrid,
+    ) -> np.ndarray:
+        """
+        Calculate minimum detectable RCS for the given PCL sensor at multiple positions.
+
+        Parameters
+        ----------
+        rx: Receiver
+            Receiver
+        tx: Transmitter
+            Transmitter
+        grid: LatLonHeightGrid
+            Grid on which to calculate the minimum detectable RCS
+        """
+        result_vector = self.minimum_detectable_rcs_vector(rx, tx, grid.points)
+        return result_vector.reshape(grid.n_points)
 
     def calculate_pcl_detection(
         self,
