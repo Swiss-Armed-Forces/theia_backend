@@ -1,10 +1,12 @@
 import copy
+import datetime
 from typing import Literal
 
 import numpy as np
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.data_loading import load_bakom_ukw_transmitters
 from theia.distance import line_of_sight_distance
+from theia.grids import LatLonHeightGrid
 from theia.terrain import elevationAt
 from theia.types import (
     ConstantRcsModel,
@@ -14,6 +16,7 @@ from theia.types import (
     Sensor,
     Receiver,
     Target,
+    Trajectory,
     Transmitter,
     calculate_antenna_gain,
 )
@@ -170,9 +173,8 @@ def get_uetliberg_radar(
     )
 
 
-def load_pcl_example_sensors() -> tuple[
-    list[Sensor], np.ndarray, np.ndarray, np.ndarray
-]:
+def load_pcl_example(rcs: float=1.0) -> tuple[list[Sensor], list[Trajectory], LatLonHeightGrid]:
+    # Define the sensors.
     rx = get_uetliberg_radar(
         min_range_uncertainty=0.0,
         max_range_uncertainty=0.0,
@@ -219,7 +221,47 @@ def load_pcl_example_sensors() -> tuple[
     lons = np.arange(lon_min, lon_max, lon_res)
     alts = np.array([1000])
 
-    return example_sensors, lats, lons, alts
+    grid = LatLonHeightGrid(
+        lat_start=lats[0],
+        lat_stop=lats[-1],
+        lat_res=lats[1] - lats[0] if len(lats) > 1 else 1.0,
+        lon_start=lons[0],
+        lon_stop=lons[-1],
+        lon_res=lons[1] - lons[0] if len(lons) > 1 else 1.0,
+        height_start=alts[0],
+        height_stop=alts[-1],
+        height_res=alts[1] - alts[0] if len(alts) > 1 else 1.0,
+    )
+
+    # Define the targets.
+    # In track update region.
+    p1 = Point(lat=47.2985, lon=8.1231, alt=1000.0)
+    # In track init region.
+    p2 = Point(lat=47.2985, lon=8.2796, alt=1000.0)
+    # In track update region.
+    p3 = Point(lat=47.2985, lon=8.4035, alt=1000.0)
+
+    v = 300
+
+    t0 = datetime.datetime(year=2026, month=4, day=20)
+    dt1 = line_of_sight_distance(p1.lat, p1.lon, p1.alt, p2.lat, p2.lon, p2.alt) / v
+    t1 = t0 + datetime.timedelta(seconds=dt1)
+    dt2 = line_of_sight_distance(p2.lat, p2.lon, p2.alt, p3.lat, p3.lon, p3.alt) / v
+    t2 = t1 + datetime.timedelta(seconds=dt2)
+
+    trajectory = Trajectory(
+        target_id=0,
+        times=[t0, t1, t2],
+        lats=[p1.lat, p2.lat, p3.lat],
+        lons=[p1.lon, p2.lon, p3.lon],
+        alts=[p1.alt, p2.alt, p3.alt],
+        vxs=[0.0, 0.0, 0.0],
+        vys=[0.0, 0.0, 0.0],
+        vzs=[0.0, 0.0, 0.0],
+        cross_section_model=ConstantRcsModel(rcs=rcs),
+    )
+
+    return example_sensors, [trajectory], grid,
 
 
 def sample_position(

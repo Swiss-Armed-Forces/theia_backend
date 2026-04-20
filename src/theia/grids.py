@@ -57,16 +57,26 @@ class LatLonHeightGrid(pydantic.BaseModel):
         )
 
     @property
+    def latitude_values(self) -> np.ndarray:
+        return np.linspace(self.lat_start, self.lat_stop, self.n_points_lat)
+
+    @property
+    def longitude_values(self) -> np.ndarray:
+        return np.linspace(self.lon_start, self.lon_stop, self.n_points_lon)
+
+    @property
+    def altitude_values(self) -> np.ndarray:
+        return np.linspace(self.height_start, self.height_stop, self.n_points_height)
+
+    @property
     def points(self) -> np.ndarray:
         """Points in the grid. Shape: ``self.n_points``"""
         n = self.n_points[0] * self.n_points[1] * self.n_points[2]
         points = np.empty((n, 3), dtype=np.float32)
         i = 0
-        for lat in np.linspace(self.lat_start, self.lat_stop, self.n_points_lat):
-            for lon in np.linspace(self.lon_start, self.lon_stop, self.n_points_lon):
-                for height in np.linspace(
-                    self.height_start, self.height_stop, self.n_points_height
-                ):
+        for lat in self.latitude_values:
+            for lon in self.longitude_values:
+                for height in self.altitude_values:
                     points[i, :] = lat, lon, height
                     i += 1
         return points
