@@ -138,6 +138,9 @@ def mask_to_polygon(
             for i in range(len(points))
         )
 
+    mask = np.pad(
+        mask.astype(np.uint8), pad_width=1, mode="constant", constant_values=0
+    )
     contours = measure.find_contours(mask, level=0.5)
 
     outers = []

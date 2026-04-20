@@ -210,7 +210,10 @@ class PclDetector(pydantic.BaseModel):
         return results
 
     def minimum_detectable_rcs_grid(
-        self, rx: Receiver, tx: Transmitter, grid: LatLonHeightGrid,
+        self,
+        rx: Receiver,
+        tx: Transmitter,
+        grid: LatLonHeightGrid,
     ) -> np.ndarray:
         """
         Calculate minimum detectable RCS for the given PCL sensor at multiple positions.
@@ -364,3 +367,50 @@ def calculate_antenna_pattern(
     )
 
     return -horiz_att - vert_att
+
+
+def pcl_track_init_update_masks(
+    detector: PclDetector,
+    sensors: list[Sensor],
+    grid: LatLonHeightGrid,
+    rcs: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Calculate binary masks for PCL track init (at least 3 sensors detect) and
+    track update (at least 1 sensor detects).
+
+    Parameters
+    ----------
+    detector: PclDetector
+        Detector model to use
+    sensors: list[Sensor]
+        PCL Sensors
+    grid: LatLonHeightGrid
+        Grid on which to calculate detectability
+    rcs: float
+        Radar cross section of the target to be detected.
+
+    Returns
+    -------
+    track_init_mask: np.ndarray
+        Binary mask indicating where on the grid a track can be initialized using
+        only the PCL sensors
+    track_update_mask: np.ndarray
+        Binary mask indicating where on the grid a track can be updated using
+        only the PCL sensors
+    """
+    min_detectable_rcs_grids = [
+        detector.minimum_detectable_rcs_grid(
+            sensor.receiver,
+            sensor.transmitter,
+            grid,
+        )
+        for sensor in sensors
+    ]
+
+    detection_grids = [rcs_grid <= rcs for rcs_grid in min_detectable_rcs_grids]
+    n_detections_grid = sum(detection_grids)
+    track_update_mask = np.logical_and(0 <= n_detections_grid, n_detections_grid < 3)
+    track_init_mask = 3 <= n_detections_grid
+
+    return track_init_mask, track_update_mask

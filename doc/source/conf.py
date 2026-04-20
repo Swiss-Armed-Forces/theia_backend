@@ -126,6 +126,7 @@ def save_pcl_coverage_plots(app):
         ax.set_xticklabels([f"{lon:.3f}" for lon in lons][::label_skip])
         ax.set_yticklabels([f"{lat:.3f}" for lat in lats][::label_skip])
         ax.tick_params(axis="x", rotation=90)
+        ax.invert_yaxis()
 
     axes[1, 3].remove()
     fig.colorbar(img, cax=axes[0, 3])
@@ -138,6 +139,7 @@ def save_pcl_coverage_plots(app):
     ax.imshow(
         np.all(minimum_detectable_rcs[:, :, 0, :] <= RCS, axis=-1), cmap=cmap, norm=norm
     )
+    ax.invert_yaxis()
     ax.set_title(
         f"Zones for PCL track init for RCS = {RCS} $m^2$ (sensors {[s.id for s in example_sensors]})"
     )
