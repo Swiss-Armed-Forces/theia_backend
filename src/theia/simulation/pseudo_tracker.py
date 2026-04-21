@@ -4,7 +4,7 @@ import itertools
 import numpy as np
 
 from theia.coordinates import CoordinateTransformations
-from theia.distance import get_bistatic_range, line_of_sight_distance
+from theia.distance import line_of_sight_distance
 from theia.ellipsoid import Ellipsoid
 from theia.measurement import MonostaticMeasurementTransformations
 from theia.types import (
