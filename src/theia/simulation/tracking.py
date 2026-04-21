@@ -22,14 +22,23 @@ from stonesoup.types.track import Track
 import theia
 from theia.measurement import MonostaticMeasurementTransformations
 from theia.stonesoup_interface import MonostaticDetectionFactory
-from theia.types import CLUTTER_TARGET, AbstractTracker, MonostaticRadarDetection
+from theia.types import (
+    CLUTTER_TARGET,
+    AbstractTracker,
+    MonostaticRadarDetection,
+    PclDetection,
+)
 
 
 class DummyTracker(AbstractTracker):
-    def add_detections(self, detections):
+    def add_detections(
+        self,
+        monostatic_detections: list[MonostaticRadarDetection],
+        pcl_detections: list[PclDetection],
+    ):
         pass
 
-    def get_tracks(self):
+    def get_tracks(self) -> list[theia.types.Track]:
         return []
 
 
@@ -38,7 +47,7 @@ class MonostaticSingleSensorTracker(AbstractTracker):
         self,
         q: float = 1.0,
         mahalanobis_miss_distance: float = 50.0,
-        deletion_covariance_threshold=200_000.0,
+        deletion_covariance_threshold: float = 200_000.0,
     ):
         # Initialise the tracker.
         transition_model = CombinedLinearGaussianTransitionModel(
@@ -87,7 +96,12 @@ class MonostaticSingleSensorTracker(AbstractTracker):
         # Initialise the tracks.
         self._tracks: set[Track] = set()
 
-    def add_detections(self, detections: set[MonostaticRadarDetection]):
+    def add_detections(
+        self,
+        monostatic_detections: list[MonostaticRadarDetection],
+        pcl_detections: list[PclDetection],
+    ):
+        detections = monostatic_detections
         detections = set([MonostaticDetectionFactory.from_theia(d) for d in detections])
         if len(detections) == 0:
             return
@@ -147,7 +161,13 @@ class MonostaticPseudoTracker(AbstractTracker):
         self._removal_patience = removal_patience
         """Number of iterations a track is kept without updates"""
 
-    def add_detections(self, detections):
+    def add_detections(
+        self,
+        monostatic_detections: list[MonostaticRadarDetection],
+        pcl_detections: list[PclDetection],
+    ):
+        detections = monostatic_detections
+
         def f(d: MonostaticRadarDetection):
             return d.target.id
 

@@ -53,7 +53,7 @@ class SimulatorTest(unittest.TestCase):
             time_step=datetime.timedelta(seconds=1),
             min_time_per_step=datetime.timedelta(seconds=0),
             termination_criterion=TimeCriterion(stop_time),
-            seed=4054080,
+            rng=np.random.Generator(np.random.PCG64(seed=4054080)),
             listener=logger,
         )
         # Simulate until the end.
@@ -89,7 +89,7 @@ class SimulatorTest(unittest.TestCase):
             time_step=time_step,
             min_time_per_step=datetime.timedelta(seconds=0),
             termination_criterion=TimeCriterion(stop_time),
-            seed=4054080,
+            rng=np.random.Generator(np.random.PCG64(seed=4054080)),
             listener=logger,
         )
         n_iterations = int(
