@@ -82,6 +82,7 @@ def get_uetliberg_radar(
     diameter: float = 4.0,
     rx_bandwidth: float = 5.0,
     tx_bandwidth: float | None = None,
+    rotation_time: float = 10.0,
     integration_time: float = 0.1,
     min_range_uncertainty: float = 100,
     max_range_uncertainty: float = np.inf,
@@ -102,6 +103,8 @@ def get_uetliberg_radar(
     tx_bandwidth: float | None, default None
         Bandwidth of the transmitter [MHz]
         If None (default), the receiver's bandwidth is assumed
+    rotation_time: float, default 10.0
+        Time between detections for each receiver [s]
     integration_time: float, default 1 / (5 * 1e6)
         Integration time of the receiver [s]
     min_range_uncertainty: float, default 100
@@ -154,7 +157,7 @@ def get_uetliberg_radar(
             pfa=1e-06,
             min_elevation=-20.0,
             max_elevation=60.0,
-            rotation_time=10.0,
+            rotation_time=rotation_time,
             bandwidth=rx_bandwidth,
             gain=0,
             losses=0,
@@ -173,13 +176,17 @@ def get_uetliberg_radar(
     )
 
 
-def load_pcl_example(rcs: float=1.0) -> tuple[list[Sensor], list[Trajectory], LatLonHeightGrid]:
+def load_pcl_example(
+    rcs: float = 1.0,
+    rotation_time: float = 10.0,
+) -> tuple[list[Sensor], list[Trajectory], LatLonHeightGrid]:
     # Define the sensors.
     rx = get_uetliberg_radar(
         min_range_uncertainty=0.0,
         max_range_uncertainty=0.0,
         min_angular_uncertainty=0.0,
         max_angular_uncertainty=0.0,
+        rotation_time=rotation_time,
     ).receiver
 
     transmitters = load_bakom_ukw_transmitters()
@@ -196,7 +203,9 @@ def load_pcl_example(rcs: float=1.0) -> tuple[list[Sensor], list[Trajectory], La
     pcl_sensors: list[Sensor] = []
     for i, tx in enumerate(transmitters):
         rx = get_uetliberg_radar(
-            rx_bandwidth=tx.bandwidth, tx_bandwidth=tx.bandwidth
+            rx_bandwidth=tx.bandwidth,
+            tx_bandwidth=tx.bandwidth,
+            rotation_time=rotation_time,
         ).receiver
         rx.id = i
         pcl_sensors.append(
@@ -237,21 +246,21 @@ def load_pcl_example(rcs: float=1.0) -> tuple[list[Sensor], list[Trajectory], La
     # In track update region.
     p1 = Point(lat=47.2985, lon=8.1231, alt=1000.0)
     # In track init region.
-    p2 = Point(lat=47.2985, lon=8.2796, alt=1000.0)
+    p2 = Point(lat=47.2985, lon=8.2667, alt=1000.0)
     # In track update region.
     p3 = Point(lat=47.2985, lon=8.4035, alt=1000.0)
 
     v = 300
 
-    t0 = datetime.datetime(year=2026, month=4, day=20)
+    t1 = datetime.datetime(year=2026, month=4, day=20)
     dt1 = line_of_sight_distance(p1.lat, p1.lon, p1.alt, p2.lat, p2.lon, p2.alt) / v
-    t1 = t0 + datetime.timedelta(seconds=dt1)
+    t2 = t1 + datetime.timedelta(seconds=dt1)
     dt2 = line_of_sight_distance(p2.lat, p2.lon, p2.alt, p3.lat, p3.lon, p3.alt) / v
-    t2 = t1 + datetime.timedelta(seconds=dt2)
+    t3 = t2 + datetime.timedelta(seconds=dt2)
 
     trajectory = Trajectory(
         target_id=0,
-        times=[t0, t1, t2],
+        times=[t1, t2, t3],
         lats=[p1.lat, p2.lat, p3.lat],
         lons=[p1.lon, p2.lon, p3.lon],
         alts=[p1.alt, p2.alt, p3.alt],
@@ -261,7 +270,11 @@ def load_pcl_example(rcs: float=1.0) -> tuple[list[Sensor], list[Trajectory], La
         cross_section_model=ConstantRcsModel(rcs=rcs),
     )
 
-    return example_sensors, [trajectory], grid,
+    return (
+        example_sensors,
+        [trajectory],
+        grid,
+    )
 
 
 def sample_position(
