@@ -2,20 +2,24 @@
 
 import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import pydantic
 import shapely
 
+import theia
 from theia.config import FRONTEND_URL
 from theia.coordinates import CoordinateTransformations
 from theia.coverage import calculate_coverage
+from theia.detection.pcl import PclDetector, pcl_track_init_update_masks
+from theia.grids import LatLonHeightGrid
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.logging import SituationalPictureBuffer
 from theia.simulation.simulation_director import SimulationDirector
 from theia.types import Sensor
+from theia.util import mask_to_polygon
 
 
 class Team(Enum):
@@ -57,7 +61,7 @@ class ExtrapolatedGroundtruth(pydantic.BaseModel):
 
 
 class GeoJSONPolygon(pydantic.BaseModel):
-    type: str = "Polygon"
+    type: Literal["Polygon"] = "Polygon"
     coordinates: list[list[list[float]]]
 
     @classmethod
@@ -68,10 +72,43 @@ class GeoJSONPolygon(pydantic.BaseModel):
         )
 
 
+class GeoJSONMultiPolygon(pydantic.BaseModel):
+    type: Literal["MultiPolygon"] = "MultiPolygon"
+    # One extra nesting level: [polygon][ring][point][coordinate]
+    coordinates: list[list[list[list[float]]]]
+
+    @classmethod
+    def from_shapely(cls, multi: shapely.MultiPolygon) -> "GeoJSONMultiPolygon":
+        geojson = shapely.geometry.mapping(multi)
+        return cls(
+            coordinates=[
+                [list(map(list, ring)) for ring in polygon]
+                for polygon in geojson["coordinates"]
+            ]
+        )
+
+
+GeoJSONGeometry = GeoJSONPolygon | GeoJSONMultiPolygon
+
+
 class GeoJSONFeature(pydantic.BaseModel):
     type: str = "Feature"
-    geometry: GeoJSONPolygon
+    geometry: GeoJSONGeometry = pydantic.Field(discriminator="type")
     properties: dict[str, Any] = {}
+
+    @classmethod
+    def from_shapely(
+        cls,
+        shape: shapely.Polygon | shapely.MultiPolygon,
+        properties: dict[str, Any] = {},
+    ) -> "GeoJSONFeature":
+        if isinstance(shape, shapely.Polygon):
+            geometry = GeoJSONPolygon.from_shapely(shape)
+        elif isinstance(shape, shapely.MultiPolygon):
+            geometry = GeoJSONMultiPolygon.from_shapely(shape)
+        else:
+            raise TypeError(f"Unsupported geometry type: {type(shape)}")
+        return cls(geometry=geometry, properties=properties)
 
 
 def create_app(
@@ -183,6 +220,85 @@ def create_app(
         return GeoJSONFeature(
             geometry=GeoJSONPolygon.from_shapely(polygon),
             properties={"name": "my polygon"},
+        )
+
+    @app.post("/calculate_pcl_coverage")
+    def calculate_pcl_coverage(
+        sensors: list[Sensor],
+        grid: LatLonHeightGrid,
+        rcs: float,
+        snr_threshold: float = theia.config.SNR_THRESHOLD_PCL,
+        doppler_threshold: float = theia.config.DOPPLER_SHIFT_THRESHOLD_PCL,
+        delay_threshold: float = theia.config.DELAY_THRESHOLD_PCL,
+    ) -> tuple[GeoJSONFeature, GeoJSONFeature]:
+        """
+        Calculate PCL coverage.
+
+        Parameters
+        ----------
+        sensor: Sensor
+            Sensor
+        grid: LatLonHeightGrid
+            Calculation grid
+        rcs: float
+            Radar cross section for which to calculate the coverage
+        snr_threshold: float, default theia.config.SNR_THRESHOLD_PCL
+            Minimum detectable threshold [dB]
+        doppler_threshold: float, default theia.config.DOPPLER_SHIFT_THRESHOLD_PCL
+            Minimum detectable Doppler shift [Hz]
+        delay_threshold: float, default theia.config.DELAY_THRESHOLD_PCL
+            Delay threshold for PCL [us].
+            This is used to judge whether a given transmitter - target - receiver geometry
+            is in the bistatic or the forward scattering regime.
+
+        Returns
+        -------
+        track_init_coverage: GeoJSONFeature
+            Region in which a track init can happen only using PCL
+        track_update_coverage: GeoJSONFeature
+            Region in which a track update can happen only using PCL
+        """
+        assert grid.altitude_values.shape[0] == 1
+
+        detector = PclDetector(
+            snr_threshold=snr_threshold,
+            doppler_threshold=doppler_threshold,
+            delay_threshold=delay_threshold,
+        )
+
+        track_init_mask, track_update_mask = pcl_track_init_update_masks(
+            detector,
+            sensors,
+            grid,
+            rcs,
+        )
+
+        polygons_init = mask_to_polygon(
+            track_init_mask[:, :, 0],
+            grid.latitude_values[0],
+            grid.latitude_values[1] - grid.latitude_values[0],
+            grid.longitude_values[0],
+            grid.longitude_values[1] - grid.longitude_values[0],
+        )
+
+        polygons_update = mask_to_polygon(
+            track_update_mask[:, :, 0],
+            grid.latitude_values[0],
+            grid.latitude_values[1] - grid.latitude_values[0],
+            grid.longitude_values[0],
+            grid.longitude_values[1] - grid.longitude_values[0],
+        )
+        return (
+            GeoJSONFeature(
+                geometry=GeoJSONMultiPolygon.from_shapely(
+                    shapely.MultiPolygon(polygons_init)
+                )
+            ),
+            GeoJSONFeature(
+                geometry=GeoJSONMultiPolygon.from_shapely(
+                    shapely.MultiPolygon(polygons_update)
+                )
+            ),
         )
 
     @app.get("/health")
