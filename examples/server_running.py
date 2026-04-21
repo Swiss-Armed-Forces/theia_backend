@@ -1,6 +1,7 @@
 import datetime
 from pathlib import Path
 
+import numpy as np
 import uvicorn
 
 from theia.data_loading import load_trajectory_file
@@ -65,7 +66,7 @@ simulator = Simulator(
     time_step=time_step,
     min_time_per_step=datetime.timedelta(seconds=1),
     termination_criterion=TimeCriterion(stop_time),
-    seed=4054080,
+    rng=np.random.Generator(np.random.PCG64(seed=4054080)),
     listener=buffer,
     simulate_clutter=False,
 )
