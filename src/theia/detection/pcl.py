@@ -257,9 +257,13 @@ class PclDetector(pydantic.BaseModel):
             the detection that was made or None if no detection takes place.
         """
         assert tgt.alt > 0
-        snr, bistatic_range, doppler = self.calculate_raw_measurement(
-            sensor.receiver, sensor.transmitter, tgt
-        )
+        try:
+            snr, bistatic_range, doppler = self.calculate_raw_measurement(
+                sensor.receiver, sensor.transmitter, tgt
+            )
+        except ValueError:
+            # We ignore the forward scattering case.
+            return None
 
         if abs(doppler) < self.doppler_threshold:
             return None

@@ -45,7 +45,7 @@ class Simulator:
         time_step: datetime.timedelta,
         min_time_per_step: datetime.timedelta,
         termination_criterion: TerminationCriterion,
-        seed: int,
+        rng: np.random.Generator,
         listener: AbstractSimulationListener,
         simulate_clutter: bool = True,
     ):
@@ -71,8 +71,8 @@ class Simulator:
             human interactivity.
         termination_criterion: TerminationCriterion
             Determines when the simulation stops.
-        seed: int
-            Seed for the pseudo-random number generator (RNG)
+        rng: np.random.Generator
+            Pseudo-random number generator (RNG)
         listener: AbstractSimulationListener
             Called when intermediate results are available
         simulate_clutter: bool, default True
@@ -87,7 +87,7 @@ class Simulator:
         self._minimum_seconds_per_step: float = float(min_time_per_step.seconds)
         """Minimum amount of time to spend on an iteration."""
         self._termination_criterion = termination_criterion
-        self._rng = np.random.Generator(np.random.PCG64(seed=seed))
+        self._rng = rng
         self._listener = listener
         self._simulate_clutter = simulate_clutter
 
@@ -284,16 +284,19 @@ class Simulator:
         blue_active_radar_detections = self._calculate_blue_monostatic_detections()
         blue_pcl_detections = self._calculate_blue_pcl_detections()
 
-        # TODO: Implement PCL detections.
         # TODO: Implement PET detections.
 
         # Track.
-        self._blue_tracker.add_detections(blue_active_radar_detections)
+        self._blue_tracker.add_detections(
+            blue_active_radar_detections,
+            blue_pcl_detections,
+        )
 
         # Log.
         self._listener.on_snapshot(self.take_snapshot())
         self._listener.on_detections(
-            blue_active_radar_detections + blue_pcl_detections,
+            blue_active_radar_detections,
+            blue_pcl_detections,
             is_blue=True,
         )
 
@@ -354,6 +357,7 @@ class AbstractSimulationListener(abc.ABC):
     def on_detections(
         self,
         active_radar_detections: list[MonostaticRadarDetection],
+        pcl_detections: list[PclDetection],
         is_blue: bool,
     ):
         raise NotImplementedError()
