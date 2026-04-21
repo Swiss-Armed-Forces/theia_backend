@@ -85,9 +85,9 @@ def get_uetliberg_radar(
     rotation_time: float = 10.0,
     integration_time: float = 0.1,
     min_range_uncertainty: float = 100,
-    max_range_uncertainty: float = np.inf,
-    min_angular_uncertainty: float = np.deg2rad(1),
-    max_angular_uncertainty: float = np.deg2rad(360),
+    max_range_uncertainty: float = float(10_000),
+    min_angular_uncertainty: float = float(np.deg2rad(1)),
+    max_angular_uncertainty: float = float(np.deg2rad(360)),
 ):
     """
     Parameters
@@ -213,7 +213,12 @@ def load_pcl_example(
                 id=i,
                 transmitter=tx,
                 receiver=rx,
-                error_model=MonostaticRadarMeasurementModel(),
+                error_model=MonostaticRadarMeasurementModel(
+                    min_range_uncertainty=0.0,
+                    max_range_uncertainty=0.0,
+                    min_angular_uncertainty=0.0,
+                    max_angular_uncertainty=0.0,
+                ),
             )
         )
 
