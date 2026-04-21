@@ -48,7 +48,7 @@ class MonostaticPseudoTrackerTest(unittest.TestCase):
                 sigma_elevation=0.0,
                 sigma_azimuth=0.0,
             )
-            tracker.add_detections([detection])
+            tracker.add_detections([detection], [])
 
             if i == 0:
                 # A single detection cannot be a track due to interpolation.
@@ -111,7 +111,7 @@ class MonostaticPseudoTrackerTest(unittest.TestCase):
                     sigma_azimuth=0.0,
                 )
                 detections.append(detection)
-            tracker.add_detections(detections)
+            tracker.add_detections(detections, [])
 
         tracks = tracker.get_tracks()
 
