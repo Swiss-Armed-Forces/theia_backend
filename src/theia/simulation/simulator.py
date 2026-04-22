@@ -106,7 +106,7 @@ class Simulator:
     def get_situational_picture_blue(self) -> SituationalPicture:
         return SituationalPicture(
             time=self._t,
-            friendly_radars=self._blue_monostatic_radars,
+            friendly_radars=self._blue_monostatic_radars + self._blue_pcl_sensors,
             friendly_targets=self._blue_targets,
             enemy_targets=self._blue_tracker.get_tracks(),
         )
@@ -114,7 +114,7 @@ class Simulator:
     def get_situational_picture_red(self) -> SituationalPicture:
         return SituationalPicture(
             time=self._t,
-            friendly_radars=self._red_monostatic_radars,
+            friendly_radars=self._red_monostatic_radars + self._red_monostatic_radars,
             friendly_targets=self._red_targets,
             enemy_targets=[],
         )
