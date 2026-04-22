@@ -312,7 +312,7 @@ class Simulator:
         self._minimum_seconds_per_step = self._dt.seconds / speedup_factor
 
     def get_speedup(self) -> float:
-        return self._dt.seconds / self._minimum_seconds_per_step
+        return self._dt.seconds / max(1e-6, self._minimum_seconds_per_step)
 
 
 def run_simulation_until_completion(simulator: Simulator):

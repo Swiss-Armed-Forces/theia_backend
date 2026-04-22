@@ -178,7 +178,7 @@ def get_uetliberg_radar(
 
 def load_pcl_example(
     rcs: float = 1.0,
-    rotation_time: float = 10.0,
+    rotation_time: float = 1.0,
 ) -> tuple[list[Sensor], list[Trajectory], LatLonHeightGrid]:
     # Define the sensors.
     rx = get_uetliberg_radar(

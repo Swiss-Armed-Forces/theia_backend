@@ -55,7 +55,7 @@ class FileLogger(AbstractSimulationListener):
         self._override = override
         self.snapshots = []
         self.situational_pictures = []
-        self.active_radar_detections = []
+        self.detections = []
 
     def register_simulator(self, simulator: Simulator):
         pass
@@ -81,7 +81,7 @@ class FileLogger(AbstractSimulationListener):
         pcl_detections: list[PclDetection],
         is_blue: bool,
     ):
-        self.active_radar_detections.append(
+        self.detections.append(
             {
                 "team": "blue" if is_blue else "red",
                 "active_radar_detections": [
@@ -97,7 +97,7 @@ class FileLogger(AbstractSimulationListener):
                 {
                     # "situational_pictures": self.situational_pictures,
                     "snapshots": self.snapshots,
-                    "active_radar_detections": self.active_radar_detections,
+                    "detections": self.detections,
                 },
                 file,
             )
@@ -196,6 +196,10 @@ class LogLoader:
         return self._blue_monostatic_radar_detections
 
     @property
+    def blue_pcl_detections(self) -> list[Detection]:
+        return self._blue_pcl_detections
+
+    @property
     def red_target_ground_truth(self) -> dict[int, GroundTruthPath]:
         return self._red_target_ground_truth
 
@@ -252,26 +256,34 @@ class LogLoader:
         if not is_blue:
             raise NotImplementedError()
 
-        blue_detections = list(
+        # Monostatic detections.
+        blue_monostatic_detections = list(
             itertools.chain.from_iterable(
                 [
                     det["active_radar_detections"]
-                    for det in self._data["active_radar_detections"]
+                    for det in self._data["detections"]
                     if det["team"] == "blue"
                 ]
             )
         )
-        blue_detections = [
-            MonostaticRadarDetection.model_validate(d) for d in blue_detections
+        self._blue_monostatic_radar_detections = [
+            MonostaticRadarDetection.model_validate(d)
+            for d in blue_monostatic_detections
         ]
-        self._raw_blue_detections = sorted(
-            blue_detections, key=lambda d: (d.time, d.radar.receiver.id, d.target.id)
-        )
-        self._blue_monostatic_radar_detections: list[Detection] = []
-        for detection in blue_detections:
-            self._blue_monostatic_radar_detections.append(
-                MonostaticDetectionFactory.from_theia(detection)
+
+        # PCL detections.
+        blue_pcl_detections = list(
+            itertools.chain.from_iterable(
+                [
+                    det["pcl_detections"]
+                    for det in self._data["detections"]
+                    if det["team"] == "blue"
+                ]
             )
+        )
+        self._blue_pcl_detections = [
+            PclDetection.model_validate(d) for d in blue_pcl_detections
+        ]
 
 
 class CompositeSimulationListener(AbstractSimulationListener):
@@ -279,7 +291,8 @@ class CompositeSimulationListener(AbstractSimulationListener):
         self._listeners = listeners
 
     def register_simulator(self, simulator: Simulator):
-        pass
+        for listener in self._listeners:
+            listener.register_simulator(simulator)
 
     def on_snapshot(self, snapshot: Snapshot):
         for listener in self._listeners:
