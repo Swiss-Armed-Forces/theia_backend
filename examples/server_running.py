@@ -1,7 +1,9 @@
-
 import uvicorn
 
-from theia.simulation.predefined_simulations import load_uetliberg_opensky_simulator
+from theia.simulation.predefined_simulations import (
+    load_uetliberg_opensky_simulator,
+    load_uetliberg_single_target_simulator_pcl,
+)
 from theia.simulation.server import create_app
 from theia.simulation.simulation_director import SimulationDirector
 
@@ -10,7 +12,8 @@ print("Initialise...")
 ################################################
 # Setup the simulation.
 ################################################
-simulator, buffer = load_uetliberg_opensky_simulator()
+# simulator, buffer = load_uetliberg_opensky_simulator()
+simulator, buffer = load_uetliberg_single_target_simulator_pcl()
 
 ################################################
 # Setup the server.
