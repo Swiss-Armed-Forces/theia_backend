@@ -5,13 +5,17 @@ from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
+import numpy as np
 import plotly.graph_objects as go
+from scipy.spatial import ConvexHull
+import shapely
 from shapely.geometry import Polygon, LineString
 import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
 
-from theia.coordinates import POSITIONS_OF_INTEREST
-from theia.types import Sensor, Target, Trajectory
+from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
+from theia.ellipsoid import Ellipsoid
+from theia.types import PclDetection, Sensor, Target, Trajectory
 
 
 # EPSG:4326 is standard lat/lon; we reproject to 3857 (Web Mercator) for contextily tiles
@@ -613,3 +617,34 @@ def plot_trajectories(
         ],
     )
     return fig
+
+
+def pcl_detection_to_polygon(
+    detection: PclDetection,
+    target_alt: float,
+    n_theta: int = 180,
+    n_phi: int = 180,
+) -> shapely.Polygon:
+    p_rx = np.array(
+        CoordinateTransformations.geodetic_to_cartesian(
+            *detection.sensor.receiver.point.as_tuple()
+        )
+    )
+    p_tx = np.array(
+        CoordinateTransformations.geodetic_to_cartesian(
+            *detection.sensor.transmitter.point.as_tuple()
+        )
+    )
+    d_base = np.linalg.norm(p_rx - p_tx)
+    r = detection.bistatic_range + d_base
+    ellipsoid = Ellipsoid(p_rx, p_tx, r)
+    points = ellipsoid.sample_surface(n_theta=n_theta, n_phi=n_phi)
+
+    points_at_alt = []
+    for point in points:
+        lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(*point)
+        if np.abs(alt - target_alt) <= 100:
+            points_at_alt.append((lat, lon, alt))
+    points_at_alt = np.stack(points_at_alt, axis=0)
+    hull = ConvexHull(points_at_alt[:, :2])
+    return shapely.Polygon(hull.points[hull.vertices][:, [1, 0]])
