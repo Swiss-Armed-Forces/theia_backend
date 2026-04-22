@@ -97,43 +97,47 @@ class PseudoTracker(AbstractTracker):
                 if target_id in self._states:
                     # Update track.
                     detection = detections[0]
+                    # detection_time = detection.time
+                    # p_receiver = CoordinateTransformations.geodetic_to_cartesian(
+                    #     detection.sensor.receiver.lat,
+                    #     detection.sensor.receiver.lon,
+                    #     detection.sensor.receiver.alt,
+                    # )
+                    # p_transmitter = CoordinateTransformations.geodetic_to_cartesian(
+                    #     detection.sensor.transmitter.lat,
+                    #     detection.sensor.transmitter.lon,
+                    #     detection.sensor.transmitter.alt,
+                    # )
+                    # ellipsoid = Ellipsoid(
+                    #     p_receiver,
+                    #     p_transmitter,
+                    #     detection.bistatic_range
+                    #     + line_of_sight_distance(
+                    #         *detection.sensor.transmitter.point.as_tuple(),
+                    #         *detection.sensor.receiver.point.as_tuple(),
+                    #     ),
+                    # )
+                    # # 2 degree resolution.
+                    # candidate_points = ellipsoid.sample_surface(180, 180)
+
+                    # time_of_last_observation, last_observation = self._states[
+                    #     target_id
+                    # ][-1]
+                    # delta_t = (detection.time - time_of_last_observation).seconds
+                    # p_last_observation = last_observation[[0, 2, 4]]
+                    # v_last_observation = np.linalg.norm(last_observation[[1, 3, 5]])
+                    # r = delta_t * v_last_observation
+
+                    # norms = [
+                    #     np.abs(np.linalg.norm(p - p_last_observation) - r)
+                    #     for p in candidate_points
+                    # ]
+                    # i = np.argmin(norms)
+                    # x, y, z = candidate_points[i]
                     detection_time = detection.time
-                    p_receiver = CoordinateTransformations.geodetic_to_cartesian(
-                        detection.sensor.receiver.lat,
-                        detection.sensor.receiver.lon,
-                        detection.sensor.receiver.alt,
+                    x, y, z = CoordinateTransformations.geodetic_to_cartesian(
+                        *detection.target.point.as_tuple()
                     )
-                    p_transmitter = CoordinateTransformations.geodetic_to_cartesian(
-                        detection.sensor.transmitter.lat,
-                        detection.sensor.transmitter.lon,
-                        detection.sensor.transmitter.alt,
-                    )
-                    ellipsoid = Ellipsoid(
-                        p_receiver,
-                        p_transmitter,
-                        detection.bistatic_range
-                        + line_of_sight_distance(
-                            *detection.sensor.transmitter.point.as_tuple(),
-                            *detection.sensor.receiver.point.as_tuple(),
-                        ),
-                    )
-                    # 2 degree resolution.
-                    candidate_points = ellipsoid.sample_surface(180, 180)
-
-                    time_of_last_observation, last_observation = self._states[
-                        target_id
-                    ][-1]
-                    delta_t = (detection.time - time_of_last_observation).seconds
-                    p_last_observation = last_observation[[0, 2, 4]]
-                    v_last_observation = np.linalg.norm(last_observation[[1, 3, 5]])
-                    r = delta_t * v_last_observation
-
-                    norms = [
-                        np.abs(np.linalg.norm(p - p_last_observation) - r)
-                        for p in candidate_points
-                    ]
-                    i = np.argmin(norms)
-                    x, y, z = candidate_points[i]
                 elif len(detections) >= 3:
                     # Track init.
                     # We sample a position around the real one using error propagation.
@@ -150,6 +154,7 @@ class PseudoTracker(AbstractTracker):
                         target.alt,
                     )
                     x, y, z = self._rng.normal(mean, [sigma, sigma, sigma])
+                    print(f"Track init at {(float(x), float(y), float(z))}")
                 else:
                     # We do not have a track yet, but there are not enough
                     # detections to initialize a new one.
@@ -181,6 +186,7 @@ class PseudoTracker(AbstractTracker):
     def get_tracks(self) -> list[Track]:
         tracks: list[Track] = []
         for target_id, timepoints in self._states.items():
+            # print([tp[1].tolist() for tp in timepoints])
             if len(timepoints) < 2:
                 continue
             tracks.append(Track(id=str(target_id), states=timepoints))
