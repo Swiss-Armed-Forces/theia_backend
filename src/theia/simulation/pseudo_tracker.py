@@ -78,7 +78,11 @@ class PseudoTracker(AbstractTracker):
         updated_targets: set[int] = set()
         for target_id in target_ids:
             if target_id in grouped_monostatic_detections:
-                # Select detection with shortest range and initiate or update the track.
+                #########################################
+                # Monostatic track init / track update.
+                #########################################
+                # Select detection with shortest range and initiate or update
+                # the track.
                 detections = grouped_monostatic_detections[target_id]
                 detection = sorted(detections, key=lambda d: d.target_range)[0]
                 detection_time = detection.time
@@ -92,60 +96,18 @@ class PseudoTracker(AbstractTracker):
                     )
                 )
             elif target_id in grouped_pcl_detections:
+                #########################################
+                # PCL track init / track update.
+                #########################################
                 detections = grouped_pcl_detections[target_id]
                 detections = sorted(detections, key=lambda d: d.bistatic_range)
-                if target_id in self._states:
-                    # Update track.
-                    detection = detections[0]
-                    # detection_time = detection.time
-                    # p_receiver = CoordinateTransformations.geodetic_to_cartesian(
-                    #     detection.sensor.receiver.lat,
-                    #     detection.sensor.receiver.lon,
-                    #     detection.sensor.receiver.alt,
-                    # )
-                    # p_transmitter = CoordinateTransformations.geodetic_to_cartesian(
-                    #     detection.sensor.transmitter.lat,
-                    #     detection.sensor.transmitter.lon,
-                    #     detection.sensor.transmitter.alt,
-                    # )
-                    # ellipsoid = Ellipsoid(
-                    #     p_receiver,
-                    #     p_transmitter,
-                    #     detection.bistatic_range
-                    #     + line_of_sight_distance(
-                    #         *detection.sensor.transmitter.point.as_tuple(),
-                    #         *detection.sensor.receiver.point.as_tuple(),
-                    #     ),
-                    # )
-                    # # 2 degree resolution.
-                    # candidate_points = ellipsoid.sample_surface(180, 180)
-
-                    # time_of_last_observation, last_observation = self._states[
-                    #     target_id
-                    # ][-1]
-                    # delta_t = (detection.time - time_of_last_observation).seconds
-                    # p_last_observation = last_observation[[0, 2, 4]]
-                    # v_last_observation = np.linalg.norm(last_observation[[1, 3, 5]])
-                    # r = delta_t * v_last_observation
-
-                    # norms = [
-                    #     np.abs(np.linalg.norm(p - p_last_observation) - r)
-                    #     for p in candidate_points
-                    # ]
-                    # i = np.argmin(norms)
-                    # x, y, z = candidate_points[i]
-                    detection_time = detection.time
-                    x, y, z = CoordinateTransformations.geodetic_to_cartesian(
-                        *detection.target.point.as_tuple()
-                    )
-                elif len(detections) >= 3:
-                    # Track init.
+                if target_id in self._states or len(detections) >= 3:
                     # We sample a position around the real one using error propagation.
                     # All detections share the same target, i. e. we can select
                     # any of them to access the true target state.
                     # Finally, a fake detection is created.
                     sigma = np.max([d.sigma_bistatic_range for d in detections])
-                    detection = detections[0].model_copy()
+                    detection = detections[0]
                     detection_time = detection.time
                     target = detection.target
                     mean = CoordinateTransformations.geodetic_to_cartesian(
@@ -154,7 +116,6 @@ class PseudoTracker(AbstractTracker):
                         target.alt,
                     )
                     x, y, z = self._rng.normal(mean, [sigma, sigma, sigma])
-                    print(f"Track init at {(float(x), float(y), float(z))}")
                 else:
                     # We do not have a track yet, but there are not enough
                     # detections to initialize a new one.
