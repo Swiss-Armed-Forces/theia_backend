@@ -1,27 +1,22 @@
-import abc
 import datetime
 import itertools
 import json
 
 import numpy as np
 import pandas as pd
-from stonesoup.types.detection import Detection
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 
 from theia.coordinates import CoordinateTransformations
 from theia.simulation.simulator import AbstractSimulationListener, Simulator
-from theia.stonesoup_interface import MonostaticDetectionFactory
 from theia.types import (
     ConstantRcsModel,
     MonostaticRadarDetection,
     PclDetection,
     Sensor,
-    Receiver,
     SituationalPicture,
     Snapshot,
     Target,
     Trajectory,
-    Transmitter,
 )
 
 
@@ -185,18 +180,18 @@ class LogLoader:
 
     @property
     def blue_monostatic_radars(self) -> list[Sensor]:
-        return [
-            sensor
-            for sensor in self._blue_sensors.values()
-            if sensor.receiver.point == sensor.transmitter.point
-        ]
+        return list(self._blue_monostatic_sensors.values())
 
     @property
-    def blue_monostatic_radar_detections(self) -> list[Detection]:
+    def blue_pcl_sensors(self) -> list[Sensor]:
+        return list(self._blue_pcl_sensors.values())
+
+    @property
+    def blue_monostatic_radar_detections(self) -> list[MonostaticRadarDetection]:
         return self._blue_monostatic_radar_detections
 
     @property
-    def blue_pcl_detections(self) -> list[Detection]:
+    def blue_pcl_detections(self) -> list[PclDetection]:
         return self._blue_pcl_detections
 
     @property
@@ -210,10 +205,13 @@ class LogLoader:
         if not is_blue:
             raise NotImplementedError()
 
-        self._blue_sensors: dict[int, Sensor] = {}
+        self._blue_monostatic_sensors: dict[int, Sensor] = {}
+        self._blue_pcl_sensors: dict[int, Sensor] = {}
         for snapshot in self._snapshots:
             for sensor in snapshot.blue_monostatic_radars:
-                self._blue_sensors[sensor.id] = sensor
+                self._blue_monostatic_sensors[sensor.id] = sensor
+            for sensor in snapshot.blue_pcl_sensors:
+                self._blue_pcl_sensors[sensor.id] = sensor
 
     def _load_target_ground_truth(self, is_blue: bool):
         if is_blue:
