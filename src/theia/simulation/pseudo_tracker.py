@@ -4,8 +4,6 @@ import itertools
 import numpy as np
 
 from theia.coordinates import CoordinateTransformations
-from theia.distance import line_of_sight_distance
-from theia.ellipsoid import Ellipsoid
 from theia.measurement import MonostaticMeasurementTransformations
 from theia.types import (
     CLUTTER_TARGET,
@@ -45,6 +43,52 @@ class PseudoTracker(AbstractTracker):
         """Number of iterations a track is kept without updates"""
         self._rng = rng
 
+    def _monostatic_init_update(
+        self,
+        detections: list[MonostaticRadarDetection],
+    ) -> tuple[datetime.datetime, np.ndarray]:
+        # Select detection with shortest range and initiate or update
+        # the track.
+        detection = sorted(detections, key=lambda d: d.target_range)[0]
+        detection_time = detection.time
+
+        x, y, z = (
+            MonostaticMeasurementTransformations.elevation_azimuth_range_to_cartesian(
+                detection.radar.receiver.point,
+                detection.elevation_angle,
+                detection.azimuth_angle,
+                detection.target_range,
+            )
+        )
+        # TODO: Set actual velocities instead of zero.
+        # x, vx, y, vy, z, vz (order as in stonesoup)
+        state = np.array([x, 0.0, y, 0.0, z, 0.0])
+
+        return detection_time, state
+
+    def _pcl_init_update(
+        self, detections: list[PclDetection]
+    ) -> tuple[datetime.datetime, np.ndarray]:
+        # We sample a position around the real one using error propagation.
+        # All detections share the same target, i. e. we can select
+        # any of them to access the true target state.
+        # Finally, a fake detection is created.
+        sigma = np.max([d.sigma_bistatic_range for d in detections])
+        detection = detections[0]
+        detection_time = detection.time
+        target = detection.target
+        mean = CoordinateTransformations.geodetic_to_cartesian(
+            target.lat,
+            target.lon,
+            target.alt,
+        )
+        x, y, z = self._rng.normal(mean, [sigma, sigma, sigma])
+        # TODO: Set actual velocities instead of zero.
+        # x, vx, y, vy, z, vz (order as in stonesoup)
+        state = np.array([x, 0.0, y, 0.0, z, 0.0])
+
+        return detection_time, state
+
     def add_detections(
         self,
         monostatic_detections: list[MonostaticRadarDetection],
@@ -78,44 +122,14 @@ class PseudoTracker(AbstractTracker):
         updated_targets: set[int] = set()
         for target_id in target_ids:
             if target_id in grouped_monostatic_detections:
-                #########################################
-                # Monostatic track init / track update.
-                #########################################
-                # Select detection with shortest range and initiate or update
-                # the track.
-                detections = grouped_monostatic_detections[target_id]
-                detection = sorted(detections, key=lambda d: d.target_range)[0]
-                detection_time = detection.time
-
-                x, y, z = (
-                    MonostaticMeasurementTransformations.elevation_azimuth_range_to_cartesian(
-                        detection.radar.receiver.point,
-                        detection.elevation_angle,
-                        detection.azimuth_angle,
-                        detection.target_range,
-                    )
+                detection_time, state = self._monostatic_init_update(
+                    grouped_monostatic_detections[target_id]
                 )
             elif target_id in grouped_pcl_detections:
-                #########################################
-                # PCL track init / track update.
-                #########################################
                 detections = grouped_pcl_detections[target_id]
                 detections = sorted(detections, key=lambda d: d.bistatic_range)
                 if target_id in self._states or len(detections) >= 3:
-                    # We sample a position around the real one using error propagation.
-                    # All detections share the same target, i. e. we can select
-                    # any of them to access the true target state.
-                    # Finally, a fake detection is created.
-                    sigma = np.max([d.sigma_bistatic_range for d in detections])
-                    detection = detections[0]
-                    detection_time = detection.time
-                    target = detection.target
-                    mean = CoordinateTransformations.geodetic_to_cartesian(
-                        target.lat,
-                        target.lon,
-                        target.alt,
-                    )
-                    x, y, z = self._rng.normal(mean, [sigma, sigma, sigma])
+                    detection_time, state = self._pcl_init_update(detections)
                 else:
                     # We do not have a track yet, but there are not enough
                     # detections to initialize a new one.
@@ -127,9 +141,6 @@ class PseudoTracker(AbstractTracker):
 
             # Actually initialise or update the track.
             # TODO: Use a Kalman filter.
-            # TODO: Set actual velocities instead of zero.
-            # x, vx, y, vy, z, vz (order as in stonesoup)
-            state = np.array([x, 0.0, y, 0.0, z, 0.0])
             history = self._states.setdefault(target_id, [])
             history.append((detection_time, state))
             self._iterations_without_update[target_id] = 0
