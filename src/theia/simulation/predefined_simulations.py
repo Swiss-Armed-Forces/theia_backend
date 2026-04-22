@@ -107,7 +107,11 @@ def load_uetliberg_single_target_simulator_pcl(
         red_controller=scripted_target_controller,
         # blue_tracker=MonostaticSingleSensorTracker(),
         # blue_tracker=DummyTracker(),
-        blue_tracker=PseudoTracker(removal_patience=30, rng=rng),
+        blue_tracker=PseudoTracker(
+            removal_patience=30,
+            rng=rng,
+            start_time=start_time,
+        ),
         start_time=start_time,
         time_step=time_step,
         min_time_per_step=datetime.timedelta(seconds=1 if interactive else 0),
