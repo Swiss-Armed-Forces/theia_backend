@@ -6,9 +6,9 @@ from theia.test_data import TestSituationLoader
 from theia.types import (
     ConstantRcsModel,
     MonostaticRadarMeasurementModel,
+    MonostaticSensor,
     Point,
     Polarization,
-    Sensor,
     Receiver,
     Target,
     Transmitter,
@@ -84,7 +84,7 @@ class MonostaticDopplerTest(unittest.TestCase):
             lon=8.537724304199216,
             alt=407.83600886023686,
         )
-        radar = Sensor(
+        radar = MonostaticSensor(
             id=0,
             transmitter=Transmitter(
                 id=0,

@@ -11,8 +11,9 @@ from theia.simulation.simulator import AbstractSimulationListener, Simulator
 from theia.types import (
     ConstantRcsModel,
     MonostaticRadarDetection,
+    MonostaticSensor,
     PclDetection,
-    Sensor,
+    PclSensor,
     SituationalPicture,
     Snapshot,
     Target,
@@ -179,11 +180,11 @@ class LogLoader:
         self._load_detections(is_blue=True)
 
     @property
-    def blue_monostatic_radars(self) -> list[Sensor]:
+    def blue_monostatic_radars(self) -> list[MonostaticSensor]:
         return list(self._blue_monostatic_sensors.values())
 
     @property
-    def blue_pcl_sensors(self) -> list[Sensor]:
+    def blue_pcl_sensors(self) -> list[PclSensor]:
         return list(self._blue_pcl_sensors.values())
 
     @property
@@ -205,8 +206,8 @@ class LogLoader:
         if not is_blue:
             raise NotImplementedError()
 
-        self._blue_monostatic_sensors: dict[int, Sensor] = {}
-        self._blue_pcl_sensors: dict[int, Sensor] = {}
+        self._blue_monostatic_sensors: dict[int, MonostaticSensor] = {}
+        self._blue_pcl_sensors: dict[int, PclSensor] = {}
         for snapshot in self._snapshots:
             for sensor in snapshot.blue_monostatic_radars:
                 self._blue_monostatic_sensors[sensor.id] = sensor

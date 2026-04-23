@@ -15,7 +15,7 @@ import cartopy.io.img_tiles as cimgt
 
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.ellipsoid import Ellipsoid
-from theia.types import PclDetection, Sensor, Target, Trajectory
+from theia.types import PclDetection, AbstractSensor, Target, Trajectory
 
 
 # EPSG:4326 is standard lat/lon; we reproject to 3857 (Web Mercator) for contextily tiles
@@ -26,7 +26,7 @@ WEB_MERCATOR = "EPSG:3857"
 class RadarMap:
     def __init__(
         self,
-        sensors: dict[str, Sensor] = {},
+        sensors: dict[str, AbstractSensor] = {},
         targets: dict[str, Target] = {},
         polygons: dict[str, Polygon] = {},
         paths: dict[str, LineString] = {},
@@ -520,7 +520,7 @@ class RadarMap:
 
 def plot_trajectories(
     times: list[datetime.datetime],
-    sensors: dict[str, Sensor],
+    sensors: dict[str, AbstractSensor],
     trajectories: list[Trajectory],
 ):
     frames = []

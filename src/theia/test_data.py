@@ -11,9 +11,11 @@ from theia.terrain import elevationAt
 from theia.types import (
     ConstantRcsModel,
     MonostaticRadarMeasurementModel,
+    MonostaticSensor,
+    PclMeasurementModel,
+    PclSensor,
     Point,
     Polarization,
-    Sensor,
     Receiver,
     Target,
     Trajectory,
@@ -31,7 +33,7 @@ class TestSituationLoader:
         | Literal["east"]
         | Literal["south"]
         | Literal["west"] = "south",
-    ) -> tuple[list[Sensor], list[Target]]:
+    ) -> tuple[list[MonostaticSensor], list[Target]]:
         radar_lat = POSITIONS_OF_INTEREST["Uetliberg"]["lat"]
         radar_lon = POSITIONS_OF_INTEREST["Uetliberg"]["lon"]
         point = Point(
@@ -88,7 +90,7 @@ def get_uetliberg_radar(
     max_range_uncertainty: float = float(10_000),
     min_angular_uncertainty: float = float(np.deg2rad(1)),
     max_angular_uncertainty: float = float(np.deg2rad(360)),
-):
+) -> MonostaticSensor:
     """
     Parameters
     ----------
@@ -125,7 +127,7 @@ def get_uetliberg_radar(
     if tx_bandwidth is None:
         tx_bandwidth = rx_bandwidth
 
-    return Sensor(
+    return MonostaticSensor(
         id=0,
         transmitter=Transmitter(
             id=0,
@@ -179,7 +181,7 @@ def get_uetliberg_radar(
 def load_pcl_example(
     rcs: float = 1.0,
     rotation_time: float = 1.0,
-) -> tuple[list[Sensor], list[Trajectory], LatLonHeightGrid]:
+) -> tuple[list[PclSensor], list[Trajectory], LatLonHeightGrid]:
     # Define the sensors.
     rx = get_uetliberg_radar(
         min_range_uncertainty=0.0,
@@ -200,7 +202,7 @@ def load_pcl_example(
         )
     )
 
-    pcl_sensors: list[Sensor] = []
+    pcl_sensors: list[PclSensor] = []
     for i, tx in enumerate(transmitters):
         rx = get_uetliberg_radar(
             rx_bandwidth=tx.bandwidth,
@@ -209,16 +211,11 @@ def load_pcl_example(
         ).receiver
         rx.id = i
         pcl_sensors.append(
-            Sensor(
+            PclSensor(
                 id=i,
                 transmitter=tx,
                 receiver=rx,
-                error_model=MonostaticRadarMeasurementModel(
-                    min_range_uncertainty=0.0,
-                    max_range_uncertainty=0.0,
-                    min_angular_uncertainty=0.0,
-                    max_angular_uncertainty=0.0,
-                ),
+                error_model=PclMeasurementModel(),
             )
         )
 

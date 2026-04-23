@@ -7,13 +7,11 @@ from theia.coordinates import CoordinateTransformations
 from theia.types import (
     Controller,
     Point,
-    Sensor,
+    AbstractSensor,
     RcsModel,
-    Receiver,
     SituationalPicture,
     Target,
     Trajectory,
-    Transmitter,
     Velocity,
 )
 
@@ -44,28 +42,14 @@ class WaypointTargetController(Controller):
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[Sensor]:
+    ) -> list[AbstractSensor]:
         return []
 
     def get_pcl_sensors(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[Sensor]:
-        return []
-
-    def get_receivers(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Receiver]:
-        return []
-
-    def get_transmitters(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Transmitter]:
+    ) -> list[AbstractSensor]:
         return []
 
     def get_targets(

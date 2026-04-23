@@ -341,11 +341,18 @@ class Receiver(pydantic.BaseModel):
         )
 
 
-class Sensor(pydantic.BaseModel):
+class AbstractSensor(pydantic.BaseModel, abc.ABC):
     id: int
     transmitter: Transmitter
     receiver: Receiver
+
+
+class MonostaticSensor(AbstractSensor):
     error_model: MonostaticRadarMeasurementModel
+
+
+class PclSensor(AbstractSensor):
+    error_model: PclMeasurementModel
 
 
 class Target(pydantic.BaseModel):
@@ -520,7 +527,7 @@ class MonostaticRadarDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
     """Date and time at which the detection takes place."""
-    radar: Sensor
+    radar: MonostaticSensor
     target: Target
     snr: float
     """Signal-to-noise ratio [dB]"""
@@ -560,7 +567,7 @@ class PclDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
     """Date and time at which the detection takes place."""
-    sensor: Sensor
+    sensor: PclSensor
     target: Target
     bistatic_range: float
     """Bistatic range [m]."""
@@ -578,7 +585,8 @@ class PetDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
     """Date and time at which the detection takes place."""
-    radar: Sensor
+    # TODO: Add PET sensor class.
+    radar: AbstractSensor
     target: Target
     azimuth: float
     """Azimuth angle [rad] of the gaze vector towards the transmitter."""
@@ -645,11 +653,11 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
     min_angular_uncertainty: float = float(np.deg2rad(1.0))
     max_angular_uncertainty: float = float(np.deg2rad(360.0))
 
-    def range_resolution(self, radar: Sensor) -> float:
+    def range_resolution(self, radar: MonostaticSensor) -> float:
         """Resolution of the detected range [m]"""
         return sc.speed_of_light / (2 * radar.receiver.bandwidth * 1e6)
 
-    def elevation_resolution(self, radar: Sensor) -> float:
+    def elevation_resolution(self, radar: MonostaticSensor) -> float:
         """Resolution of the detected elevation [rad]"""
         return (
             sc.speed_of_light
@@ -657,7 +665,7 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
             / radar.receiver.diameter
         )
 
-    def azimuth_resolution(self, radar: Sensor) -> float:
+    def azimuth_resolution(self, radar: MonostaticSensor) -> float:
         """Resolution of the detected azimuth [rad]"""
         return (
             sc.speed_of_light
@@ -665,13 +673,13 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
             / radar.receiver.diameter
         )
 
-    def calculate_range_uncertainty(self, radar: Sensor, snr: float) -> float:
+    def calculate_range_uncertainty(self, radar: MonostaticSensor, snr: float) -> float:
         """
         Calculate range uncertainty [m].
 
         Parameters
         ----------
-        radar: Radar
+        radar: MonostaticSensor
             Monostatic radar
         snr: float
             Signal-to-noise ratio of the detection [dB]
@@ -688,13 +696,17 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
             self.max_range_uncertainty,
         )
 
-    def calculate_elevation_uncertainty(self, radar: Sensor, snr: float) -> float:
+    def calculate_elevation_uncertainty(
+        self,
+        radar: MonostaticSensor,
+        snr: float,
+    ) -> float:
         """
         Calculate elevation uncertainty [rad].
 
         Parameters
         ----------
-        radar: Sensor
+        radar: MonostaticSensor
             Monostatic radar
         snr: float
             Signal-to-noise ratio of the detection [dB]
@@ -717,13 +729,15 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
             self.max_angular_uncertainty,
         )
 
-    def calculate_azimuth_uncertainty(self, radar: Sensor, snr: float) -> float:
+    def calculate_azimuth_uncertainty(
+        self, radar: MonostaticSensor, snr: float
+    ) -> float:
         """
         Calculate azimuth uncertainty [rad].
 
         Parameters
         ----------
-        radar: Sensor
+        radar: MonostaticSensor
             Monostatic radar
         snr: float
             Signal-to-noise ratio of the detection [dB]
@@ -746,7 +760,7 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
 
     def sample_clutter(
         self,
-        radar: Sensor,
+        radar: MonostaticSensor,
         rng: np.random.Generator,
         max_range: float,
     ) -> list[MonostaticRadarDetection]:
@@ -817,9 +831,14 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
         return clutter
 
 
+class PclMeasurementModel(pydantic.BaseModel):
+    # TODO
+    pass
+
+
 class SituationalPicture(pydantic.BaseModel):
     time: datetime.datetime
-    friendly_radars: list[Sensor]
+    friendly_radars: list[AbstractSensor]
     friendly_targets: list[Target]
     enemy_targets: list[Track]
 
@@ -830,7 +849,7 @@ class Controller(abc.ABC):
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[Sensor]:
+    ) -> list[MonostaticSensor]:
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -838,23 +857,7 @@ class Controller(abc.ABC):
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[Sensor]:
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def get_receivers(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Receiver]:
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def get_transmitters(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Transmitter]:
+    ) -> list[PclSensor]:
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -868,11 +871,11 @@ class Controller(abc.ABC):
 
 class Snapshot(pydantic.BaseModel):
     time: datetime.datetime
-    blue_monostatic_radars: list[Sensor]
-    blue_pcl_sensors: list[Sensor]
+    blue_monostatic_radars: list[MonostaticSensor]
+    blue_pcl_sensors: list[PclSensor]
     blue_targets: list[Target]
-    red_monostatic_radars: list[Sensor]
-    red_pcl_sensors: list[Sensor]
+    red_monostatic_radars: list[MonostaticSensor]
+    red_pcl_sensors: list[PclSensor]
     red_targets: list[Target]
 
 

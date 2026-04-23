@@ -3,9 +3,9 @@ import unittest
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.types import (
     MonostaticRadarMeasurementModel,
+    MonostaticSensor,
     Point,
     Polarization,
-    Sensor,
     Receiver,
     Transmitter,
     calculate_antenna_gain,
@@ -26,7 +26,7 @@ class MonostaticMaxRangeTest(unittest.TestCase):
         diameter = 2.0
         frequency = 1000.0
         antenna_efficiency = 0.6
-        radar = Sensor(
+        radar = MonostaticSensor(
             id=0,
             transmitter=Transmitter(
                 id=585,

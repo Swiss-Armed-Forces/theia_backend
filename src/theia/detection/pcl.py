@@ -16,8 +16,8 @@ from theia.snr import calculate_snr
 from theia.types import (
     ConstantRcsModel,
     PclDetection,
+    PclSensor,
     Point,
-    Sensor,
     Receiver,
     Target,
     Transmitter,
@@ -232,7 +232,7 @@ class PclDetector(pydantic.BaseModel):
 
     def calculate_pcl_detection(
         self,
-        sensor: Sensor,
+        sensor: PclSensor,
         tgt: Target,
     ) -> PclDetection | None:
         """
@@ -241,7 +241,7 @@ class PclDetector(pydantic.BaseModel):
 
         Parameters
         ----------
-        sensor: Sensor
+        sensor: PclSensor
             PCL sensor.
         tgt: Target
             Target.
@@ -375,7 +375,7 @@ def calculate_antenna_pattern(
 
 def pcl_track_init_update_masks(
     detector: PclDetector,
-    sensors: list[Sensor],
+    sensors: list[PclSensor],
     grid: LatLonHeightGrid,
     rcs: float,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -387,7 +387,7 @@ def pcl_track_init_update_masks(
     ----------
     detector: PclDetector
         Detector model to use
-    sensors: list[Sensor]
+    sensors: list[PclSensor]
         PCL Sensors
     grid: LatLonHeightGrid
         Grid on which to calculate detectability
