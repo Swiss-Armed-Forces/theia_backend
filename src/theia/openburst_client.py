@@ -14,7 +14,15 @@ from websockets.sync.client import connect
 
 from theia.coordinates import CoordinateTransformations
 from theia.grids import LatLonHeightGrid
-from theia.types import Polarization, Sensor, RadioClimate, Receiver, Target, Transmitter
+from theia.types import (
+    MonostaticSensor,
+    Polarization,
+    AbstractSensor,
+    RadioClimate,
+    Receiver,
+    Target,
+    Transmitter,
+)
 from theia.util import to_dB
 
 
@@ -108,7 +116,7 @@ class OpenburstClient:
 
     def calculate_coverage(
         self,
-        radar: Sensor,
+        radar: MonostaticSensor,
         target_flight_height: float,
         target_cross_section: float,
         enable_propagation_model: bool = False,
@@ -280,7 +288,7 @@ class OpenburstClient:
 
     def calculate_propagation(
         self,
-        radar: Sensor,
+        radar: MonostaticSensor,
         radio_climate: RadioClimate = RadioClimate.CONTINENTAL_TEMPERATE,
         earth_dielectric_constant: float = 13.0,  # [no units]
         earth_conductivitiy: float = 0.002,  # [S / m]
@@ -351,7 +359,7 @@ class OpenburstClient:
 
     def active_radar_probability_of_detection(
         self,
-        radar: Sensor,
+        radar: MonostaticSensor,
         target: Target,
         rcs: float,
         doppler_shift_threshold: float = 5.0,
@@ -371,7 +379,7 @@ class OpenburstClient:
         return float(response.text)
 
 
-def radar_to_openburst_json(radar: Sensor) -> str:
+def radar_to_openburst_json(radar: AbstractSensor) -> str:
     r = {
         "lat": radar.transmitter.lat,
         "lon": radar.transmitter.lon,
@@ -419,8 +427,12 @@ class OpenBurstConverter:
             ahmagl=tx.antenna_height,
             freq=tx.frequency,
             bandwidth=tx.bandwidth * 1000,
-            erp_h=to_dB(tx.erp) if tx.polarization == Polarization.HORIZONTAL else "UNDEFINED",
-            erp_v=to_dB(tx.erp) if tx.polarization == Polarization.VERTICAL else "UNDEFINED",
+            erp_h=to_dB(tx.erp)
+            if tx.polarization == Polarization.HORIZONTAL
+            else "UNDEFINED",
+            erp_v=to_dB(tx.erp)
+            if tx.polarization == Polarization.VERTICAL
+            else "UNDEFINED",
             type="directional",
             horiz_diagr_att=tx.horizontal_attenuation.attenuation_table_values
             if tx.horizontal_attenuation is not None

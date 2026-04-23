@@ -2,12 +2,12 @@
 import numpy as np
 import scipy.constants as sc
 from theia.coordinates import CoordinateTransformations
-from theia.types import Sensor, Target
+from theia.types import AbstractSensor, Target
 
 
 def _calculate_additional_detection_infos(
-    tx: Sensor,
-    rx: Sensor,
+    tx: AbstractSensor,
+    rx: AbstractSensor,
     tgt: Target,
     snr: float,
     doppler: float,

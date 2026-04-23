@@ -18,7 +18,7 @@ from theia.grids import LatLonHeightGrid
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.logging import SituationalPictureBuffer
 from theia.simulation.simulation_director import SimulationDirector
-from theia.types import Sensor
+from theia.types import AbstractSensor, MonostaticSensor, PclSensor
 from theia.util import mask_to_polygon
 
 
@@ -51,7 +51,7 @@ class ExtrapolatedTrack(pydantic.BaseModel):
 
 class ExtrapolatedSituationalPicture(pydantic.BaseModel):
     time: datetime.datetime
-    friendly_radars: list[Sensor]
+    friendly_radars: list[AbstractSensor]
     enemy_tracks: list[ExtrapolatedTrack]
 
 
@@ -198,7 +198,7 @@ def create_app(
 
     @app.post("/calculate_monostatic_coverage")
     def calculate_monostatic_coverage(
-        radar: Sensor,
+        radar: MonostaticSensor,
         target_alt: float,
         rcs: float,
         probability_threshold: float,
@@ -224,7 +224,7 @@ def create_app(
 
     @app.post("/calculate_pcl_coverage")
     def calculate_pcl_coverage(
-        sensors: list[Sensor],
+        sensors: list[PclSensor],
         grid: LatLonHeightGrid,
         rcs: float,
         snr_threshold: float = theia.config.SNR_THRESHOLD_PCL,
@@ -236,8 +236,8 @@ def create_app(
 
         Parameters
         ----------
-        sensor: Sensor
-            Sensor
+        sensors: list[PclSensor]
+            Sensors
         grid: LatLonHeightGrid
             Calculation grid
         rcs: float
