@@ -8,12 +8,12 @@ from theia.detection.active import calculate_probability_of_detection
 from theia.distance import line_of_sight_distance
 from theia.line_of_sight import has_line_of_sight
 from theia.snr import calculate_pet_snr
-from theia.types import PetDetection, Sensor, Target
+from theia.types import PetDetection, AbstractSensor, Target
 from theia.util import get_clear_sky_attenuation
 
 
 def calculate_pet_detection(
-    sensor: Sensor,
+    sensor: AbstractSensor,
     target: Target,
     rng: np.random.Generator,
     distance_step: float = 30,

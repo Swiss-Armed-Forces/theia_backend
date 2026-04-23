@@ -13,9 +13,11 @@ from theia.types import (
     ConstantRcsModel,
     MonostaticRadarMeasurementModel,
     PclDetection,
+    PclMeasurementModel,
+    PclSensor,
     Point,
     Polarization,
-    Sensor,
+    AbstractSensor,
     Receiver,
     Target,
     Trajectory,
@@ -196,13 +198,13 @@ def load_pcl_reference_data(
                 PclDetection(
                     detection_id=id,
                     time=t_min + datetime.timedelta(milliseconds=row["recording_time"]),
-                    sensor=Sensor(
+                    sensor=PclSensor(
                         id=sensor_id,
                         transmitter=next(
                             t for t in transmitters if t.id == row["tx_id"]
                         ),
                         receiver=next(r for r in receivers if r.id == row["rx_id"]),
-                        error_model=MonostaticRadarMeasurementModel(),
+                        error_model=PclMeasurementModel(),
                     ),
                     target=Target(
                         id=int(row["targ_id"]),
