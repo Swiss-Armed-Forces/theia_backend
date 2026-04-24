@@ -18,7 +18,7 @@ from theia.grids import LatLonHeightGrid
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.logging import SituationalPictureBuffer
 from theia.simulation.simulation_director import SimulationDirector
-from theia.types import AbstractSensor, MonostaticSensor, PclSensor
+from theia.types import MonostaticSensor, PclSensor, Sensor
 from theia.util import mask_to_polygon
 
 
@@ -51,7 +51,7 @@ class ExtrapolatedTrack(pydantic.BaseModel):
 
 class ExtrapolatedSituationalPicture(pydantic.BaseModel):
     time: datetime.datetime
-    friendly_radars: list[AbstractSensor]
+    friendly_radars: list[Sensor]
     enemy_tracks: list[ExtrapolatedTrack]
 
 
