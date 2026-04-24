@@ -355,6 +355,9 @@ class PclSensor(AbstractSensor):
     error_model: PclMeasurementModel
 
 
+Sensor = MonostaticSensor | PclSensor
+
+
 class Target(pydantic.BaseModel):
     id: int
     """Unique identifier"""
@@ -838,7 +841,7 @@ class PclMeasurementModel(pydantic.BaseModel):
 
 class SituationalPicture(pydantic.BaseModel):
     time: datetime.datetime
-    friendly_radars: list[AbstractSensor]
+    friendly_radars: list[Sensor]
     friendly_targets: list[Target]
     enemy_targets: list[Track]
 
