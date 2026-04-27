@@ -89,7 +89,10 @@ class SingleTargetEcefTracker:
         self._prior = self._track[-1]
 
     def to_theia_track(self) -> Track | None:
-        states = [(s.timestamp, s.state_vector.flatten()) for s in self._track.states]
+        states = [
+            (s.timestamp, np.array(s.state_vector.flatten()))
+            for s in self._track.states
+        ]
         if len(states) < 2:
             return None
         else:

@@ -181,6 +181,7 @@ def get_uetliberg_radar(
 def load_pcl_example(
     rcs: float = 1.0,
     rotation_time: float = 1.0,
+    bistatic_range_uncertainty: float = 0.0,
 ) -> tuple[list[PclSensor], list[Trajectory], LatLonHeightGrid]:
     # Define the sensors.
     rx = get_uetliberg_radar(
@@ -217,7 +218,10 @@ def load_pcl_example(
                 id=i,
                 transmitter=tx,
                 receiver=rx,
-                error_model=PclMeasurementModel(),
+                error_model=PclMeasurementModel(
+                    min_bistatic_range_uncertainty=bistatic_range_uncertainty,
+                    max_bistatic_range_uncertainty=bistatic_range_uncertainty,
+                ),
             )
         )
 
