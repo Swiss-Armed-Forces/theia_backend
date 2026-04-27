@@ -53,6 +53,7 @@ class SnrTest(unittest.TestCase):
         cpi = 1
         T = 300
         L_t = to_dB(2.0)
+        L_r = 1.5
         L_a = to_dB(1.0)
         pol = to_dB(1.0)
         F_t2 = to_dB(3.0)
@@ -72,6 +73,7 @@ class SnrTest(unittest.TestCase):
             cpi,
             T,
             L_t,
+            L_r,
             L_a,
             pol,
             F_t2,
@@ -79,7 +81,7 @@ class SnrTest(unittest.TestCase):
         )
 
         # Value calculated "by hand" according to the SNR formula in the documentation.
-        snr_true = 37.924 + 2 * (-9.930) + 3.010 + 0 + 4.771 + 0 - (32.976 - 228.599 + 24.771 + 80 + 4 * 40 + 3.010 + 0)
+        snr_true = 37.924 + 2 * (-9.930) + 3.010 + 0 + 4.771 + 0 - (32.976 - 228.599 + 24.771 + 1.5 + 80 + 4 * 40 + 3.010 + 0)
 
         self.assertAlmostEqual(float(snr), snr_true, delta=0.005)
 
@@ -101,6 +103,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     F_t2,
@@ -128,6 +131,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     F_t2,
@@ -154,6 +158,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     F_t2,
@@ -180,6 +185,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     F_t2,
@@ -206,6 +212,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     F_t2,
@@ -233,6 +240,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     F_t2,
@@ -260,6 +268,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     F_t2,
@@ -287,6 +296,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     F_t2,
@@ -314,6 +324,7 @@ class SnrTest(unittest.TestCase):
                     a * cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     F_t2,
@@ -341,6 +352,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     a * T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     F_t2,
@@ -368,6 +380,35 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     to_dB(a * from_dB(L_t)),
+                    L_r,
+                    L_a,
+                    pol,
+                    F_t2,
+                    F_r2,
+                )
+            )
+
+            snr_linear_scaled_expected = snr_linear / a
+            self.assertAlmostEqual(
+                snr_linear_scaled,
+                snr_linear_scaled_expected,
+            )
+
+            # L_r: Linear behaviour.
+            snr_linear_scaled = from_dB(
+                calculate_snr(
+                    wavelength,
+                    G_T,
+                    G_R,
+                    rcs,
+                    d,
+                    d,
+                    power,
+                    bandwidth,
+                    cpi,
+                    T,
+                    L_t,
+                    to_dB(a * from_dB(L_r)),
                     L_a,
                     pol,
                     F_t2,
@@ -395,6 +436,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     to_dB(a * from_dB(L_a)),
                     pol,
                     F_t2,
@@ -422,6 +464,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     to_dB(a * from_dB(pol)),
                     F_t2,
@@ -449,6 +492,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     to_dB(a * from_dB(F_t2)),
@@ -476,6 +520,7 @@ class SnrTest(unittest.TestCase):
                     cpi,
                     T,
                     L_t,
+                    L_r,
                     L_a,
                     pol,
                     F_t2,
