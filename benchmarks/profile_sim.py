@@ -16,7 +16,7 @@ from theia.simulation.simulator import Simulator, TimeCriterion
 from theia.test_data import load_pcl_example
 
 
-sensors, trajectories, grid = load_pcl_example()
+sensors, trajectories, grid = load_pcl_example(bistatic_range_uncertainty=100)
 trajectory = trajectories[0]
 RCS = trajectory.cross_section_model.rcs
 

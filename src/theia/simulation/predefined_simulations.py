@@ -72,8 +72,11 @@ def load_uetliberg_opensky_simulator() -> tuple[Simulator, SituationalPictureBuf
 
 def load_uetliberg_single_target_simulator_pcl(
     interactive: bool = True,
+    bistatic_range_uncertainty: float = 0.0,
 ) -> tuple[Simulator, SituationalPictureBuffer]:
-    sensors, trajectories, grid = load_pcl_example()
+    sensors, trajectories, grid = load_pcl_example(
+        bistatic_range_uncertainty=bistatic_range_uncertainty,
+    )
 
     # Load trajectories from OpenSky.
     # trajectories, _ = load_trajectory_file(

@@ -215,6 +215,7 @@ class Simulator:
                 continue
             for target in self._red_targets:
                 det = self._pcl_detector.calculate_pcl_detection(
+                    self._rng,
                     sensor,
                     target,
                 )

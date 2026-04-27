@@ -233,6 +233,7 @@ class PclDetector(pydantic.BaseModel):
 
     def calculate_pcl_detection(
         self,
+        rng: np.random.Generator,
         sensor: PclSensor,
         tgt: Target,
     ) -> PclDetection | None:
@@ -242,6 +243,8 @@ class PclDetector(pydantic.BaseModel):
 
         Parameters
         ----------
+        rng: np.random.Generator
+            Pseudo random number generator
         sensor: PclSensor
             PCL sensor.
         tgt: Target
@@ -282,13 +285,33 @@ class PclDetector(pydantic.BaseModel):
             receiver=sensor.receiver,
             target=tgt,
         ):
+            # Add uncertainty.
+            sigma_bistatic_range = sensor.error_model.sigma_bistatic_range(
+                snr,
+                sensor,
+            )
+            sigma_doppler = sensor.error_model.sigma_doppler_shift()
+            error_bistatic_range = rng.normal(0.0, sigma_bistatic_range)
+            error_doppler = rng.normal(0.0, sigma_doppler)
+            bistatic_range = np.clip(
+                bistatic_range + error_bistatic_range,
+                0,
+                np.inf,
+            )
+            doppler_shift = np.clip(
+                doppler + error_doppler,
+                0,
+                np.inf,
+            )
             return PclDetection(
                 detection_id=-1,
                 time=datetime.datetime.fromtimestamp(0),
                 sensor=sensor,
                 target=tgt,
                 bistatic_range=bistatic_range,
-                doppler_shift=doppler,
+                doppler_shift=doppler_shift,
+                sigma_bistatic_range=np.abs(error_bistatic_range),
+                sigma_doppler_shift=np.abs(error_doppler),
             )
         else:
             return None
