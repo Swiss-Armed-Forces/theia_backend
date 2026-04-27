@@ -16,7 +16,7 @@ import numpy as np
 from theia.detection.pcl import PclDetector
 from theia.mapping import RadarMap
 from theia.terrain import elevationAt
-from theia.test_data import load_pcl_example_sensors
+from theia.test_data import load_pcl_example
 
 
 project = "theia"
@@ -48,12 +48,15 @@ html_static_path = ["_static"]
 
 
 def save_pcl_example_setup(app):
-    example_sensors, lats, lons, alts = load_pcl_example_sensors()
+    example_sensors, trajectories, grid = load_pcl_example()
     map = RadarMap(
         sensors={str(sensor.id): sensor for sensor in example_sensors}
     ).to_map()
     folium.Rectangle(
-        bounds=[[lats.min(), lons.min()], [lats.max(), lons.max()]]
+        bounds=[
+            [grid.latitude_values.min(), grid.longitude_values.min()],
+            [grid.latitude_values.max(), grid.longitude_values.max()],
+        ]
     ).add_to(map)
     folium.Marker(
         (example_sensors[0].receiver.lat, example_sensors[0].receiver.lon),
@@ -75,19 +78,25 @@ def save_pcl_coverage_plots(app):
     # Do not regenerate the plots every time because it takes a while.
     if os.path.exists(path):
         return
-    
-    example_sensors, lats, lons, alts = load_pcl_example_sensors()
+
+    example_sensors, trajectories, grid = load_pcl_example()
 
     detector = PclDetector()
 
     minimum_detectable_rcs = np.empty(
-        (len(lats), len(lons), len(alts), len(example_sensors)), dtype=np.float32
+        (
+            len(grid.latitude_values),
+            len(grid.longitude_values),
+            len(grid.altitude_values),
+            len(example_sensors),
+        ),
+        dtype=np.float32,
     )
     minimum_detectable_rcs[:, :, :] = np.nan
     for s, sensor in enumerate(example_sensors):
-        for i, lat in enumerate(lats):
-            for j, lon in enumerate(lons):
-                for k, alt in enumerate(alts):
+        for i, lat in enumerate(grid.latitude_values):
+            for j, lon in enumerate(grid.longitude_values):
+                for k, alt in enumerate(grid.altitude_values):
                     if alt <= elevationAt(lat, lon):
                         continue
                     minimum_detectable_rcs[i, j, k, s] = (
@@ -121,10 +130,12 @@ def save_pcl_coverage_plots(app):
     for ax in axes[:, :3].flatten():
         ax.set_xlabel("lon [°]")
         ax.set_ylabel("lat [°]")
-        ax.set_xticks(np.arange(len(lons))[::label_skip])
-        ax.set_yticks(np.arange(len(lats))[::label_skip])
-        ax.set_xticklabels([f"{lon:.3f}" for lon in lons][::label_skip])
-        ax.set_yticklabels([f"{lat:.3f}" for lat in lats][::label_skip])
+        ax.set_xticks(np.arange(len(grid.longitude_values))[::label_skip])
+        ax.set_yticks(np.arange(len(grid.latitude_values))[::label_skip])
+        ax.set_xticklabels(
+            [f"{lon:.3f}" for lon in grid.longitude_values][::label_skip]
+        )
+        ax.set_yticklabels([f"{lat:.3f}" for lat in grid.latitude_values][::label_skip])
         ax.tick_params(axis="x", rotation=90)
         ax.invert_yaxis()
 
@@ -132,7 +143,6 @@ def save_pcl_coverage_plots(app):
     fig.colorbar(img, cax=axes[0, 3])
     fig.tight_layout()
     fig.savefig(path, transparent=True)
-
 
     fig, ax = plt.subplots(figsize=(8, 4.5))
 
@@ -146,10 +156,10 @@ def save_pcl_coverage_plots(app):
 
     ax.set_xlabel("lon [°]")
     ax.set_ylabel("lat [°]")
-    ax.set_xticks(np.arange(len(lons))[::label_skip])
-    ax.set_yticks(np.arange(len(lats))[::label_skip])
-    ax.set_xticklabels([f"{lon:.3f}" for lon in lons][::label_skip])
-    ax.set_yticklabels([f"{lat:.3f}" for lat in lats][::label_skip])
+    ax.set_xticks(np.arange(len(grid.longitude_values))[::label_skip])
+    ax.set_yticks(np.arange(len(grid.latitude_values))[::label_skip])
+    ax.set_xticklabels([f"{lon:.3f}" for lon in grid.longitude_values][::label_skip])
+    ax.set_yticklabels([f"{lat:.3f}" for lat in grid.latitude_values][::label_skip])
     ax.tick_params(axis="x", rotation=90)
     fig.savefig(path2, transparent=True)
 
@@ -157,4 +167,3 @@ def save_pcl_coverage_plots(app):
 def setup(app):
     app.connect("builder-inited", save_pcl_example_setup)
     app.connect("builder-inited", save_pcl_coverage_plots)
-    
