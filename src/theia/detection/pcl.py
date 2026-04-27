@@ -163,6 +163,7 @@ class PclDetector(pydantic.BaseModel):
             cpi_pulses=rx.cpi_pulses,
             equivalent_temperature=rx.noise_temperature,
             L_t=0.0,
+            L_r=rx.noise_figure,
             L_a=get_clear_sky_attenuation(tx.frequency) * (r_r + r_t) / 1000.0,
             polarization_factor=0,
             pattern_propagation_factor_transmitter=calculate_antenna_pattern(

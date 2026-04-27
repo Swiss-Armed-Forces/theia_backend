@@ -17,6 +17,7 @@ def calculate_snr(
     cpi_pulses: int,
     equivalent_temperature: float,
     L_t: float,
+    L_r: float,
     L_a: float,
     polarization_factor: float,
     pattern_propagation_factor_transmitter: float,
@@ -49,6 +50,8 @@ def calculate_snr(
         Equivalent temperature [K]
     L_t: float
         Transmission line loss [dB]
+    L_r: float
+        Receiver loss [dB]
     L_a: float
         Atmospheric and precipitation attenuation [dB]
     polarization_factor: float
@@ -102,6 +105,7 @@ def calculate_snr(
         - bw_dB
         - 20 * np.log10(distance_transmitter_target)
         - 20 * np.log10(distance_receiver_target)
+        - L_r
         - L_t
         - L_a
     )

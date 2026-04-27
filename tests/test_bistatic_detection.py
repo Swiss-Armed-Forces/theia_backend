@@ -77,6 +77,8 @@ def save_pcl_test_data(
                 integration_time=0.1,
                 tx_bandwidth=tx.bandwidth,
             ).receiver
+            # openBURST ignores receiver noise figure in PCL SNR calculation.
+            rx.noise_figure = 0.0
             rxs.append(rx)
             true_values.append(np.full(grid.n_points, np.nan).tolist())
     else:

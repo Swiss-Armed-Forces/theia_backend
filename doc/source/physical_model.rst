@@ -16,7 +16,7 @@ The signal-to-noise ratio (SNR) for the monostatic case is given by Equ. (1.18)
 
 .. math::
 
-   SNR = \frac{P_t n G_t G_r \lambda^2 \sigma F_p^2 F_t^2 F_r^2}{(4 \pi)^3 k_B B T_S R^4 L_t L_a}.
+   SNR = \frac{P_t n G_t G_r \lambda^2 \sigma F_p^2 F_t^2 F_r^2}{(4 \pi)^3 k_B B T_S R^4 L_t L_r L_a}.
 
 
 .. caution:: The code treats :math:`F_t^2, F_r^2` as the elementary quantities
@@ -118,6 +118,10 @@ The following table summarises the meaning of each quantity.
      - | "The loss between the transmitter output at which :math:`P_t``
        | is conventionally defined and the transmitting antenna terminal
        | at which :math:`G_t` is defined."
+   * - :math:`L_r`
+     - dimensionless
+     - Receiver loss figure
+     - 
    * - :math:`L_a`
      - dimensionless
      - Atmospheric and precipitation attenuation

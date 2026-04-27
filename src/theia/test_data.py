@@ -190,6 +190,7 @@ def load_pcl_example(
         max_angular_uncertainty=0.0,
         rotation_time=rotation_time,
     ).receiver
+    rx.noise_figure = 0
 
     transmitters = load_bakom_ukw_transmitters()
     transmitters = list(
@@ -209,6 +210,7 @@ def load_pcl_example(
             tx_bandwidth=tx.bandwidth,
             rotation_time=rotation_time,
         ).receiver
+        rx.noise_figure = 0.0
         rx.id = i
         pcl_sensors.append(
             PclSensor(

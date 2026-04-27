@@ -188,6 +188,7 @@ def calculate_monostatic_snr(
         cpi_pulses=radar.receiver.cpi_pulses,
         equivalent_temperature=radar.receiver.noise_temperature,
         L_t=rf_loss,
+        L_r=radar.receiver.noise_figure,
         L_a=get_clear_sky_attenuation(radar.transmitter.frequency) * 2 * dist / 1000.0,
         # TODO: Should we include these factors?
         polarization_factor=0.0,

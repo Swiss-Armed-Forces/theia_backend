@@ -62,6 +62,7 @@ def calculate_maximum_monostatic_range(
         radar.receiver.cpi_pulses,
         radar.receiver.noise_temperature,
         rf_loss,
+        radar.receiver.noise_figure,
         radar.receiver.pfa,
         maximum_expected_range,
         resolution,
@@ -80,6 +81,7 @@ def _calculate_maximum_monostatic_range(
     cpi_pulses: int,
     noise_temperature: float,
     rf_loss: float,
+    receiver_noise_figure: float,
     pfa: float,
     maximum_expected_range: float,
     resolution: float,
@@ -103,6 +105,7 @@ def _calculate_maximum_monostatic_range(
             cpi_pulses=cpi_pulses,
             equivalent_temperature=noise_temperature,
             L_t=rf_loss,
+            L_r=receiver_noise_figure,
             L_a=atmospheric_loss_per_distance * r,
             # TODO: Should we include these factors?
             polarization_factor=0.0,
