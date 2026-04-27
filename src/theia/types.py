@@ -835,8 +835,76 @@ class MonostaticRadarMeasurementModel(pydantic.BaseModel):
 
 
 class PclMeasurementModel(pydantic.BaseModel):
-    # TODO
-    pass
+    """
+    Measurement model for PCL detections.
+
+    This model implements the Cramér-Rao Bound (CRB) of the uncertainty.
+
+    Notes
+    -----
+    This class implements Equ. (22) of the following article:
+    A. Quazi, "An overview on the time delay estimate in active and passive
+    systems for target localization,"
+    in IEEE Transactions on Acoustics, Speech, and Signal Processing,
+    vol. 29, no. 3, pp. 527-533, June 1981, doi: 10.1109/TASSP.1981.1163618.
+    """
+
+    min_bistatic_range_uncertainty: float = 0.0
+    max_bistatic_range_uncertainty: float = float(10_000)
+    min_doppler_uncertainty: float = 0.0
+    max_doppler_uncertainty: float = float(10_000)
+
+    def bistatic_range_uncertainty_crb(self, snr: float, sensor: PclSensor) -> float:
+        """
+        Estimate bistatic range uncertainty using Cramér-Rao lower bound (CRB).
+
+        Parameters
+        ----------
+        snr: float
+            Signal-to-noise ratio [dB]
+        sensor: PclSensor
+            Sensor
+
+        Returns
+        -------
+        sigma_bistatic_range: float
+            Standard deviation of the bistatic range [m]
+        """
+        f = sensor.transmitter.frequency * 1e6
+        inverse_bound = (
+            np.sqrt(
+                8
+                * np.pi**2
+                * sensor.receiver.cpi_pulses
+                * (1 + sensor.receiver.bandwidth**2 / (12 * f**2))
+            )
+            * from_dB(snr)
+            * f
+        )
+        sigma_delay = 1 / inverse_bound
+        # Just a scaling because std is linear under scaling and invariant under
+        # constant offset and bistatic_range = speed_of_light * delay.
+        sigma_bistatic_range = sc.speed_of_light * sigma_delay
+        return np.clip(
+            sigma_bistatic_range,
+            self.min_bistatic_range_uncertainty,
+            self.max_bistatic_range_uncertainty,
+        )
+
+    def sigma_bistatic_range(self, snr: float, sensor: PclSensor) -> float:
+        """Standard deviation of the bistatic range [m]"""
+        return float(
+            np.clip(
+                self.bistatic_range_uncertainty_crb(snr, sensor),
+                self.min_bistatic_range_uncertainty,
+                self.max_bistatic_range_uncertainty,
+            )
+        )
+
+    def sigma_doppler_shift(self) -> float:
+        """Standard deviation of the Doppler shift [Hz]"""
+        # TODO: Actually model the uncertainty!
+        return 1.0
 
 
 class SituationalPicture(pydantic.BaseModel):
@@ -884,7 +952,7 @@ class Snapshot(pydantic.BaseModel):
 
 class Track(pydantic.BaseModel):
     id: str
-    states: list[tuple[datetime.datetime, np.ndarray]]
+    states: list[tuple[datetime.datetime, list[float]]]
     inactive_time: datetime.timedelta = datetime.timedelta(seconds=30)
 
     _times: list[float] = pydantic.PrivateAttr()
