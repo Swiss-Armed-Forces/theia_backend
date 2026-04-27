@@ -22,9 +22,9 @@ def calculate_maximum_monostatic_range(
 
     Parameters
     ----------
-    radar: Sensor
+    radar: MonostaticSensor
         Radar
-    target_rcs: float, deafult RCS_FOR_RANGE_CALCULATION
+    target_rcs: float, default RCS_FOR_RANGE_CALCULATION
         RCS of a target to be detected [m^2]
     probability_threshold: float, default 0.8
         Minimum detection probability in [0, 1] to be achieved at the maximum range
