@@ -78,10 +78,19 @@ class SnrTest(unittest.TestCase):
             pol,
             F_t2,
             F_r2,
+            is_one_way=False,
         )
 
         # Value calculated "by hand" according to the SNR formula in the documentation.
-        snr_true = 37.924 + 2 * (-9.930) + 3.010 + 0 + 4.771 + 0 - (32.976 - 228.599 + 24.771 + 1.5 + 80 + 4 * 40 + 3.010 + 0)
+        snr_true = (
+            37.924
+            + 2 * (-9.930)
+            + 3.010
+            + 0
+            + 4.771
+            + 0
+            - (32.976 - 228.599 + 24.771 + 1.5 + 80 + 4 * 40 + 3.010 + 0)
+        )
 
         self.assertAlmostEqual(float(snr), snr_true, delta=0.005)
 
@@ -108,6 +117,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a**2
@@ -136,6 +146,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a
@@ -163,6 +174,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a
@@ -190,6 +202,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
             snr_linear_scaled_expected = snr_linear * a
@@ -217,6 +230,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
 
@@ -245,6 +259,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
 
@@ -273,6 +288,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
 
@@ -301,6 +317,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
 
@@ -329,6 +346,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
 
@@ -357,6 +375,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
 
@@ -385,6 +404,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
 
@@ -413,6 +433,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
 
@@ -441,6 +462,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
 
@@ -469,6 +491,7 @@ class SnrTest(unittest.TestCase):
                     to_dB(a * from_dB(pol)),
                     F_t2,
                     F_r2,
+                    is_one_way=False,
                 )
             )
 
@@ -497,6 +520,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     to_dB(a * from_dB(F_t2)),
                     F_r2,
+                    is_one_way=False,
                 )
             )
 
@@ -525,6 +549,7 @@ class SnrTest(unittest.TestCase):
                     pol,
                     F_t2,
                     to_dB(a * from_dB(F_r2)),
+                    is_one_way=False,
                 )
             )
 
