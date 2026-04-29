@@ -111,6 +111,7 @@ def _calculate_maximum_monostatic_range(
             polarization_factor=0.0,
             pattern_propagation_factor_receiver=0.0,
             pattern_propagation_factor_transmitter=0.0,
+            is_one_way=False,
         )
         p = calculate_probability_of_detection(snr, pfa)
         return p
