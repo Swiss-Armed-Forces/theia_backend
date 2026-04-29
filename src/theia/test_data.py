@@ -3,10 +3,12 @@ import datetime
 from typing import Literal
 
 import numpy as np
+from scipy.interpolate import CubicSpline
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.data_loading import load_bakom_ukw_transmitters
 from theia.distance import line_of_sight_distance
 from theia.grids import LatLonHeightGrid
+from theia.maneuvers import ConstantSpeedCurveManeuver
 from theia.terrain import elevationAt
 from theia.types import (
     ConstantRcsModel,
@@ -322,3 +324,38 @@ def sample_position(
     if alt_magl:
         alt += elevationAt(lat, lon)
     return Point(lat=lat, lon=lon, alt=alt)
+
+
+def build_single_target_from_Bodensee(
+    speed: float = 300.0,
+    rcs: float = 1.0,
+) -> Trajectory:
+    t_start = datetime.datetime(year=2026, month=4, day=29)
+    p_start = Point(lat=47.9395, lon=9.1240, alt=1000.0)
+    p_center = Point(lat=47.1501, lon=9.8984, alt=1000.0)
+
+    maneuver = ConstantSpeedCurveManeuver(
+        center_point=p_center,
+        speed=speed,
+        angular_arclength=np.deg2rad(-110),
+    )
+    times, points = maneuver.get_waypoints(t_start, p_start)
+    timestamps = [t.timestamp() for t in times]
+    points_ecef = np.array(
+        [CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple()) for p in points]
+    )
+    f_ecef = CubicSpline(timestamps, points_ecef, extrapolate=True)
+    v_ecef = f_ecef.derivative()
+    velocities = v_ecef(timestamps)
+
+    return Trajectory(
+        target_id=0,
+        times=times,
+        lats=[p.lat for p in points],
+        lons=[p.lon for p in points],
+        alts=[p.alt for p in points],
+        vxs=[v[0] for v in velocities],
+        vys=[v[1] for v in velocities],
+        vzs=[v[2] for v in velocities],
+        cross_section_model=ConstantRcsModel(rcs=rcs),
+    )
