@@ -172,6 +172,7 @@ class PclDetector(pydantic.BaseModel):
             pattern_propagation_factor_receiver=calculate_antenna_pattern(
                 rx, tgt.point
             ),
+            is_one_way=False,
         )
 
         return snr, bistatic_range_km * 1000.0, doppler

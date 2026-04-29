@@ -355,6 +355,10 @@ class PclSensor(AbstractSensor):
     error_model: PclMeasurementModel
 
 
+class PetSensor(AbstractSensor):
+    error_model: PetMeasurementModel
+
+
 Sensor = MonostaticSensor | PclSensor
 
 
@@ -905,6 +909,89 @@ class PclMeasurementModel(pydantic.BaseModel):
         """Standard deviation of the Doppler shift [Hz]"""
         # TODO: Actually model the uncertainty!
         return 1.0
+
+
+class PetMeasurementModel(pydantic.BaseModel):
+    min_elevation_uncertainty: float = float(np.deg2rad(1.0))
+    max_elevation_uncertainty: float = float(np.deg2rad(10.0))
+    min_azimuth_uncertainty: float = float(np.deg2rad(1.0))
+    max_azimuth_uncertainty: float = float(np.deg2rad(10.0))
+
+    def elevation_resolution(self, sensor: PetSensor) -> float:
+        """Resolution of the detected elevation [rad]"""
+        return (
+            sc.speed_of_light
+            / (sensor.transmitter.frequency * 1e6)
+            / sensor.receiver.diameter
+        )
+
+    def azimuth_resolution(self, sensor: PetSensor) -> float:
+        """Resolution of the detected azimuth [rad]"""
+        return (
+            sc.speed_of_light
+            / (sensor.transmitter.frequency * 1e6)
+            / sensor.receiver.diameter
+        )
+
+    def calculate_elevation_uncertainty(
+        self,
+        sensor: PetSensor,
+        snr: float,
+    ) -> float:
+        """
+        Calculate elevation uncertainty [rad].
+
+        Parameters
+        ----------
+        sensor: PetSensor
+            Sensor
+        snr: float
+            Signal-to-noise ratio of the detection [dB]
+
+        Returns
+        -------
+        float
+            Uncertainty of the elevation [rad]
+
+        Notes
+        -----
+        This is the Cramér-Rao lower bound.
+        """
+        cramer_rao_bound = self.elevation_resolution(sensor) / (
+            2 * np.sqrt(from_dB(snr))
+        )
+        return np.clip(
+            cramer_rao_bound,
+            self.min_elevation_uncertainty,
+            self.max_elevation_uncertainty,
+        )
+
+    def calculate_azimuth_uncertainty(self, sensor: PetSensor, snr: float) -> float:
+        """
+        Calculate azimuth uncertainty [rad].
+
+        Parameters
+        ----------
+        sensor: PetSensor
+            Sensor
+        snr: float
+            Signal-to-noise ratio of the detection [dB]
+
+        Returns
+        -------
+        float
+            Uncertainty of the azimuth [rad]
+
+        Notes
+        -----
+        This is the Cramér-Rao lower bound.
+        """
+        cramer_rao_bound = self.azimuth_resolution(sensor) / (2 * np.sqrt(from_dB(snr)))
+        return np.clip(
+            cramer_rao_bound,
+            self.min_azimuth_uncertainty,
+            self.max_azimuth_uncertainty,
+        )
 
 
 class SituationalPicture(pydantic.BaseModel):
