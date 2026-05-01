@@ -12,10 +12,10 @@ print("Initialise...")
 ################################################
 # Setup the simulation.
 ################################################
-# simulator, buffer = load_uetliberg_opensky_simulator()
-simulator, buffer = load_uetliberg_single_target_simulator_pcl(
-    bistatic_range_uncertainty=100.0,
-)
+simulator, buffer = load_uetliberg_opensky_simulator()
+# simulator, buffer = load_uetliberg_single_target_simulator_pcl(
+#     bistatic_range_uncertainty=100.0,
+# )
 
 ################################################
 # Setup the server.
