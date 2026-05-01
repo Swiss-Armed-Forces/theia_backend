@@ -258,6 +258,10 @@ def create_app(
         track_update_coverage: GeoJSONFeature
             Region in which a track update can happen only using PCL
         """
+        if len(sensors) == 0:
+            return GeoJSONFeature.from_shapely(
+                shapely.Polygon()
+            ), GeoJSONFeature.from_shapely(shapely.Polygon())
         assert grid.altitude_values.shape[0] == 1
 
         detector = PclDetector(
