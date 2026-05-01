@@ -31,6 +31,12 @@ def erp_to_power(erp: float, losses: float, gain: float) -> float:
     power_dBW = erp + 2.15 + losses - gain
     return from_dB(power_dBW)
 
+def power_to_erp(power: float, losses: float, gain: float) -> float:
+    """
+    Calculate ERP [dBW].
+    """
+    return power + gain - losses - 2.15
+
 
 def to_dB(value: float) -> float:
     return 10 * np.log10(value)
