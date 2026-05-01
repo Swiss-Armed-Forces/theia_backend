@@ -656,9 +656,13 @@ It is needed because a detection needs to be associated to a target.
 
 class MonostaticRadarMeasurementModel(pydantic.BaseModel):
     min_range_uncertainty: float = 100.0
+    """Minimum range uncertainty [m]"""
     max_range_uncertainty: float = float(np.inf)
+    """Maximum range uncertainty [m]"""
     min_angular_uncertainty: float = float(np.deg2rad(1.0))
+    """Minimum angular uncertainty [rad]"""
     max_angular_uncertainty: float = float(np.deg2rad(360.0))
+    """Maximum angular uncertainty [rad]"""
 
     def range_resolution(self, radar: MonostaticSensor) -> float:
         """Resolution of the detected range [m]"""
