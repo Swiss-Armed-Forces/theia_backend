@@ -1,5 +1,6 @@
 import numpy as np
 import pydantic
+import shapely
 
 
 class LatLonHeightGrid(pydantic.BaseModel):
@@ -80,3 +81,14 @@ class LatLonHeightGrid(pydantic.BaseModel):
                     points[i, :] = lat, lon, height
                     i += 1
         return points
+
+    def get_bbox_polygon(self) -> shapely.Polygon:
+        return shapely.Polygon(
+            shell=[
+                [self.lon_start, self.lat_start],
+                [self.lon_start, self.lat_stop],
+                [self.lon_stop, self.lat_stop],
+                [self.lon_stop, self.lat_start],
+            ],
+            holes=[],
+        )
