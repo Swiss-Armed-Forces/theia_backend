@@ -329,10 +329,11 @@ def sample_position(
 def build_single_target_from_Bodensee(
     speed: float = 300.0,
     rcs: float = 1.0,
+    alt: float = 1000.0,
 ) -> Trajectory:
     t_start = datetime.datetime(year=2026, month=4, day=29)
-    p_start = Point(lat=47.9395, lon=9.1240, alt=1000.0)
-    p_center = Point(lat=47.1501, lon=9.8984, alt=1000.0)
+    p_start = Point(lat=47.9395, lon=9.1240, alt=alt)
+    p_center = Point(lat=47.1501, lon=9.8984, alt=alt)
 
     maneuver = ConstantSpeedCurveManeuver(
         center_point=p_center,

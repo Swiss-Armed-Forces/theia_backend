@@ -46,6 +46,8 @@ class CompositeManeuver(AbstractManeuver):
 
 
 class ConstantSpeedCurveManeuver(AbstractManeuver, pydantic.BaseModel):
+    """Fly a curve at constant speed around a center point"""
+
     center_point: Point
     """Center point of the curve."""
     speed: float
@@ -54,6 +56,8 @@ class ConstantSpeedCurveManeuver(AbstractManeuver, pydantic.BaseModel):
     """Angular length of the curve (clockwise, i. e. increasing azimuth) [rad]"""
     angular_res: float = 2 * np.pi / 360
     """Resolution of sampling the curve [rad]"""
+    constant_altitude: bool = True
+    """Whether to keep altitude constant (default) or fly at constant elevation to the center point"""
 
     def get_waypoints(
         self,
@@ -98,7 +102,13 @@ class ConstantSpeedCurveManeuver(AbstractManeuver, pydantic.BaseModel):
                 )
             )
             lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
-            points.append(Point(lat=lat, lon=lon, alt=alt))
+            points.append(
+                Point(
+                    lat=lat,
+                    lon=lon,
+                    alt=start_pos.alt if self.constant_altitude else alt,
+                )
+            )
 
         times: list[datetime.datetime] = [start_time]
         for p, p_next in itertools.pairwise(points):
