@@ -12,6 +12,7 @@ from theia.distance import (
 )
 from theia.doppler import calculate_doppler_shift
 from theia.grids import LatLonHeightGrid
+from theia.line_of_sight import has_line_of_sight
 from theia.snr import calculate_snr
 from theia.types import (
     ConstantRcsModel,
@@ -40,6 +41,8 @@ class PclDetector(pydantic.BaseModel):
     is smaller than this value, the geometry is considered to fall into the
     forward scattering domain and a ValueError is raised.
     """
+    distance_step: float = 30.0
+    """Step width [m] for the line-of-sight check"""
 
     def _calculate_bistatic_range_doppler(
         self,
@@ -87,7 +90,16 @@ class PclDetector(pydantic.BaseModel):
         ------
         ValueError
             If the geometry is not in the bistatic regime (delay too small)
+        ValueError
+            If there is now direct line-of-sight Tx - Target - Rx
         """
+        has_los = has_line_of_sight(
+            tx.point, tgt.point, self.distance_step
+        ) and has_line_of_sight(rx.point, tgt.point, self.distance_step)
+
+        if not has_los:
+            raise ValueError("No line of sight Tx - Target - Rx")
+
         baseline_range, bistatic_range_km, doppler = (
             self._calculate_bistatic_range_doppler(
                 rx,
@@ -194,6 +206,7 @@ class PclDetector(pydantic.BaseModel):
             Shape: (N, 3)
         """
         results = np.empty(points.shape[0], dtype=np.float64)
+        results.fill(np.nan)
         for i, point in enumerate(points):
             tgt = Target(
                 id=-1,
