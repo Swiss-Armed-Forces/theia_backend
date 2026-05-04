@@ -369,6 +369,7 @@ class Target(pydantic.BaseModel):
     """Coordinates"""
     cross_section_model: ConstantRcsModel
     velocity: Velocity
+    transmitter: Optional[Transmitter] = None
 
     @property
     def lat(self) -> float:
