@@ -10,15 +10,15 @@ out_dir = "output/paraview"
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
-traj = build_single_target_from_Bodensee()
+traj = build_single_target_from_Bodensee(alt=4000)
 
 grid = LatLonHeightGrid(
-    lat_start=46.9204,
+    lat_start=46.28243,
     lat_stop=48.0046,
-    lat_res=0.005,
+    lat_res=0.003,
     lon_start=8.0854,
     lon_stop=9.4973,
-    lon_res=0.005,
+    lon_res=0.003,
     height_start=3000,
     height_stop=3000,
     height_res=1,
@@ -32,7 +32,7 @@ exporter = ParaviewExporter(
     grid.lon_start,
     grid.lon_stop,
     grid.lon_res,
-    # elevation_factor=5.0,
+    elevation_factor=5.0,
 )
 
 pois = [
@@ -49,8 +49,8 @@ pois = [
         label="Rx Stallikon",
         type="Rx",
         lat=47.3258,
-        lon= 8.4914,
-        alt=elevationAt(47.3258,  8.4914) + 10,
+        lon=8.4914,
+        alt=elevationAt(47.3258, 8.4914) + 10,
     ),
     PointOfInterest(
         id=2,
@@ -67,7 +67,7 @@ pois = [
         lat=47.4629,
         lon=8.5693,
         alt=elevationAt(47.4629, 8.5693),
-    )
+    ),
 ]
 
 exporter.export([traj], pois)
