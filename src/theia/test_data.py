@@ -24,7 +24,7 @@ from theia.types import (
     Transmitter,
     calculate_antenna_gain,
 )
-from theia.util import frequency_to_wavelength
+from theia.util import frequency_to_wavelength, power_to_erp
 
 
 class TestSituationLoader:
@@ -359,4 +359,167 @@ def build_single_target_from_Bodensee(
         vys=[v[1] for v in velocities],
         vzs=[v[2] for v in velocities],
         cross_section_model=ConstantRcsModel(rcs=rcs),
+    )
+
+
+def build_fighter_jet_radar(
+    id: int,
+    tx_id: int,
+    rx_id: int,
+    frequency: float = 9.0 * 1e3,
+    antenna_diameter: float = 1.0,
+    transmitter_bandwidth: float = 500.0,
+    pulse_width: float = 1.0,
+) -> MonostaticSensor:
+    """
+    Parameters
+    ----------
+    id: int
+        ID of the sensor
+    tx_id: int
+        ID of the transmitter
+    rx_id: int
+        ID of the receiver
+    frequency: float, default 9000
+        Signal frequency [MHz]
+    antenna_diameter: float, default 1.0
+        Diameter of the antenna [m]
+    transmitter_bandwidth: float, default 500
+        Signal bandwidth [MHz]
+    pulse_width: float, default 1.0
+        Signal pulse width [us]
+    """
+    p = Point(lat=0, lon=0, alt=0)
+    wavelength = frequency_to_wavelength(frequency)  # m
+    tx = Transmitter(
+        id=tx_id,
+        point=p,
+        power=3_000,
+        erp=3_000,
+        antenna_height=0.0,
+        antenna_diameter=antenna_diameter,
+        antenna_gain=calculate_antenna_gain(antenna_diameter, wavelength),
+        frequency=frequency,
+        pulse_width=pulse_width,
+        polarization=Polarization.VERTICAL,
+        bandwidth=transmitter_bandwidth,
+    )
+    rx = Receiver(
+        id=rx_id,
+        point=p,
+        antenna_height=0.0,
+        diameter=antenna_diameter,
+        cpi_pulses=1,
+        pfa=1e-6,
+        min_elevation=-90.0,
+        max_elevation=90.0,
+        rotation_time=1,
+        bandwidth=1 / pulse_width,
+        gain=calculate_antenna_gain(antenna_diameter, wavelength),
+        losses=0.0,
+    )
+
+    return MonostaticSensor(
+        id=id,
+        transmitter=tx,
+        receiver=rx,
+        error_model=MonostaticRadarMeasurementModel(),
+    )
+
+
+def build_flores_monostatic_radar(
+    point: Point,
+    sensor_id: int,
+    rx_id: int,
+    tx_id: int,
+) -> MonostaticSensor:
+    # Sources:
+    # [Thales] https://www.radartutorial.eu/19.kartei/02.surv/pubs/Master_M.pdf
+    # [Wiki] https://fr.wikipedia.org/wiki/Ground_Master_200
+    # [Fandom] https://schweiz.fandom.com/de/wiki/FLORAKO
+    frequency = 3 * 1e3  # 3 GHz, S-band [Thales]
+    wavelength = frequency_to_wavelength(frequency)
+    bandwidth = 400  # MHz [Thales]
+    antenna_diameter = 2  # m; guess - actually a flat antenna panel
+    antenna_height = 8  # m [Wiki]
+    power = 100_000  # W; guess
+    gain = calculate_antenna_gain(antenna_diameter, wavelength)
+    pulse_width = 1  # us; guess
+    rotation_time = 4  # s; [Fandom]
+    tx = Transmitter(
+        id=tx_id,
+        point=point,
+        power=power,
+        erp=power_to_erp(power, 0.0, gain),
+        antenna_height=antenna_height,
+        antenna_diameter=antenna_diameter,
+        antenna_gain=gain,
+        frequency=frequency,
+        pulse_width=pulse_width,
+        polarization=Polarization.VERTICAL,
+        bandwidth=bandwidth,
+    )
+    rx = Receiver(
+        id=rx_id,
+        point=point,
+        antenna_height=antenna_height,
+        diameter=antenna_diameter,
+        cpi_pulses=1,
+        pfa=1e-6,
+        min_elevation=-90.0,
+        max_elevation=90.0,
+        rotation_time=rotation_time,
+        bandwidth=1 / pulse_width,
+        gain=calculate_antenna_gain(antenna_diameter, wavelength),
+        losses=0.0,
+    )
+
+    error_model = MonostaticRadarMeasurementModel(
+        min_range_uncertainty=30,  # m; [Thales]
+        max_range_uncertainty=10_000,  # m; avoid infinity for serialization to JSON
+        min_angular_uncertainty=np.deg2rad(0.3),  # rad; [Thales]
+    )
+
+    return MonostaticSensor(
+        id=sensor_id,
+        transmitter=tx,
+        receiver=rx,
+        error_model=error_model,
+    )
+
+
+def build_pcl_receiver(
+    rx_id: int,
+    point: Point,
+    antenna_height: float = 8.0,
+    antenna_diameter: float = 2.0,
+) -> Receiver:
+    """
+    Parameters
+    ----------
+    rx_id: int
+        Unique ID of the receiver
+    point: Point
+        Position of the receiver
+    antenna_height: float, default 8.0
+        Antenna height [m]
+    antenna_diameter: float, default 2.0
+        Antenna diameter [m]
+    """
+    # Default values are inspired by Hensoldt TwinVis:
+    # https://www.hensoldt.net/products/twinvis-passive-radar-surveillance-of-noiseless-objects
+    return Receiver(
+        id=rx_id,
+        point=point,
+        antenna_height=antenna_height,
+        diameter=antenna_diameter,
+        cpi_pulses=1,
+        pfa=-1.0,  # not used for PCL
+        min_elevation=0.0,  # currently not used
+        max_elevation=np.pi / 2,  # currently not used
+        rotation_time=1.0,
+        # FM modulating frequency <= 53 kHz, peak deviation 75kHz. Apply Carson's rule.
+        # Source:
+        # https://en.wikipedia.org/wiki/Carson_bandwidth_rule
+        bandwidth=0.256,  # MHz
     )

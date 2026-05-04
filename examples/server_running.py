@@ -1,6 +1,7 @@
 import uvicorn
 
 from theia.simulation.predefined_simulations import (
+    load_single_target_from_Bodensee_simulator,
     load_uetliberg_opensky_simulator,
     load_uetliberg_single_target_simulator_pcl,
 )
@@ -12,10 +13,11 @@ print("Initialise...")
 ################################################
 # Setup the simulation.
 ################################################
-simulator, buffer = load_uetliberg_opensky_simulator()
+# simulator, buffer = load_uetliberg_opensky_simulator()
 # simulator, buffer = load_uetliberg_single_target_simulator_pcl(
 #     bistatic_range_uncertainty=100.0,
 # )
+simulator, buffer = load_single_target_from_Bodensee_simulator()
 
 ################################################
 # Setup the server.
