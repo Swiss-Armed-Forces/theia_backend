@@ -93,12 +93,12 @@ class PclDetector(pydantic.BaseModel):
         ValueError
             If there is now direct line-of-sight Tx - Target - Rx
         """
-        has_los = has_line_of_sight(
-            tx.point, tgt.point, self.distance_step
-        ) and has_line_of_sight(rx.point, tgt.point, self.distance_step)
+        # has_los = has_line_of_sight(
+        #     tx.point, tgt.point, self.distance_step
+        # ) and has_line_of_sight(rx.point, tgt.point, self.distance_step)
 
-        if not has_los:
-            raise ValueError("No line of sight Tx - Target - Rx")
+        # if not has_los:
+        #     raise ValueError("No line of sight Tx - Target - Rx")
 
         baseline_range, bistatic_range_km, doppler = (
             self._calculate_bistatic_range_doppler(
@@ -452,7 +452,7 @@ def pcl_track_init_update_masks(
 
     detection_grids = [rcs_grid <= rcs for rcs_grid in min_detectable_rcs_grids]
     n_detections_grid = sum(detection_grids)
-    track_update_mask = np.logical_and(0 <= n_detections_grid, n_detections_grid < 3)
+    track_update_mask = np.logical_and(0 < n_detections_grid, n_detections_grid < 3)
     track_init_mask = 3 <= n_detections_grid
 
     return track_init_mask, track_update_mask
