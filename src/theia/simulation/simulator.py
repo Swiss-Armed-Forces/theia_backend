@@ -102,6 +102,10 @@ class Simulator:
         self._time_of_last_detection: dict[int, datetime.datetime] = {}
         """Time of latest detection for each sensor ID."""
 
+        self.set_listener(listener)
+
+    def set_listener(self, listener: AbstractSimulationListener):
+        self._listener = listener
         self._listener.register_simulator(self)
 
     def get_situational_picture_blue(self) -> SituationalPicture:
