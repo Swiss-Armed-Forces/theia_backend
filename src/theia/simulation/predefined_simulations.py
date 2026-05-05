@@ -164,8 +164,8 @@ def load_single_target_from_Bodensee_simulator(
         monostatic_radars.append(monostatic_radar)
         sensor_id += 1
 
-    pcl_rx_lat = 47.17132
-    pcl_rx_lon = 9.04175
+    pcl_rx_lat = 46.99166835
+    pcl_rx_lon = 8.36833333
     point = Point(
         lat=pcl_rx_lat,
         lon=pcl_rx_lon,
@@ -173,29 +173,8 @@ def load_single_target_from_Bodensee_simulator(
     )
     pcl_rx = build_pcl_receiver(rx_id=1, point=point)
     txs = load_bakom_ukw_transmitters(start_id=1)
-    txs = [
-        tx
-        for tx in txs
-        if line_of_sight_distance(*pcl_rx.point.as_tuple(), *tx.point.as_tuple())
-        <= 30_000.0
-    ]
-    txs = [
-        tx
-        for tx in txs
-        if has_line_of_sight(
-            Point(
-                lat=pcl_rx.lat,
-                lon=pcl_rx.lon,
-                alt=pcl_rx.alt + pcl_rx.antenna_height,
-            ),
-            Point(
-                lat=tx.lat,
-                lon=tx.lon,
-                alt=tx.alt + tx.antenna_height,
-            ),
-            30.0,
-        )
-    ]
+    tx_ids = [943, 1151, 921, 1113]
+    txs = [tx for tx in txs if tx.id in tx_ids]
     pcl_sensors: list[PclSensor] = []
     for tx in txs:
         pcl_sensors.append(
@@ -216,11 +195,10 @@ def load_single_target_from_Bodensee_simulator(
     # Build controllers for the sensors.
     monostatic_controllers = [MonostaticRadarController(r) for r in monostatic_radars]
     pcl_controllers = [PclSensorController(sensor) for sensor in pcl_sensors]
-    # blue_controller = ControllerGroup(monostatic_controllers + pcl_controllers)
-    blue_controller = ControllerGroup(monostatic_controllers)
+    blue_controller = ControllerGroup(monostatic_controllers + pcl_controllers)
 
     # Load trajectory.
-    trajectory = build_single_target_from_Bodensee(alt=2000)
+    trajectory = build_single_target_from_Bodensee(alt=1000)
     trajectories = [trajectory]
 
     scripted_target_controller = ControllerGroup(
