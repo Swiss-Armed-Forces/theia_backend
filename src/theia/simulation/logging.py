@@ -360,7 +360,9 @@ class SituationalPictureBuffer(AbstractSimulationListener):
         self._red_ground_truth_history: dict[
             int, list[tuple[datetime.datetime, Target]]
         ] = {}
-        # TODO: Implement for blue targets as well.
+        self._blue_ground_truth_history: dict[
+            int, list[tuple[datetime.datetime, Target]]
+        ] = {}
         self._situational_picture_blue = SituationalPicture(
             time=datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc),
             friendly_radars=[],
@@ -383,7 +385,10 @@ class SituationalPictureBuffer(AbstractSimulationListener):
             traj = self._red_ground_truth_history.get(target.id, [])
             traj.append((snapshot.time, target))
             self._red_ground_truth_history[target.id] = traj
-        # TODO: Implement for blue targets.
+        for target in snapshot.blue_targets:
+            traj = self._blue_ground_truth_history.get(target.id, [])
+            traj.append((snapshot.time, target))
+            self._blue_ground_truth_history[target.id] = traj
 
     def on_situational_picture(
         self,
@@ -407,10 +412,11 @@ class SituationalPictureBuffer(AbstractSimulationListener):
         self._has_completed = True
 
     def get_ground_truth_trajectories(self, is_blue: bool) -> list[Trajectory]:
-        if is_blue:
-            raise NotImplementedError()
-        else:
-            history = self._red_ground_truth_history.values()
+        history = (
+            self._blue_ground_truth_history.values()
+            if is_blue
+            else self._red_ground_truth_history.values()
+        )
         trajectories = []
         for target_history in history:
             times = []
