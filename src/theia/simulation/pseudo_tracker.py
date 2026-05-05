@@ -1,7 +1,9 @@
 import datetime
 import itertools
+from typing import Optional
 
 import numpy as np
+import pydantic
 import stonesoup
 from stonesoup.models.transition.linear import (
     CombinedLinearGaussianTransitionModel,
@@ -22,6 +24,7 @@ from theia.types import (
     AbstractTracker,
     MonostaticRadarDetection,
     PclDetection,
+    PetDetection,
     Point,
 )
 
@@ -97,6 +100,12 @@ class SingleTargetEcefTracker:
             return None
         else:
             return theia.types.Track(id=str(self._id), states=states)
+
+
+class TargetDetections(pydantic.BaseModel):
+    target_id: int
+    monostatic_detections: list[MonostaticRadarDetection] = []
+    pcl_detections: list[PclDetection] = []
 
 
 class PseudoTracker(AbstractTracker):
@@ -191,6 +200,7 @@ class PseudoTracker(AbstractTracker):
         # All detections share the same target, i. e. we can select
         # any of them to access the true target state.
         # Finally, a fake detection is created.
+        detections = sorted(detections.pcl_detections, key=lambda d: d.bistatic_range)
         sigma = np.max([d.sigma_bistatic_range for d in detections])
         detection = detections[0]
         detection_time = detection.time
@@ -213,18 +223,18 @@ class PseudoTracker(AbstractTracker):
             timestamp=detection_time,
         )
 
-    def add_detections(
+    def _preprocess_detections(
         self,
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
-    ):
+    ) -> list[TargetDetections]:
         # Ignore clutter.
         monostatic_detections = [
             d for d in monostatic_detections if d.target != CLUTTER_TARGET
         ]
         pcl_detections = [d for d in pcl_detections if d.target != CLUTTER_TARGET]
 
-        def f(d: MonostaticRadarDetection | PclDetection) -> int:
+        def f(d: MonostaticRadarDetection | PclDetection | PetDetection) -> int:
             return d.target.id
 
         monostatic_detections = sorted(monostatic_detections, key=f)
@@ -241,19 +251,43 @@ class PseudoTracker(AbstractTracker):
         monostatic_target_ids = set(grouped_monostatic_detections.keys())
         pcl_target_ids = set(grouped_pcl_detections)
 
-        target_ids = list(monostatic_target_ids.union(pcl_target_ids))
+        target_ids = list(
+            monostatic_target_ids.union(pcl_target_ids)
+        )
 
-        updated_targets: set[int] = set()
+        target_detections: list[TargetDetections] = []
         for target_id in target_ids:
-            if target_id in grouped_monostatic_detections:
-                detection = self._monostatic_init_update(
-                    grouped_monostatic_detections[target_id]
+            target_detections.append(
+                TargetDetections(
+                    target_id=target_id,
+                    monostatic_detections=grouped_monostatic_detections.get(
+                        target_id, []
+                    ),
+                    pcl_detections=grouped_pcl_detections.get(target_id, []),
                 )
-            elif target_id in grouped_pcl_detections:
-                detections = grouped_pcl_detections[target_id]
-                detections = sorted(detections, key=lambda d: d.bistatic_range)
-                if target_id in self._trackers or len(detections) >= 3:
-                    detection = self._pcl_init_update(detections)
+            )
+        return target_detections
+
+    def add_detections(
+        self,
+        monostatic_detections: list[MonostaticRadarDetection],
+        pcl_detections: list[PclDetection],
+    ):
+        target_detections = self._preprocess_detections(
+            monostatic_detections,
+            pcl_detections,
+        )
+        updated_targets: set[int] = set()
+        for detections in target_detections:
+            if len(detections.monostatic_detections) > 0:
+                # Whenever we have monostatic detections, we use those detections
+                # to initialize or update the track.
+                detection = self._monostatic_init_update(
+                    detections.monostatic_detections
+                )
+            elif len(detections.pcl_detections) > 0:
+                if detections.target_id in self._trackers or len(detections) >= 3:
+                    detection = self._pcl_init_update(pcl_detections)
                 else:
                     # We do not have a track yet, but there are not enough
                     # detections to initialize a new one.
@@ -264,13 +298,13 @@ class PseudoTracker(AbstractTracker):
                 )
 
             # Actually initialise or update the track.
-            # TODO: Use a Kalman filter.
             tracker = self._trackers.setdefault(
-                target_id, SingleTargetEcefTracker(target_id, self._t0, self._prior)
+                detections.target_id,
+                SingleTargetEcefTracker(detections.target_id, self._t0, self._prior),
             )
             tracker.add_detection(detection)
-            self._iterations_without_update[target_id] = 0
-            updated_targets.add(target_id)
+            self._iterations_without_update[detections.target_id] = 0
+            updated_targets.add(detections.target_id)
 
         # Remove targets that haven't been updated in a while.
         # The list() is important: It allows to modify the states dict during iteration.
