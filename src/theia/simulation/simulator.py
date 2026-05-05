@@ -42,6 +42,7 @@ class Simulator:
         blue_controller: Controller,
         red_controller: Controller,
         blue_tracker: AbstractTracker,
+        red_tracker: AbstractTracker,
         start_time: datetime.datetime,
         time_step: datetime.timedelta,
         min_time_per_step: datetime.timedelta,
@@ -62,6 +63,9 @@ class Simulator:
         blue_tracker: AbstractTracker
             Tracker that generates the blue situational pictures
             (it detects red targets)
+        red_tracker: AbstractTracker
+            Tracker that generates the red situational pictures
+            (it detects blue targets)
         start_time: datetime.datetime
             Initial time at the start of the simulation
         time_step: datetime.timedelta
@@ -83,6 +87,7 @@ class Simulator:
         self._blue_controller = blue_controller
         self._red_controller = red_controller
         self._blue_tracker = blue_tracker
+        self._red_tracker = red_tracker
         self._t = start_time
         self._dt = time_step
         self._minimum_seconds_per_step: float = float(min_time_per_step.seconds)
@@ -135,10 +140,18 @@ class Simulator:
             red_targets=self._red_targets,
         )
 
-    def _calculate_blue_monostatic_detections(self) -> list[MonostaticRadarDetection]:
+    def _calculate_monostatic_detections(
+        self,
+        is_scanner_blue: bool,
+    ) -> list[MonostaticRadarDetection]:
         """
-        Calculate blue active radar detections at the current time step,
-        i. e. the red targets detected by BLUE. Includes clutter.
+        Calculate active radar detections at the current time step.
+        Includes clutter.
+
+        Parameters
+        ----------
+        is_scanner_blue: bool
+            Whether the scanning part ("hunter") is blue; otherwise it is red
 
         Notes
         -----
@@ -147,7 +160,13 @@ class Simulator:
         No angular update is implemented.
         """
         detections: list[MonostaticRadarDetection] = []
-        for radar in self._blue_monostatic_radars:
+        sensors = (
+            self._blue_monostatic_radars
+            if is_scanner_blue
+            else self._red_monostatic_radars
+        )
+        targets = self._red_targets if is_scanner_blue else self._blue_targets
+        for radar in sensors:
             max_range = calculate_maximum_monostatic_range(radar)
             time_of_last_detection = self._time_of_last_detection.get(
                 radar.id,
@@ -163,7 +182,7 @@ class Simulator:
             ).seconds < radar.receiver.rotation_time:
                 # No new detections.
                 continue
-            for target in self._red_targets:
+            for target in targets:
                 det = calculate_monostatic_detection(
                     radar,
                     target,
@@ -190,10 +209,18 @@ class Simulator:
                     detections.append(d)
         return detections
 
-    def _calculate_blue_pcl_detections(self) -> list[PclDetection]:
+    def _calculate_blue_pcl_detections(
+        self,
+        is_scanner_blue: bool,
+    ) -> list[PclDetection]:
         """
-        Calculate blue PCL detections at the current time step,
-        i. e. the red targets detected by BLUE. Includes clutter.
+        Calculate blue PCL detections at the current time step.
+        Does not include clutter.
+
+        Parameters
+        ----------
+        is_scanner_blue: bool
+            Whether the scanning part ("hunter") is blue; otherwise it is red
 
         Notes
         -----
@@ -202,7 +229,9 @@ class Simulator:
         No angular update is implemented.
         """
         detections: list[PclDetection] = []
-        for sensor in self._blue_pcl_sensors:
+        sensors = self._blue_pcl_sensors if is_scanner_blue else self._red_pcl_sensors
+        targets = self._red_targets if is_scanner_blue else self._red_pcl_sensors
+        for sensor in sensors:
             time_of_last_detection = self._time_of_last_detection.get(
                 sensor.id,
                 datetime.datetime(
@@ -217,7 +246,7 @@ class Simulator:
             ).seconds < sensor.receiver.rotation_time:
                 # No new detections.
                 continue
-            for target in self._red_targets:
+            for target in targets:
                 det = self._pcl_detector.calculate_pcl_detection(
                     self._rng,
                     sensor,
@@ -287,8 +316,14 @@ class Simulator:
         self._t += self._dt
 
         # Detect RED targets.
-        blue_active_radar_detections = self._calculate_blue_monostatic_detections()
-        blue_pcl_detections = self._calculate_blue_pcl_detections()
+        blue_active_radar_detections = self._calculate_monostatic_detections(
+            is_scanner_blue=True
+        )
+        red_active_radar_detections = self._calculate_monostatic_detections(
+            is_scanner_blue=False
+        )
+        blue_pcl_detections = self._calculate_blue_pcl_detections(is_scanner_blue=True)
+        red_pcl_detections = self._calculate_blue_pcl_detections(is_scanner_blue=False)
 
         # TODO: Implement PET detections.
 
@@ -297,6 +332,10 @@ class Simulator:
             blue_active_radar_detections,
             blue_pcl_detections,
         )
+        self._red_tracker.add_detections(
+            red_active_radar_detections,
+            red_pcl_detections,
+        )
 
         # Log.
         self._listener.on_snapshot(self.take_snapshot())
@@ -304,6 +343,11 @@ class Simulator:
             blue_active_radar_detections,
             blue_pcl_detections,
             is_blue=True,
+        )
+        self._listener.on_detections(
+            red_active_radar_detections,
+            red_pcl_detections,
+            is_blue=False,
         )
 
         stop_time = time.time()
