@@ -209,12 +209,9 @@ class Simulator:
                     detections.append(d)
         return detections
 
-    def _calculate_blue_pcl_detections(
-        self,
-        is_scanner_blue: bool,
-    ) -> list[PclDetection]:
+    def _calculate_pcl_detections(self, is_scanner_blue: bool) -> list[PclDetection]:
         """
-        Calculate blue PCL detections at the current time step.
+        Calculate PCL detections at the current time step.
         Does not include clutter.
 
         Parameters
@@ -322,8 +319,8 @@ class Simulator:
         red_active_radar_detections = self._calculate_monostatic_detections(
             is_scanner_blue=False
         )
-        blue_pcl_detections = self._calculate_blue_pcl_detections(is_scanner_blue=True)
-        red_pcl_detections = self._calculate_blue_pcl_detections(is_scanner_blue=False)
+        blue_pcl_detections = self._calculate_pcl_detections(is_scanner_blue=True)
+        red_pcl_detections = self._calculate_pcl_detections(is_scanner_blue=False)
 
         # TODO: Implement PET detections.
 
