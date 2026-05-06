@@ -5,6 +5,7 @@ import unittest
 import numpy as np
 from tqdm import tqdm
 
+from theia.config import SIDC_RED_FIXED_WING
 from theia.data_loading import load_trajectory_file
 from theia.data_loading_testing import load_pcl_reference_data
 from theia.detection.pcl import PclDetector
@@ -20,6 +21,7 @@ from theia.simulation.logging import FileLogger, InMemoryLogger
 from theia.simulation.simulator import Simulator, TimeCriterion
 from theia.simulation.tracking import DummyTracker
 from theia.test_data import get_uetliberg_radar
+from theia.types import ConstantRcsModel
 
 FREQUENCY = 3_000  # Hz
 POWER = 500_000  # W
@@ -36,7 +38,10 @@ class SimulatorTest(unittest.TestCase):
             f"{Path(__file__).resolve().parent}/test_data/pcl_detection"
         )
         scripted_target_controller = ControllerGroup(
-            [WaypointTargetController.from_trajectory(t) for t in trajectories]
+            [
+                WaypointTargetController.from_trajectory(t, SIDC_RED_FIXED_WING)
+                for t in trajectories
+            ]
         )
 
         # Build the simulator.
@@ -48,7 +53,12 @@ class SimulatorTest(unittest.TestCase):
         simulator = Simulator(
             pcl_detector=PclDetector(),
             pet_detector=PetDetector(),
-            blue_controller=MonostaticRadarController(radar),
+            blue_controller=MonostaticRadarController(
+                len(scripted_target_controller._controllers) + 1,
+                radar,
+                True,
+                ConstantRcsModel(rcs=1.0),
+            ),
             red_controller=scripted_target_controller,
             blue_tracker=DummyTracker(),
             red_tracker=DummyTracker(),
@@ -72,7 +82,10 @@ class SimulatorTest(unittest.TestCase):
         )
 
         scripted_target_controller = ControllerGroup(
-            [WaypointTargetController.from_trajectory(t) for t in trajectories]
+            [
+                WaypointTargetController.from_trajectory(t, SIDC_RED_FIXED_WING)
+                for t in trajectories
+            ]
         )
 
         # Build the simulator.
@@ -86,7 +99,12 @@ class SimulatorTest(unittest.TestCase):
         simulator = Simulator(
             pcl_detector=PclDetector(),
             pet_detector=PetDetector(),
-            blue_controller=MonostaticRadarController(radar),
+            blue_controller=MonostaticRadarController(
+                len(scripted_target_controller._controllers) + 1,
+                radar,
+                True,
+                ConstantRcsModel(rcs=1.0),
+            ),
             red_controller=scripted_target_controller,
             blue_tracker=DummyTracker(),
             red_tracker=DummyTracker(),

@@ -32,3 +32,5 @@ RCS_FOR_RANGE_CALCULATION = 1.0
 """Radar cross section [m^2] to be used for monostatic range calculations by default."""
 
 FRONTEND_URL = "http://localhost:5173"
+
+SIDC_RED_FIXED_WING = "10-0-6-01-0-0-00-110100-00-00"
