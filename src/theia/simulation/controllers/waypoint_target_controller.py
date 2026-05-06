@@ -150,4 +150,5 @@ class WaypointTargetController(Controller):
             trajectory.times,
             points,
             trajectory.cross_section_model,
+            sensor,
         )
