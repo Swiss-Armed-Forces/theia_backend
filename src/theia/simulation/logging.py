@@ -14,6 +14,7 @@ from theia.types import (
     MonostaticSensor,
     PclDetection,
     PclSensor,
+    PetDetection,
     SituationalPicture,
     Snapshot,
     Target,
@@ -37,6 +38,7 @@ class NoLogger(AbstractSimulationListener):
         self,
         active_radar_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
         is_blue: bool,
     ):
         pass
@@ -75,6 +77,7 @@ class FileLogger(AbstractSimulationListener):
         self,
         active_radar_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
         is_blue: bool,
     ):
         self.detections.append(
@@ -84,6 +87,7 @@ class FileLogger(AbstractSimulationListener):
                     d.model_dump(mode="json") for d in active_radar_detections
                 ],
                 "pcl_detections": [d.model_dump(mode="json") for d in pcl_detections],
+                "pet_detections": [d.model_dump(mode="json") for d in pet_detections],
             }
         )
 
@@ -116,12 +120,15 @@ class PrintLogger(AbstractSimulationListener):
         self,
         active_radar_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
         is_blue: bool,
     ):
         print(f"Active radar detections {'BLUE' if is_blue else 'RED'}:")
         print(active_radar_detections)
         print(f"PCL detections {'BLUE' if is_blue else 'RED'}:")
         print(pcl_detections)
+        print(f"PET detections {'BLUE' if is_blue else 'RED'}:")
+        print(pet_detections)
 
     def on_end(self):
         pass
@@ -133,6 +140,10 @@ class InMemoryLogger(AbstractSimulationListener):
         self.situational_pictures_red: list[SituationalPicture] = []
         self.monostatic_radar_detections_blue: list[MonostaticRadarDetection] = []
         self.pcl_detections_blue: list[PclDetection] = []
+        self.pet_detections_blue: list[PetDetection] = []
+        self.monostatic_radar_detections_red: list[MonostaticRadarDetection] = []
+        self.pcl_detections_red: list[PclDetection] = []
+        self.pet_detections_red: list[PetDetection] = []
         self.snapshots: list[Snapshot] = []
 
     def register_simulator(self, simulator: Simulator):
@@ -155,14 +166,24 @@ class InMemoryLogger(AbstractSimulationListener):
         self,
         active_radar_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
         is_blue: bool,
     ):
-        if not is_blue:
-            raise NotImplementedError()
         for det in active_radar_detections:
-            self.monostatic_radar_detections_blue.append(det)
+            if is_blue:
+                self.monostatic_radar_detections_blue.append(det)
+            else:
+                self.monostatic_radar_detections_red.append(det)
         for det in pcl_detections:
-            self.pcl_detections_blue.append(det)
+            if is_blue:
+                self.pcl_detections_blue.append(det)
+            else:
+                self.pcl_detections_red.append(det)
+        for det in pet_detections:
+            if is_blue:
+                self.pet_detections_blue.append(det)
+            else:
+                self.pet_detections_red.append(det)
 
     def on_end(self):
         pass
@@ -309,10 +330,16 @@ class CompositeSimulationListener(AbstractSimulationListener):
         self,
         active_radar_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
         is_blue: bool,
     ):
         for listener in self._listeners:
-            listener.on_detections(active_radar_detections, pcl_detections, is_blue)
+            listener.on_detections(
+                active_radar_detections,
+                pcl_detections,
+                pet_detections,
+                is_blue,
+            )
 
     def on_end(self):
         for listener in self._listeners:
@@ -344,11 +371,18 @@ class FilterSimulationListener(AbstractSimulationListener):
             self._listener.on_situational_picture(situational_picture, is_blue)
 
     def on_detections(
-        self, active_radar_detections, pcl_detections: list[PclDetection], is_blue
+        self,
+        active_radar_detections: list[MonostaticRadarDetection],
+        pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
+        is_blue,
     ):
         if self._forward_detections:
             self._listener.on_detections(
-                active_radar_detections, pcl_detections, is_blue
+                active_radar_detections,
+                pcl_detections,
+                pet_detections,
+                is_blue,
             )
 
     def on_end(self):
@@ -365,12 +399,14 @@ class SituationalPictureBuffer(AbstractSimulationListener):
         ] = {}
         self._situational_picture_blue = SituationalPicture(
             time=datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc),
+            friendly_pet_receivers=[],
             friendly_radars=[],
             friendly_targets=[],
             enemy_targets=[],
         )
         self._situational_picture_red = SituationalPicture(
             time=datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc),
+            friendly_pet_receivers=[],
             friendly_radars=[],
             friendly_targets=[],
             enemy_targets=[],
@@ -404,6 +440,7 @@ class SituationalPictureBuffer(AbstractSimulationListener):
         self,
         active_radar_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
         is_blue: bool,
     ):
         pass

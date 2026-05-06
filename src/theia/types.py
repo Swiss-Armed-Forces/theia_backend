@@ -356,6 +356,7 @@ class PclSensor(AbstractSensor):
 
 
 class PetSensor(AbstractSensor):
+    target: Target
     error_model: PetMeasurementModel
 
 
@@ -593,8 +594,7 @@ class PetDetection(pydantic.BaseModel):
     detection_id: int
     time: datetime.datetime
     """Date and time at which the detection takes place."""
-    # TODO: Add PET sensor class.
-    radar: AbstractSensor
+    radar: PetSensor
     target: Target
     azimuth: float
     """Azimuth angle [rad] of the gaze vector towards the transmitter."""
@@ -1001,6 +1001,7 @@ class PetMeasurementModel(pydantic.BaseModel):
 
 class SituationalPicture(pydantic.BaseModel):
     time: datetime.datetime
+    friendly_pet_receivers: list[Receiver]
     friendly_radars: list[Sensor]
     friendly_targets: list[Target]
     enemy_targets: list[Track]
@@ -1029,6 +1030,14 @@ class Controller(abc.ABC):
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
     ) -> list[Target]:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def get_pet_receivers(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Receiver]:
         raise NotImplementedError()
 
 
@@ -1078,6 +1087,7 @@ class AbstractTracker(abc.ABC):
         self,
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
     ):
         """Add detections of a single iteration to this tracker."""
         raise NotImplementedError()

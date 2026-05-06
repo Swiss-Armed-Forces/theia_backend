@@ -1,6 +1,5 @@
 import datetime
 import itertools
-from typing import Optional
 
 import numpy as np
 import pydantic
@@ -106,6 +105,7 @@ class TargetDetections(pydantic.BaseModel):
     target_id: int
     monostatic_detections: list[MonostaticRadarDetection] = []
     pcl_detections: list[PclDetection] = []
+    pet_detections: list[PetDetection] = []
 
 
 class PseudoTracker(AbstractTracker):
@@ -200,7 +200,7 @@ class PseudoTracker(AbstractTracker):
         # All detections share the same target, i. e. we can select
         # any of them to access the true target state.
         # Finally, a fake detection is created.
-        detections = sorted(detections.pcl_detections, key=lambda d: d.bistatic_range)
+        detections = sorted(detections, key=lambda d: d.bistatic_range)
         sigma = np.max([d.sigma_bistatic_range for d in detections])
         detection = detections[0]
         detection_time = detection.time
@@ -227,18 +227,21 @@ class PseudoTracker(AbstractTracker):
         self,
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
     ) -> list[TargetDetections]:
         # Ignore clutter.
         monostatic_detections = [
             d for d in monostatic_detections if d.target != CLUTTER_TARGET
         ]
         pcl_detections = [d for d in pcl_detections if d.target != CLUTTER_TARGET]
+        pet_detections = [d for d in pet_detections if d.target != CLUTTER_TARGET]
 
         def f(d: MonostaticRadarDetection | PclDetection | PetDetection) -> int:
             return d.target.id
 
         monostatic_detections = sorted(monostatic_detections, key=f)
         pcl_detections = sorted(pcl_detections, key=f)
+        pet_detections = sorted(pet_detections, key=f)
 
         grouped_monostatic_detections = {
             key: list(values)
@@ -247,12 +250,16 @@ class PseudoTracker(AbstractTracker):
         grouped_pcl_detections = {
             key: list(values) for key, values in itertools.groupby(pcl_detections, f)
         }
+        grouped_pet_detections = {
+            key: list(values) for key, values in itertools.groupby(pet_detections, f)
+        }
 
         monostatic_target_ids = set(grouped_monostatic_detections.keys())
         pcl_target_ids = set(grouped_pcl_detections)
+        pet_target_ids = set(grouped_pet_detections)
 
         target_ids = list(
-            monostatic_target_ids.union(pcl_target_ids)
+            monostatic_target_ids.union(pcl_target_ids).union(pet_target_ids)
         )
 
         target_detections: list[TargetDetections] = []
@@ -264,6 +271,7 @@ class PseudoTracker(AbstractTracker):
                         target_id, []
                     ),
                     pcl_detections=grouped_pcl_detections.get(target_id, []),
+                    pet_detections=grouped_pet_detections.get(target_id, []),
                 )
             )
         return target_detections
@@ -272,10 +280,12 @@ class PseudoTracker(AbstractTracker):
         self,
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
     ):
         target_detections = self._preprocess_detections(
             monostatic_detections,
             pcl_detections,
+            pet_detections,
         )
         updated_targets: set[int] = set()
         for detections in target_detections:
@@ -286,8 +296,11 @@ class PseudoTracker(AbstractTracker):
                     detections.monostatic_detections
                 )
             elif len(detections.pcl_detections) > 0:
-                if detections.target_id in self._trackers or len(detections) >= 3:
-                    detection = self._pcl_init_update(pcl_detections)
+                if (
+                    detections.target_id in self._trackers
+                    or len(detections.pcl_detections) >= 3
+                ):
+                    detection = self._pcl_init_update(detections.pcl_detections)
                 else:
                     # We do not have a track yet, but there are not enough
                     # detections to initialize a new one.
