@@ -33,7 +33,13 @@ from theia.test_data import (
     get_uetliberg_radar,
     load_pcl_example,
 )
-from theia.types import MonostaticSensor, PclMeasurementModel, PclSensor, Point
+from theia.types import (
+    ConstantRcsModel,
+    MonostaticSensor,
+    PclMeasurementModel,
+    PclSensor,
+    Point,
+)
 
 
 def load_uetliberg_opensky_simulator() -> tuple[Simulator, SituationalPictureBuffer]:
@@ -99,7 +105,10 @@ def load_uetliberg_single_target_simulator_pcl(
     # )
 
     scripted_target_controller = ControllerGroup(
-        [WaypointTargetController.from_trajectory(t) for t in trajectories]
+        [
+            WaypointTargetController.from_trajectory(t, SIDC_RED_FIXED_WING)
+            for t in trajectories
+        ]
     )
 
     # Build the simulator.
@@ -200,11 +209,6 @@ def load_single_target_from_Bodensee_simulator(
         )
         sensor_id += 1
 
-    # Build controllers for the sensors.
-    monostatic_controllers = [MonostaticRadarController(r) for r in monostatic_radars]
-    pcl_controllers = [PclSensorController(sensor) for sensor in pcl_sensors]
-    blue_controller = ControllerGroup(monostatic_controllers + pcl_controllers)
-
     # Load trajectory.
     trajectory = build_single_target_from_Bodensee(alt=1000)
     trajectories = [trajectory]
@@ -212,11 +216,30 @@ def load_single_target_from_Bodensee_simulator(
     scripted_target_controller = ControllerGroup(
         [
             WaypointTargetController.from_trajectory(
-                t, build_fighter_jet_radar(1, 1, 1)
+                t,
+                SIDC_RED_FIXED_WING,
+                sensor=build_fighter_jet_radar(1, 1, 1),
             )
             for t in trajectories
         ]
     )
+
+    # Build controllers for the sensors.
+    monostatic_controllers = [
+        MonostaticRadarController(1 + i, r, True, ConstantRcsModel(rcs=1.0))
+        for i, r in enumerate(monostatic_radars)
+    ]
+    pcl_controllers = [
+        PclSensorController(
+            monostatic_controllers[-1]._target_id + 2 * i + 1,
+            monostatic_controllers[-1]._target_id + 2 * i + 2,
+            sensor,
+            True,
+            ConstantRcsModel(rcs=1.0),
+        )
+        for i, sensor in enumerate(pcl_sensors)
+    ]
+    blue_controller = ControllerGroup(monostatic_controllers + pcl_controllers)
 
     # Build the simulator.
     start_time = min([t.times[0] for t in trajectories])
