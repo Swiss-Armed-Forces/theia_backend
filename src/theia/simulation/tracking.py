@@ -27,6 +27,7 @@ from theia.types import (
     AbstractTracker,
     MonostaticRadarDetection,
     PclDetection,
+    PetDetection,
 )
 
 
@@ -35,6 +36,7 @@ class DummyTracker(AbstractTracker):
         self,
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
     ):
         pass
 

@@ -8,6 +8,7 @@ from tqdm import tqdm
 from theia.data_loading import load_trajectory_file
 from theia.data_loading_testing import load_pcl_reference_data
 from theia.detection.pcl import PclDetector
+from theia.detection.pet import PetDetector
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
@@ -46,9 +47,11 @@ class SimulatorTest(unittest.TestCase):
 
         simulator = Simulator(
             pcl_detector=PclDetector(),
+            pet_detector=PetDetector(),
             blue_controller=MonostaticRadarController(radar),
             red_controller=scripted_target_controller,
             blue_tracker=DummyTracker(),
+            red_tracker=DummyTracker(),
             start_time=start_time,
             time_step=datetime.timedelta(seconds=1),
             min_time_per_step=datetime.timedelta(seconds=0),
@@ -82,9 +85,11 @@ class SimulatorTest(unittest.TestCase):
 
         simulator = Simulator(
             pcl_detector=PclDetector(),
+            pet_detector=PetDetector(),
             blue_controller=MonostaticRadarController(radar),
             red_controller=scripted_target_controller,
             blue_tracker=DummyTracker(),
+            red_tracker=DummyTracker(),
             start_time=start_time,
             time_step=time_step,
             min_time_per_step=datetime.timedelta(seconds=0),

@@ -6,6 +6,7 @@ import numpy as np
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.data_loading import load_bakom_ukw_transmitters, load_trajectory_file
 from theia.detection.pcl import PclDetector
+from theia.detection.pet import PetDetector
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
@@ -225,6 +226,7 @@ def load_single_target_from_Bodensee_simulator(
 
     simulator = Simulator(
         pcl_detector=PclDetector(),
+        pet_detector=PetDetector(),
         blue_controller=blue_controller,
         red_controller=scripted_target_controller,
         blue_tracker=PseudoTracker(

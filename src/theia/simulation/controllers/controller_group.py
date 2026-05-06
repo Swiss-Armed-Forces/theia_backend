@@ -38,3 +38,16 @@ class ControllerGroup(Controller):
             c.get_targets(situational_picture, dt) for c in self._controllers
         ]
         return list(itertools.chain.from_iterable(all_targets))
+
+    def get_pet_receivers(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Receiver]:
+        all_receivers = [
+            c.get_pet_receivers(situational_picture, dt) for c in self._controllers
+        ]
+        if len(all_receivers) == 0:
+            return []
+        else:
+            return list(itertools.chain.from_iterable(all_receivers))

@@ -4,6 +4,7 @@ import unittest
 import numpy as np
 
 from theia.detection.pcl import PclDetector
+from theia.detection.pet import PetDetector
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.pcl_sensor_controller import PclSensorController
 from theia.simulation.controllers.waypoint_target_controller import (
@@ -28,6 +29,7 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
             [WaypointTargetController.from_trajectory(t) for t in trajectories]
         )
         pcl_detector = PclDetector()
+        pet_detector = PetDetector()
 
         start_time = min([t.times[0] for t in trajectories])
         stop_time = max([t.times[-1] for t in trajectories])
@@ -38,11 +40,17 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
 
         simulator = Simulator(
             pcl_detector=pcl_detector,
+            pet_detector=pet_detector,
             blue_controller=ControllerGroup(
                 [PclSensorController(sensor) for sensor in sensors]
             ),
             red_controller=scripted_target_controller,
             blue_tracker=PseudoTracker(
+                removal_patience=30,
+                rng=rng,
+                start_time=start_time,
+            ),
+            red_tracker=PseudoTracker(
                 removal_patience=30,
                 rng=rng,
                 start_time=start_time,
@@ -87,7 +95,7 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
         if not self._first_detection:
             self.assertEqual(len(situational_picture.enemy_targets), 1)
 
-    def on_detections(self, active_radar_detections, pcl_detections, is_blue):
+    def on_detections(self, active_radar_detections, pcl_detections, pet_detections, is_blue):
         self.assertEqual(len(active_radar_detections), 0)
         # print(
         #     len(pcl_detections),
