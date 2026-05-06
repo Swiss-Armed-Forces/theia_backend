@@ -5,12 +5,12 @@ import scipy.constants as sc
 from theia.config import RCS_FOR_RANGE_CALCULATION, RF_LOSS
 from theia.detection.active import calculate_probability_of_detection
 from theia.snr import calculate_snr
-from theia.types import MonostaticSensor
+from theia.types import MonostaticSensor, PetSensor
 from theia.util import get_clear_sky_attenuation
 
 
 def calculate_maximum_monostatic_range(
-    radar: MonostaticSensor,
+    radar: MonostaticSensor | PetSensor,
     target_rcs: float = RCS_FOR_RANGE_CALCULATION,
     probability_threshold: float = 0.8,
     maximum_expected_range: float = 2**20,
@@ -22,8 +22,8 @@ def calculate_maximum_monostatic_range(
 
     Parameters
     ----------
-    radar: MonostaticSensor
-        Radar
+    radar: MonostaticSensor | PetSensor
+        Monostatic radar or PET sensor
     target_rcs: float, default RCS_FOR_RANGE_CALCULATION
         RCS of a target to be detected [m^2]
     probability_threshold: float, default 0.8
@@ -67,6 +67,7 @@ def calculate_maximum_monostatic_range(
         maximum_expected_range,
         resolution,
         probability_threshold,
+        type(radar) is PetSensor,
     )
 
 
@@ -86,6 +87,7 @@ def _calculate_maximum_monostatic_range(
     maximum_expected_range: float,
     resolution: float,
     probability_threshold: float,
+    is_one_way: bool,
 ) -> float:
     wavelength = sc.speed_of_light / (frequency * 1e6)
 
@@ -111,7 +113,7 @@ def _calculate_maximum_monostatic_range(
             polarization_factor=0.0,
             pattern_propagation_factor_receiver=0.0,
             pattern_propagation_factor_transmitter=0.0,
-            is_one_way=False,
+            is_one_way=is_one_way,
         )
         p = calculate_probability_of_detection(snr, pfa)
         return p
