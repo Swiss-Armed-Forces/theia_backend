@@ -5,6 +5,7 @@ from theia.types import (
     AbstractSensor,
     MonostaticSensor,
     PclSensor,
+    Receiver,
     SituationalPicture,
 )
 
@@ -26,4 +27,11 @@ class PclSensorController(Controller):
     def get_targets(
         self, situational_picture: SituationalPicture, dt: datetime.timedelta
     ) -> list[AbstractSensor]:
+        return []
+    
+    def get_pet_receivers(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Receiver]:
         return []

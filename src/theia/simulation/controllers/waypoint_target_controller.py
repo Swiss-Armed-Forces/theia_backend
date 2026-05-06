@@ -11,6 +11,7 @@ from theia.types import (
     PclSensor,
     Point,
     RcsModel,
+    Receiver,
     SituationalPicture,
     Target,
     Trajectory,
@@ -108,6 +109,13 @@ class WaypointTargetController(Controller):
                     transmitter=tx,
                 )
             ]
+
+    def get_pet_receivers(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Receiver]:
+        return []
 
     @staticmethod
     def from_trajectory(

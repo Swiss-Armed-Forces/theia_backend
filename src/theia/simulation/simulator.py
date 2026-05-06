@@ -2,11 +2,13 @@ from __future__ import annotations
 import abc
 import cProfile
 import datetime
+import itertools
 import time
 
 import numpy as np
 from theia.detection.active import calculate_monostatic_detection
 from theia.detection.pcl import PclDetector
+from theia.detection.pet import PetDetector
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.types import (
     AbstractTracker,
@@ -15,6 +17,10 @@ from theia.types import (
     MonostaticSensor,
     PclDetection,
     PclSensor,
+    PetDetection,
+    PetMeasurementModel,
+    PetSensor,
+    Receiver,
     SituationalPicture,
     Snapshot,
     Target,
@@ -39,6 +45,7 @@ class Simulator:
     def __init__(
         self,
         pcl_detector: PclDetector,
+        pet_detector: PetDetector,
         blue_controller: Controller,
         red_controller: Controller,
         blue_tracker: AbstractTracker,
@@ -56,6 +63,8 @@ class Simulator:
         ----------
         pcl_detector: PclDetector
             PCL Detector
+        pet_detector: PetDetector
+            PET detector
         blue_controller: Controller
             Handles all blue behaviour
         red_controller: Controller
@@ -84,6 +93,7 @@ class Simulator:
             Whether to simulate clutter detections
         """
         self._pcl_detector = pcl_detector
+        self._pet_detector = pet_detector
         self._blue_controller = blue_controller
         self._red_controller = red_controller
         self._blue_tracker = blue_tracker
@@ -103,19 +113,36 @@ class Simulator:
         self._red_monostatic_radars: list[MonostaticSensor] = []
         self._red_pcl_sensors: list[PclSensor] = []
         self._red_targets: list[Target] = []
+        self._blue_pet_receivers: list[Receiver] = []
+        self._red_pet_receivers: list[Receiver] = []
         self._detection_id = 0
         self._time_of_last_detection: dict[int, datetime.datetime] = {}
         """Time of latest detection for each sensor ID."""
+        self._pet_sensor_ids: dict[tuple[int, int], int] = {}
+        """IDs of PET sensors. Keys are (rx ID, tx ID) tuples."""
 
         self.set_listener(listener)
+
+    def _next_free_sensor_id(self) -> int:
+        return (
+            max(
+                [r.id for r in self._blue_monostatic_radars]
+                + [r.id for r in self._red_monostatic_radars]
+                + [s.id for s in self._blue_pcl_sensors]
+                + [s.id for s in self._red_pcl_sensors]
+            )
+            + 1
+        )
 
     def set_listener(self, listener: AbstractSimulationListener):
         self._listener = listener
         self._listener.register_simulator(self)
 
     def get_situational_picture_blue(self) -> SituationalPicture:
+        # for target in self._red_targets
         return SituationalPicture(
             time=self._t,
+            friendly_pet_receivers=self._blue_pet_receivers,
             friendly_radars=self._blue_monostatic_radars + self._blue_pcl_sensors,
             friendly_targets=self._blue_targets,
             enemy_targets=self._blue_tracker.get_tracks(),
@@ -124,6 +151,7 @@ class Simulator:
     def get_situational_picture_red(self) -> SituationalPicture:
         return SituationalPicture(
             time=self._t,
+            friendly_pet_receivers=self._blue_pet_receivers,
             friendly_radars=self._red_monostatic_radars + self._red_monostatic_radars,
             friendly_targets=self._red_targets,
             enemy_targets=[],
@@ -261,6 +289,60 @@ class Simulator:
                 pass
         return detections
 
+    def _calculate_pet_detections(self, is_scanner_blue: bool) -> list[PetDetection]:
+        """
+        Calculate PET detections at the current time step.
+        Does not include clutter.
+
+        Parameters
+        ----------
+        is_scanner_blue: bool
+            Whether the scanning part ("hunter") is blue; otherwise it is red
+
+        Notes
+        -----
+        The detections are assumed to take place at a fixed period
+        (the receiver's rotation time) all at once.
+        No angular update is implemented.
+        """
+        detections: list[PetDetection] = []
+
+        sensors = self._blue_pet_sensors if is_scanner_blue else self._red_pet_sensors
+
+        for sensor in sensors:
+            time_of_last_detection = self._time_of_last_detection.get(
+                sensor.id,
+                datetime.datetime(
+                    year=1900,
+                    month=1,
+                    day=1,
+                    tzinfo=self._t.tzinfo,
+                ),
+            )
+            if (
+                self._t - time_of_last_detection
+            ).seconds < sensor.receiver.rotation_time:
+                # No new detections.
+                continue
+
+            det = self._pet_detector.calculate_pet_detection(
+                sensor,
+                sensor.target,
+                self._rng,
+            )
+            if det is not None:
+                det.time = self._t
+                det.detection_id = self._detection_id
+                self._detection_id += 1
+                detections.append(det)
+            self._time_of_last_detection[sensor.receiver.id] = self._t
+            # Simulate clutter.
+            if self._simulate_clutter:
+                # TODO: Implement PET clutter sampling.
+                pass
+
+        return detections
+
     def advance(self) -> bool:
         """
         Advance the simulation by a single iteration.
@@ -309,6 +391,50 @@ class Simulator:
             self._dt,
         )
 
+        self._blue_pet_receivers = self._blue_controller.get_pet_receivers(
+            blue_situational_picture,
+            self._dt,
+        )
+        self._blue_pet_sensors: list[PetSensor] = []
+        for rx, target in itertools.product(
+            self._blue_pet_receivers, self._red_targets
+        ):
+            if target.transmitter is not None:
+                sensor = PetSensor(
+                    id=self._pet_sensor_ids.get(
+                        (rx.id, target.id),
+                        self._next_free_sensor_id(),
+                    ),
+                    transmitter=target.transmitter,
+                    receiver=rx,
+                    target=target,
+                    error_model=PetMeasurementModel(),
+                )
+                self._blue_pet_sensors.append(sensor)
+                self._pet_sensor_ids[(rx.id, target.id)] = sensor.id
+
+        self._red_pet_receivers = self._red_controller.get_pet_receivers(
+            red_situational_picture,
+            self._dt,
+        )
+        self._red_pet_sensors: list[PetSensor] = []
+        for rx, target in itertools.product(
+            self._red_pet_receivers, self._blue_targets
+        ):
+            if target.transmitter is not None:
+                sensor = PetSensor(
+                    id=self._pet_sensor_ids.get(
+                        (rx.id, target.id),
+                        self._next_free_sensor_id(),
+                    ),
+                    transmitter=target.transmitter,
+                    receiver=rx,
+                    target=target,
+                    error_model=PetMeasurementModel(),
+                )
+                self._red_pet_sensors.append(sensor)
+                self._pet_sensor_ids[(rx.id, target.id)] = sensor.id
+
         # Update the time stamp.
         self._t += self._dt
 
@@ -321,17 +447,19 @@ class Simulator:
         )
         blue_pcl_detections = self._calculate_pcl_detections(is_scanner_blue=True)
         red_pcl_detections = self._calculate_pcl_detections(is_scanner_blue=False)
-
-        # TODO: Implement PET detections.
+        blue_pet_detections = self._calculate_pet_detections(is_scanner_blue=True)
+        red_pet_detections = self._calculate_pet_detections(is_scanner_blue=False)
 
         # Track.
         self._blue_tracker.add_detections(
             blue_active_radar_detections,
             blue_pcl_detections,
+            blue_pet_detections,
         )
         self._red_tracker.add_detections(
             red_active_radar_detections,
             red_pcl_detections,
+            red_pet_detections,
         )
 
         # Log.
@@ -339,11 +467,13 @@ class Simulator:
         self._listener.on_detections(
             blue_active_radar_detections,
             blue_pcl_detections,
+            blue_pet_detections,
             is_blue=True,
         )
         self._listener.on_detections(
             red_active_radar_detections,
             red_pcl_detections,
+            red_pet_detections,
             is_blue=False,
         )
 
@@ -405,6 +535,7 @@ class AbstractSimulationListener(abc.ABC):
         self,
         active_radar_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
         is_blue: bool,
     ):
         raise NotImplementedError()

@@ -3,6 +3,7 @@ from theia.types import (
     Controller,
     MonostaticSensor,
     PclSensor,
+    Receiver,
     SituationalPicture,
     Target,
 )
@@ -31,4 +32,11 @@ class MonostaticRadarController(Controller):
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
     ) -> list[Target]:
+        return []
+
+    def get_pet_receivers(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[Receiver]:
         return []
