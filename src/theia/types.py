@@ -10,6 +10,7 @@ from scipy.interpolate import CubicSpline, make_interp_spline, BSpline
 import scipy.constants as sc
 import shapely
 
+from theia.config import SIDC_UNKNOWN
 from theia.util import from_dB
 
 
@@ -365,6 +366,7 @@ Sensor = MonostaticSensor | PclSensor
 
 class Target(pydantic.BaseModel):
     """Represents a detectable entity."""
+
     id: int
     """Unique identifier"""
     is_stationary: bool
@@ -376,7 +378,7 @@ class Target(pydantic.BaseModel):
     """
     name: str = ""
     """Human-readable target name"""
-    sidc: str = "10-2-1-10-0-0-00-000000-00-00"
+    sidc: str
     """Symbol identification coding according to NATO APP-6A. Default: Unknown"""
     point: Point
     """Coordinates"""
@@ -411,6 +413,7 @@ class Target(pydantic.BaseModel):
 
 class Trajectory(pydantic.BaseModel):
     target_id: int
+    target_sidc: str
     times: list[datetime.datetime]
     """Ordered list of times at which the trajectory's waypoints are defined."""
     lats: list[float]
@@ -477,6 +480,7 @@ class Trajectory(pydantic.BaseModel):
         return Target(
             id=self.target_id,
             is_stationary=False,
+            sidc=self.target_sidc,
             point=Point(
                 lat=lat,
                 lon=lon,
@@ -535,6 +539,7 @@ class Trajectory(pydantic.BaseModel):
 
         return Trajectory(
             target_id=target.id,
+            target_sidc=target.sidc,
             times=times,
             lats=[target.lat for _ in times],
             lons=[target.lon for _ in times],
@@ -660,6 +665,8 @@ class ConstantRcsModel(RcsModel, pydantic.BaseModel):
 CLUTTER_TARGET = Target(
     id=-2,
     is_stationary=True,
+    name="Clutter target",
+    sidc=SIDC_UNKNOWN,
     point=Point(lat=0, lon=0, alt=0),
     cross_section_model=ConstantRcsModel(rcs=0),
     velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -1068,6 +1075,7 @@ class Snapshot(pydantic.BaseModel):
 
 class Track(pydantic.BaseModel):
     id: str
+    sidc: str
     states: list[tuple[datetime.datetime, list[float]]]
     inactive_time: datetime.timedelta = datetime.timedelta(seconds=30)
 
@@ -1075,8 +1083,13 @@ class Track(pydantic.BaseModel):
     _y: np.ndarray = pydantic.PrivateAttr()
     _f: BSpline = pydantic.PrivateAttr()
 
-    def __init__(self, id: str, states: list[tuple[datetime.datetime, np.ndarray]]):
-        super().__init__(id=id, states=states)
+    def __init__(
+        self,
+        id: str,
+        sidc: str,
+        states: list[tuple[datetime.datetime, np.ndarray]],
+    ):
+        super().__init__(id=id, sidc=sidc, states=states)
 
         self._times = []
         self._y = np.empty((len(states), 6), dtype=np.float64)

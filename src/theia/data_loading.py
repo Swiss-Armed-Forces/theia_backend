@@ -5,6 +5,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+from theia.config import SIDC_RED_FIXED_WING
 from theia.coordinates import CoordinateTransformations
 from theia.terrain import elevationAt
 from theia.types import (
@@ -84,6 +85,7 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
         trajectories.append(
             Trajectory(
                 target_id=ID,
+                target_sidc=SIDC_RED_FIXED_WING,
                 times=rows["time"].to_numpy().astype("datetime64[ms]").tolist(),
                 lats=rows["lat"].astype(float).tolist(),
                 lons=rows["lon"].astype(float).tolist(),
@@ -292,6 +294,7 @@ def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajecto
         trajectories.append(
             Trajectory(
                 target_id=ID,
+                target_sidc=SIDC_RED_FIXED_WING,
                 times=times,
                 lats=df_target.loc[:, "lat"],
                 lons=df_target.loc[:, "lon"],
