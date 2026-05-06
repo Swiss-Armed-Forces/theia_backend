@@ -20,6 +20,7 @@ from stonesoup.types.state import GaussianState
 from stonesoup.types.track import Track
 
 import theia
+from theia.config import SIDC_UNKNOWN
 from theia.measurement import MonostaticMeasurementTransformations
 from theia.stonesoup_interface import MonostaticDetectionFactory
 from theia.types import (
@@ -212,5 +213,11 @@ class MonostaticPseudoTracker(AbstractTracker):
         for target_id, timepoints in self._states.items():
             if len(timepoints) < 2:
                 continue
-            tracks.append(theia.types.Track(id=str(target_id), states=timepoints))
+            tracks.append(
+                theia.types.Track(
+                    id=str(target_id),
+                    sidc=SIDC_UNKNOWN,
+                    states=timepoints,
+                )
+            )
         return tracks

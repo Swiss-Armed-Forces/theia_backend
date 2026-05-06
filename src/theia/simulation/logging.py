@@ -476,6 +476,7 @@ class SituationalPictureBuffer(AbstractSimulationListener):
             trajectories.append(
                 Trajectory(
                     target_id=target.id,
+                    target_sidc=target.sidc,
                     times=times,
                     lats=lats,
                     lons=lons,
