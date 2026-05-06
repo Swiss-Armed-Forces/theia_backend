@@ -121,6 +121,7 @@ class MonostaticDopplerTest(unittest.TestCase):
 
         target = Target(
             id=0,
+            is_stationary=False,
             point=Point(
                 lat=47.348,
                 lon=8.6266,
