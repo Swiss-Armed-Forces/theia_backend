@@ -2,7 +2,7 @@
 
 import datetime
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +18,7 @@ from theia.grids import LatLonHeightGrid
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.logging import SituationalPictureBuffer
 from theia.simulation.simulation_director import SimulationDirector
-from theia.types import MonostaticSensor, PclSensor, Sensor
+from theia.types import MonostaticSensor, PclSensor, Receiver, Sensor, Transmitter
 from theia.util import mask_to_polygon
 
 
@@ -47,6 +47,9 @@ class TrackPoint(pydantic.BaseModel):
 class ExtrapolatedTrack(pydantic.BaseModel):
     id: str
     points: list[TrackPoint]
+    sidc: str
+    receiver: Optional[Receiver] = None
+    transmitter: Optional[Transmitter] = None
 
 
 class ExtrapolatedSituationalPicture(pydantic.BaseModel):
@@ -58,6 +61,7 @@ class ExtrapolatedSituationalPicture(pydantic.BaseModel):
 class ExtrapolatedGroundtruth(pydantic.BaseModel):
     target_id: int
     points: list[TrackPoint]
+    sidc: str
 
 
 class GeoJSONPolygon(pydantic.BaseModel):
@@ -158,7 +162,11 @@ def create_app(
                     )
                 )
             extrapolated_tracks.append(
-                ExtrapolatedTrack(id=track.id, points=track_points)
+                ExtrapolatedTrack(
+                    id=track.id,
+                    points=track_points,
+                    sidc=track.sidc,
+                )
             )
         return ExtrapolatedSituationalPicture(
             time=picture.time,
@@ -192,6 +200,7 @@ def create_app(
                 ExtrapolatedGroundtruth(
                     target_id=trajectory.target_id,
                     points=points,
+                    sidc=target.sidc,
                 )
             )
         return results

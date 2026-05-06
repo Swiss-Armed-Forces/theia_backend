@@ -41,6 +41,7 @@ class SingleTargetEcefTracker:
         t0: datetime.datetime,
         pos0: tuple[float, float, float],
         v_max: float = 300,
+        sidc: str = "",
     ):
         """
         Parameters
@@ -53,8 +54,11 @@ class SingleTargetEcefTracker:
             Prior for the position at t0
         v_max: float, default 300
             Maximum expected target speed [m / s]
+        sidc: str, default ""
+            Symbol identification code representing the target
         """
         self._id = id
+        self._sidc = sidc
         q = 1.0
         transition_model = CombinedLinearGaussianTransitionModel(
             [ConstantVelocity(q), ConstantVelocity(q), ConstantVelocity(q)]
@@ -98,11 +102,12 @@ class SingleTargetEcefTracker:
         if len(states) < 2:
             return None
         else:
-            return theia.types.Track(id=str(self._id), states=states)
+            return theia.types.Track(id=str(self._id), sidc=self._sidc, states=states)
 
 
 class TargetDetections(pydantic.BaseModel):
     target_id: int
+    target_sidc: str
     monostatic_detections: list[MonostaticRadarDetection] = []
     pcl_detections: list[PclDetection] = []
     pet_detections: list[PetDetection] = []
@@ -264,9 +269,19 @@ class PseudoTracker(AbstractTracker):
 
         target_detections: list[TargetDetections] = []
         for target_id in target_ids:
+            if len(grouped_monostatic_detections.get(target_id, [])) > 0:
+                target = grouped_monostatic_detections[target_id][0].target
+            elif len(grouped_pcl_detections.get(target_id, [])) > 0:
+                target = grouped_pcl_detections[target_id][0].target
+            elif len(grouped_pet_detections.get(target_id, [])) > 0:
+                target = grouped_pet_detections[target_id][0].target
+            else:
+                raise RuntimeError("This code should never be reached!")
+
             target_detections.append(
                 TargetDetections(
                     target_id=target_id,
+                    target_sidc=target.sidc,
                     monostatic_detections=grouped_monostatic_detections.get(
                         target_id, []
                     ),
@@ -313,7 +328,12 @@ class PseudoTracker(AbstractTracker):
             # Actually initialise or update the track.
             tracker = self._trackers.setdefault(
                 detections.target_id,
-                SingleTargetEcefTracker(detections.target_id, self._t0, self._prior),
+                SingleTargetEcefTracker(
+                    detections.target_id,
+                    self._t0,
+                    self._prior,
+                    sidc=detections.target_sidc,
+                ),
             )
             tracker.add_detection(detection)
             self._iterations_without_update[detections.target_id] = 0

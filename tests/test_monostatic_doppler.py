@@ -1,5 +1,6 @@
 import unittest
 
+from theia.config import SIDC_UNKNOWN
 from theia.coordinates import CoordinateTransformations
 from theia.doppler import calculate_doppler_shift
 from theia.test_data import TestSituationLoader
@@ -122,6 +123,7 @@ class MonostaticDopplerTest(unittest.TestCase):
         target = Target(
             id=0,
             is_stationary=False,
+            sidc=SIDC_UNKNOWN,
             point=Point(
                 lat=47.348,
                 lon=8.6266,
