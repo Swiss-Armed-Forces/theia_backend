@@ -210,6 +210,7 @@ class PclDetector(pydantic.BaseModel):
         for i, point in enumerate(points):
             tgt = Target(
                 id=-1,
+                is_stationary=True,
                 point=Point(lat=point[0], lon=point[1], alt=point[2]),
                 cross_section_model=ConstantRcsModel(rcs=1.0),
                 velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),

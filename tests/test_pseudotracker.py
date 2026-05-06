@@ -3,6 +3,7 @@ import unittest
 
 import numpy as np
 
+from theia.config import SIDC_RED_FIXED_WING
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.simulation.controllers.controller_group import ControllerGroup
@@ -17,7 +18,7 @@ from theia.simulation.simulator import (
     TimeCriterion,
 )
 from theia.test_data import load_pcl_example
-from theia.types import SituationalPicture
+from theia.types import ConstantRcsModel, SituationalPicture
 
 
 class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
@@ -26,7 +27,10 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
         self._trajectory = trajectories[0]
 
         scripted_target_controller = ControllerGroup(
-            [WaypointTargetController.from_trajectory(t) for t in trajectories]
+            [
+                WaypointTargetController.from_trajectory(t, SIDC_RED_FIXED_WING)
+                for t in trajectories
+            ]
         )
         pcl_detector = PclDetector()
         pet_detector = PetDetector()
@@ -42,7 +46,18 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
             pcl_detector=pcl_detector,
             pet_detector=pet_detector,
             blue_controller=ControllerGroup(
-                [PclSensorController(sensor) for sensor in sensors]
+                [
+                    PclSensorController(
+                        len(scripted_target_controller._controllers) + 2 * sensor.id,
+                        len(scripted_target_controller._controllers)
+                        + 2 * sensor.id
+                        + 1,
+                        sensor,
+                        True,
+                        ConstantRcsModel(rcs=1.0),
+                    )
+                    for sensor in sensors
+                ]
             ),
             red_controller=scripted_target_controller,
             blue_tracker=PseudoTracker(
@@ -95,7 +110,9 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
         if not self._first_detection:
             self.assertEqual(len(situational_picture.enemy_targets), 1)
 
-    def on_detections(self, active_radar_detections, pcl_detections, pet_detections, is_blue):
+    def on_detections(
+        self, active_radar_detections, pcl_detections, pet_detections, is_blue
+    ):
         self.assertEqual(len(active_radar_detections), 0)
         # print(
         #     len(pcl_detections),

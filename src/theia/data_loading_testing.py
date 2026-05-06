@@ -208,6 +208,7 @@ def load_pcl_reference_data(
                     ),
                     target=Target(
                         id=int(row["targ_id"]),
+                        is_stationary=False,
                         point=target_position,
                         cross_section_model=ConstantRcsModel(rcs=rcs),
                         velocity=velocity,

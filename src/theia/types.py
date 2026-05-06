@@ -364,12 +364,25 @@ Sensor = MonostaticSensor | PclSensor
 
 
 class Target(pydantic.BaseModel):
+    """Represents a detectable entity."""
     id: int
     """Unique identifier"""
+    is_stationary: bool
+    """
+    Whether the target is expected to be at the same position throughout
+    the entire simulation.
+
+    This means that once the target has been seen, that information is available.
+    """
+    name: str = ""
+    """Human-readable target name"""
+    sidc: str = "10-2-1-10-0-0-00-000000-00-00"
+    """Symbol identification coding according to NATO APP-6A. Default: Unknown"""
     point: Point
     """Coordinates"""
     cross_section_model: ConstantRcsModel
     velocity: Velocity
+    receiver: Optional[Receiver] = None
     transmitter: Optional[Transmitter] = None
 
     @property
@@ -463,6 +476,7 @@ class Trajectory(pydantic.BaseModel):
         lat, lon, alt, vx, vy, vz = y
         return Target(
             id=self.target_id,
+            is_stationary=False,
             point=Point(
                 lat=lat,
                 lon=lon,
@@ -645,6 +659,7 @@ class ConstantRcsModel(RcsModel, pydantic.BaseModel):
 
 CLUTTER_TARGET = Target(
     id=-2,
+    is_stationary=True,
     point=Point(lat=0, lon=0, alt=0),
     cross_section_model=ConstantRcsModel(rcs=0),
     velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 
+from theia.config import SIDC_RED_FIXED_WING
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.data_loading import load_bakom_ukw_transmitters, load_trajectory_file
 from theia.detection.pcl import PclDetector
@@ -50,7 +51,10 @@ def load_uetliberg_opensky_simulator() -> tuple[Simulator, SituationalPictureBuf
     )
 
     scripted_target_controller = ControllerGroup(
-        [WaypointTargetController.from_trajectory(t) for t in trajectories]
+        [
+            WaypointTargetController.from_trajectory(t, SIDC_RED_FIXED_WING)
+            for t in trajectories
+        ]
     )
 
     # Build the simulator.
