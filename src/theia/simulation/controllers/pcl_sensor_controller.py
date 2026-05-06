@@ -18,7 +18,7 @@ class PclSensorController(Controller):
         self,
         target_id_rx: int,
         target_id_tx: int,
-        sensor: MonostaticSensor,
+        sensor: PclSensor,
         is_blue: bool,
         rcs_model: ConstantRcsModel,
         name: str = "",
