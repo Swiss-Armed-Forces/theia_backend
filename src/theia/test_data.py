@@ -25,7 +25,7 @@ from theia.types import (
     Transmitter,
     calculate_antenna_gain,
 )
-from theia.util import frequency_to_wavelength, power_to_erp
+from theia.util import frequency_to_wavelength, from_dB, power_to_erp
 
 
 class TestSituationLoader:
@@ -85,7 +85,7 @@ class TestSituationLoader:
 
 def get_uetliberg_radar(
     frequency: float = 3_000,
-    power: float = 500_000,
+    power: float = 50_000,
     diameter: float = 4.0,
     rx_bandwidth: float = 5.0,
     tx_bandwidth: float | None = None,
@@ -373,8 +373,8 @@ def build_fighter_jet_radar(
     rx_id: int,
     frequency: float = 9.0 * 1e3,
     antenna_diameter: float = 1.0,
-    transmitter_bandwidth: float = 500.0,
-    pulse_width: float = 1.0,
+    transmitter_bandwidth: float = 1.0,
+    pulse_width: float = 300.0,
 ) -> MonostaticSensor:
     """
     Parameters
@@ -396,14 +396,15 @@ def build_fighter_jet_radar(
     """
     p = Point(lat=0, lon=0, alt=0)
     wavelength = frequency_to_wavelength(frequency)  # m
+    antenna_gain = calculate_antenna_gain(antenna_diameter, wavelength)
     tx = Transmitter(
         id=tx_id,
         point=p,
         power=3_000,
-        erp=3_000,
+        erp=3_000 * from_dB(antenna_gain),
         antenna_height=0.0,
         antenna_diameter=antenna_diameter,
-        antenna_gain=calculate_antenna_gain(antenna_diameter, wavelength),
+        antenna_gain=antenna_gain,
         frequency=frequency,
         pulse_width=pulse_width,
         polarization=Polarization.VERTICAL,
@@ -420,8 +421,8 @@ def build_fighter_jet_radar(
         max_elevation=90.0,
         rotation_time=1,
         bandwidth=1 / pulse_width,
-        gain=calculate_antenna_gain(antenna_diameter, wavelength),
-        losses=0.0,
+        gain=antenna_gain,
+        losses=3.0,
     )
 
     return MonostaticSensor(
