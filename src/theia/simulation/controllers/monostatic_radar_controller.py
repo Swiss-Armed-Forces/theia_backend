@@ -37,7 +37,7 @@ class MonostaticRadarController(Controller):
         self._radar = radar
         self._target_id = target_id
         self._name = name
-        self._sidc = f"10-0-{3 if is_blue else 6}-15-0-0-00-220300-00-00"
+        self._sidc = f"100{3 if is_blue else 6}1500002203000000"
         self._rcs_model = rcs_model
 
     def get_monostatic_radars(
