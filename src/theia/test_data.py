@@ -25,7 +25,7 @@ from theia.types import (
     Transmitter,
     calculate_antenna_gain,
 )
-from theia.util import frequency_to_wavelength, from_dB, power_to_erp
+from theia.util import frequency_to_wavelength, from_dB
 
 
 class TestSituationLoader:
@@ -415,7 +415,7 @@ def build_fighter_jet_radar(
         point=p,
         antenna_height=0.0,
         diameter=antenna_diameter,
-        cpi_pulses=1,
+        cpi_pulses=10,
         pfa=1e-6,
         min_elevation=-90.0,
         max_elevation=90.0,
@@ -445,18 +445,19 @@ def build_flores_monostatic_radar(
     # [Fandom] https://schweiz.fandom.com/de/wiki/FLORAKO
     frequency = 3 * 1e3  # 3 GHz, S-band [Thales]
     wavelength = frequency_to_wavelength(frequency)
-    bandwidth = 400  # MHz [Thales]
+    # Careful: [Thales] states 400MHz operating bandwidth, which is NOT the signal bandwidth!
+    bandwidth = 5  # MHz
     antenna_diameter = 2  # m; guess - actually a flat antenna panel
     antenna_height = 8  # m [Wiki]
     power = 100_000  # W; guess
     gain = calculate_antenna_gain(antenna_diameter, wavelength)
-    pulse_width = 1  # us; guess
+    pulse_width = 10  # us; guess
     rotation_time = 4  # s; [Fandom]
     tx = Transmitter(
         id=tx_id,
         point=point,
         power=power,
-        erp=power_to_erp(power, 0.0, gain),
+        erp=power * from_dB(gain),
         antenna_height=antenna_height,
         antenna_diameter=antenna_diameter,
         antenna_gain=gain,
@@ -470,7 +471,7 @@ def build_flores_monostatic_radar(
         point=point,
         antenna_height=antenna_height,
         diameter=antenna_diameter,
-        cpi_pulses=1,
+        cpi_pulses=10,
         pfa=1e-6,
         min_elevation=-90.0,
         max_elevation=90.0,
