@@ -151,10 +151,10 @@ class Simulator:
     def get_situational_picture_red(self) -> SituationalPicture:
         return SituationalPicture(
             time=self._t,
-            friendly_pet_receivers=self._blue_pet_receivers,
+            friendly_pet_receivers=self._red_pet_receivers,
             friendly_radars=self._red_monostatic_radars + self._red_monostatic_radars,
             friendly_targets=self._red_targets,
-            enemy_targets=[],
+            enemy_targets=self._red_tracker.get_tracks(),
         )
 
     def take_snapshot(self) -> Snapshot:
@@ -481,7 +481,9 @@ class Simulator:
 
         # Sleep the remaining time for an update.
         time_step_on_update = stop_time - start_time
-        time.sleep(max(0, self._minimum_seconds_per_step - time_step_on_update))
+        sleep_time = self._minimum_seconds_per_step - time_step_on_update
+        if sleep_time > 0:
+            time.sleep(sleep_time)
 
         return True
 

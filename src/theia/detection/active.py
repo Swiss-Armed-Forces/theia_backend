@@ -61,6 +61,13 @@ def calculate_monostatic_detection(
         doppler_shift_threshold_hz=doppler_shift_threshold_hz,
         rf_loss=rf_loss,
     )
+    doppler = calculate_doppler_shift(
+        radar.receiver,
+        target,
+        radar.transmitter,
+    )
+    if abs(doppler) <= doppler_shift_threshold_hz:
+        return None
     p = calculate_probability_of_detection(
         snr_dB,
         radar.receiver.pfa,
@@ -128,9 +135,6 @@ def calculate_monostatic_snr(
         Model to be used to estimate the radar cross section
     distance_step: float
         Distance stepping to be used for the line-of-sight test [m]
-    doppler_shift_threshold_hz: float
-        Threshold [Hz] for the Doppler shift detection criterion.
-        Targets moving with less Doppler shift have zero detection probability.
     rf_loss: float
         RF system hardware loss [dB].
         TODO is this the transmitter leakage in the source below?
@@ -162,14 +166,6 @@ def calculate_monostatic_snr(
 
     if not los_ok:
         return 0.0
-    else:
-        doppler = calculate_doppler_shift(
-            radar.receiver,
-            target,
-            radar.transmitter,
-        )
-        if abs(doppler) <= doppler_shift_threshold_hz:
-            return 0.0
 
     wavelength = sc.speed_of_light / (radar.transmitter.frequency * 1e6)
     snr_dB = calculate_snr(

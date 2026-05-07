@@ -2,7 +2,8 @@ import os
 
 
 ELEVATION_DATA_DIR = os.environ.get("THEIA_ELEVATION_DATA_DIR")
-ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD = 5.0
+# Negative value means no Doppler thresholding, which is necessary for aircraft-mounted RAD
+ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD = -1
 """
 Doppler shift threshold for active radar [Hz].
 

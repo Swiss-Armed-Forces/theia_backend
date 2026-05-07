@@ -1,6 +1,7 @@
 import uvicorn
 
 from theia.simulation.predefined_simulations import (
+    build_single_radar_single_target,
     load_single_target_from_Bodensee_simulator,
     load_uetliberg_opensky_simulator,
     load_uetliberg_single_target_simulator_pcl,
@@ -17,7 +18,8 @@ print("Initialise...")
 # simulator, buffer = load_uetliberg_single_target_simulator_pcl(
 #     bistatic_range_uncertainty=100.0,
 # )
-simulator, buffer = load_single_target_from_Bodensee_simulator()
+# simulator, buffer = load_single_target_from_Bodensee_simulator()
+simulator, buffer = build_single_radar_single_target(interactive=True)
 
 ################################################
 # Setup the server.

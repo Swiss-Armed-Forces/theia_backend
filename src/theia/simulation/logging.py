@@ -197,8 +197,10 @@ class LogLoader:
             self._data = json.load(file)
         self._load_snapshots()
         self._load_sensors(is_blue=True)
+        self._load_sensors(is_blue=False)
         self._load_target_ground_truth(is_blue=False)
         self._load_detections(is_blue=True)
+        self._load_detections(is_blue=False)
 
     @property
     def blue_monostatic_radars(self) -> list[MonostaticSensor]:
@@ -209,12 +211,29 @@ class LogLoader:
         return list(self._blue_pcl_sensors.values())
 
     @property
+    def red_monostatic_radars(self) -> list[MonostaticSensor]:
+        return list(self._red_monostatic_sensors.values())
+
+    @property
+    def red_pcl_sensors(self) -> list[PclSensor]:
+        return list(self._red_pcl_sensors.values())
+
+
+    @property
     def blue_monostatic_radar_detections(self) -> list[MonostaticRadarDetection]:
         return self._blue_monostatic_radar_detections
 
     @property
     def blue_pcl_detections(self) -> list[PclDetection]:
         return self._blue_pcl_detections
+
+    @property
+    def red_monostatic_radar_detections(self) -> list[MonostaticRadarDetection]:
+        return self._red_monostatic_radar_detections
+
+    @property
+    def red_pcl_detections(self) -> list[PclDetection]:
+        return self._red_pcl_detections
 
     @property
     def red_target_ground_truth(self) -> dict[int, GroundTruthPath]:
@@ -224,16 +243,21 @@ class LogLoader:
         self._snapshots = [Snapshot.model_validate(d) for d in self._data["snapshots"]]
 
     def _load_sensors(self, is_blue: bool):
-        if not is_blue:
-            raise NotImplementedError()
-
-        self._blue_monostatic_sensors: dict[int, MonostaticSensor] = {}
-        self._blue_pcl_sensors: dict[int, PclSensor] = {}
+        monostatic_sensors: dict[int, MonostaticSensor] = {}
+        pcl_sensors: dict[int, PclSensor] = {}
         for snapshot in self._snapshots:
-            for sensor in snapshot.blue_monostatic_radars:
-                self._blue_monostatic_sensors[sensor.id] = sensor
+            sensors = snapshot.blue_monostatic_radars if is_blue else snapshot.red_monostatic_radars
+            for sensor in sensors:
+                monostatic_sensors[sensor.id] = sensor
+            sensors = snapshot.blue_pcl_sensors if is_blue else snapshot.red_pcl_sensors
             for sensor in snapshot.blue_pcl_sensors:
-                self._blue_pcl_sensors[sensor.id] = sensor
+                pcl_sensors[sensor.id] = sensor
+        if is_blue:
+            self._blue_monostatic_sensors = monostatic_sensors
+            self._blue_pcl_sensors = pcl_sensors
+        else:
+            self._red_monostatic_sensors = monostatic_sensors
+            self._red_pcl_sensors = pcl_sensors
 
     def _load_target_ground_truth(self, is_blue: bool):
         if is_blue:
@@ -273,37 +297,43 @@ class LogLoader:
             self._red_target_ground_truth[target_id] = ground_truth_path
 
     def _load_detections(self, is_blue: bool):
-        if not is_blue:
-            raise NotImplementedError()
-
         # Monostatic detections.
-        blue_monostatic_detections = list(
+        monostatic_detections = list(
             itertools.chain.from_iterable(
                 [
                     det["active_radar_detections"]
                     for det in self._data["detections"]
-                    if det["team"] == "blue"
+                    if det["team"] == ("blue" if is_blue else "red")
                 ]
             )
         )
-        self._blue_monostatic_radar_detections = [
+        monostatic_detections = [
             MonostaticRadarDetection.model_validate(d)
-            for d in blue_monostatic_detections
+            for d in monostatic_detections
         ]
+        if is_blue:
+            self._blue_monostatic_radar_detections = monostatic_detections
+        else:
+            self._red_monostatic_radar_detections = monostatic_detections
 
         # PCL detections.
-        blue_pcl_detections = list(
+        pcl_detections = list(
             itertools.chain.from_iterable(
                 [
                     det["pcl_detections"]
                     for det in self._data["detections"]
-                    if det["team"] == "blue"
+                    if det["team"] == ("blue" if is_blue else "red")
                 ]
             )
         )
-        self._blue_pcl_detections = [
-            PclDetection.model_validate(d) for d in blue_pcl_detections
+        pcl_detections = [
+            PclDetection.model_validate(d) for d in pcl_detections
         ]
+
+        if is_blue:
+            self._blue_pcl_detections = pcl_detections
+        else:
+            self._red_pcl_detections = pcl_detections
 
 
 class CompositeSimulationListener(AbstractSimulationListener):

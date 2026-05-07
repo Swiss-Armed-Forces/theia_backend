@@ -283,3 +283,77 @@ def load_single_target_from_Bodensee_simulator(
     )
 
     return simulator, buffer
+
+
+def build_single_radar_single_target(
+    interactive: bool = True,
+) -> tuple[Simulator, SituationalPictureBuffer]:
+    """
+    Build a simulation for a simple scenario:
+    
+    There is one RED fighter jet approaching in a curved trajectory from Bodensee
+    at 300m/s, equipped with a radar. Further, there is one BLUE monostatic
+    radar on top of Üetliberg.
+    """
+    red_sensor = build_fighter_jet_radar(0, 0, 0)
+    red_trajectory = build_single_target_from_Bodensee()
+    red_controller = WaypointTargetController.from_trajectory(
+        trajectory=red_trajectory,
+        sidc="10060100001101000000",
+        name="Reconnaissance plane",
+        sensor=red_sensor,
+    )
+
+    blue_sensor = build_flores_monostatic_radar(
+        Point(
+            lat=POSITIONS_OF_INTEREST["Uetliberg"]["lat"],
+            lon=POSITIONS_OF_INTEREST["Uetliberg"]["lon"],
+            alt=POSITIONS_OF_INTEREST["Uetliberg"]["alt"],
+        ),
+        1,
+        1,
+        1,
+    )
+    blue_controller = MonostaticRadarController(
+        target_id=red_trajectory.target_id + 1,
+        radar=blue_sensor,
+        is_blue=True,
+        rcs_model=ConstantRcsModel(rcs=1.0),
+        name="Üetliberg radar",
+    )
+
+    # Build the simulator.
+    start_time = red_trajectory.times[0]
+    stop_time = red_trajectory.times[-1]
+
+    time_step = datetime.timedelta(seconds=1)
+
+    buffer = SituationalPictureBuffer()
+
+    rng = np.random.Generator(np.random.PCG64(seed=4054080))
+
+    simulator = Simulator(
+        pcl_detector=PclDetector(),
+        pet_detector=PetDetector(),
+        blue_controller=blue_controller,
+        red_controller=red_controller,
+        blue_tracker=PseudoTracker(
+            removal_patience=30,
+            rng=rng,
+            start_time=start_time,
+        ),
+        red_tracker=PseudoTracker(
+            removal_patience=30,
+            rng=rng,
+            start_time=start_time,
+        ),
+        start_time=start_time,
+        time_step=time_step,
+        min_time_per_step=datetime.timedelta(seconds=1 if interactive else 0),
+        termination_criterion=TimeCriterion(stop_time),
+        rng=rng,
+        listener=buffer,
+        simulate_clutter=False,
+    )
+
+    return simulator, buffer
