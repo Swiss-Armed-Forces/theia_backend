@@ -1,4 +1,5 @@
 import math
+from scipy.optimize import bisect
 from theia.terrain import elevationAt
 from theia.distance import burstvincentydistance, haversine, R_EARTH, linspace
 from theia.types import Point
@@ -66,16 +67,33 @@ def line_of_sight_along_ray(
     d_max: float,
     dist_res: float,
 ) -> Point:
-    # March from the point at distance max_dist in direction theta
-    # towards the emitter.
-    # As long as there is no line of sight: Keep marching.
-    # If there is a LoS, return the point.
-    furthest = burstvincentydistance(
-        (emitter_pos.lat, emitter_pos.lon), d_max, target_bearing
+    def loss(distance: float) -> float:
+        p = burstvincentydistance(
+            (emitter_pos.lat, emitter_pos.lon),
+            distance,
+            target_bearing,
+            target_alt,
+        )
+        if has_line_of_sight(emitter_pos, p, dist_res):
+            return 1.0
+        else:
+            return -1.0
+
+    # We need to catch this special case (line of sight at maximum range)
+    # because scipy.optimize.bisect expects the extreme values to have different
+    # values.
+    if loss(d_max) > 0:
+        return burstvincentydistance(
+            (emitter_pos.lat, emitter_pos.lon),
+            d_max,
+            target_bearing,
+            target_alt,
+        )
+
+    d = bisect(loss, 0, d_max, xtol=dist_res)
+    return burstvincentydistance(
+        (emitter_pos.lat, emitter_pos.lon),
+        d,
+        target_bearing,
+        target_alt,
     )
-    furthest = Point(lat=furthest[0], lon=furthest[1], alt=target_alt)
-    for point in linspace(furthest, emitter_pos, dist_res):
-        point.alt = target_alt
-        if has_line_of_sight(emitter_pos, point, dist_res):
-            return point
-    return emitter_pos

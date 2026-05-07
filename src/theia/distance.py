@@ -14,8 +14,8 @@ R_EARTH = 6_371_000  # [m]
 
 
 def burstvincentydistance(
-    start_point: tuple[float, float], dist_m: float, brng: float
-) -> geopy.Point:
+    start_point: tuple[float, float], dist_m: float, brng: float, alt: float
+) -> Point:
     """
     ! returns the destination [lat/lon] point at distance dist_m [m] and at bearing brng[deg] from point pnt[lat/lon];
     default uses the geodesic distance; but also the great-circle distance can be used,
@@ -24,7 +24,7 @@ def burstvincentydistance(
     """
     d = distance(meters=dist_m)
     dest = d.destination(point=start_point, bearing=brng)
-    return dest
+    return Point(lat=dest.latitude, lon=dest.longitude, alt=alt)
 
 
 # Source - https://stackoverflow.com/a/4913653
