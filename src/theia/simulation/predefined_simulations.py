@@ -74,11 +74,18 @@ def load_uetliberg_opensky_simulator() -> tuple[Simulator, SituationalPictureBuf
 
     simulator = Simulator(
         pcl_detector=PclDetector(),
-        blue_controller=MonostaticRadarController(radar),
+        pet_detector=PetDetector(),
+        blue_controller=MonostaticRadarController(
+            target_id=max([t.target_id for t in trajectories]) + 1,
+            radar=radar,
+            is_blue=True,
+            rcs_model=ConstantRcsModel(rcs=1.0),
+        ),
         red_controller=scripted_target_controller,
         # blue_tracker=MonostaticSingleSensorTracker(),
         # blue_tracker=DummyTracker(),
         blue_tracker=MonostaticPseudoTracker(removal_patience=30),
+        red_tracker=MonostaticPseudoTracker(removal_patience=30),
         start_time=start_time,
         time_step=time_step,
         min_time_per_step=datetime.timedelta(seconds=1),
