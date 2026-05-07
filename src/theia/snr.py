@@ -44,7 +44,7 @@ def calculate_snr(
     transmission_power: float
         Power of the signal [W]
     bandwidth: float
-        Receiver bandwidth of the signal [MHz]
+        Noise bandwidth of the signal [MHz]
     cpi_pulses:
         Number of pulses within a Coherent Processing Interval (CPI)
     equivalent_temperature: float
