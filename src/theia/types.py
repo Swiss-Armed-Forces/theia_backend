@@ -207,6 +207,20 @@ class Transmitter(pydantic.BaseModel):
     given in [rad].
     """
 
+    def __str__(self) -> str:
+        return f"""\
+Power   = {self.power:.1f} W
+ERP                = {self.erp:.1f} W
+f                  = {self.frequency} MHz
+pulse width        = {self.pulse_width} μs
+polarization       = {self.polarization.name}
+signal bandwidth   = {self.bandwidth} MHz
+antenna efficiency = {self.antenna_efficiency_value}
+antenna gain       = {self.antenna_gain:.1f} dB
+antenna diameter   = {self.antenna_diameter} m
+antenna height     = {self.antenna_height} m\
+        """
+
     @property
     def lat(self) -> float:
         """Latitude [decimal °]"""
@@ -310,6 +324,20 @@ class Receiver(pydantic.BaseModel):
     Interpolate the attenuation diagram for azimuth angles in [0, 2pi]
     given in [rad].
     """
+
+    def __str__(self) -> str:
+        return f"""\
+prob. false alarm                 = {self.pfa}
+update period                     = {self.rotation_time} s
+num. coherently integrated pulses = {self.cpi_pulses}
+noise bandwidth                   = {self.bandwidth:.3f} MHz
+losses                            = {self.losses:.2f} dB
+T_noise                           = {self.noise_temperature} K
+noise figure                      = {self.noise_figure} dB
+antenna efficiency                = {self.antenna_efficiency_value}
+antenna diameter                  = {self.diameter} m
+antenna height                    = {self.antenna_height} m\
+"""
 
     @property
     def lat(self) -> float:
