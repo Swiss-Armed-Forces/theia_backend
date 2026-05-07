@@ -103,6 +103,7 @@ class MonostaticSingleSensorTracker(AbstractTracker):
         self,
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
     ):
         detections = monostatic_detections
         detections = set([MonostaticDetectionFactory.from_theia(d) for d in detections])
@@ -168,6 +169,7 @@ class MonostaticPseudoTracker(AbstractTracker):
         self,
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
+        pet_detections: list[PetDetection],
     ):
         detections = monostatic_detections
 
