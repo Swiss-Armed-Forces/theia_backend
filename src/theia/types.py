@@ -241,11 +241,6 @@ antenna height     = {self.antenna_height} m\
         """Processing gain [dB]"""
         return 10 * np.log10(self.max_coherent_integration_time * self.bandwidth * 1e6)
 
-    @property
-    def pulse_compression_gain(self) -> float:
-        """Pulse compression gain [dB]"""
-        return 10 * np.log10(self.pulse_width * self.bandwidth)
-
     def plot_attenuation_diagrams(self):
         fig, axes = plt.subplots(
             1,
