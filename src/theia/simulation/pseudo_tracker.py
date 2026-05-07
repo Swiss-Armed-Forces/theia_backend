@@ -81,6 +81,7 @@ class SingleTargetEcefTracker:
             np.diag([0.0, sigma_v**2, 0.0, sigma_v**2, 0.0, sigma_v**2]),
             timestamp=t0,
         )
+        self._has_detections = False
 
         self._track = stonesoup.types.track.Track()
 
@@ -88,6 +89,9 @@ class SingleTargetEcefTracker:
         self,
         detection: Detection,
     ):
+        if not self._has_detections:
+            self._prior.state_vector[[0, 2, 4]] = detection.state_vector
+            self._has_detections = True
         prediction = self._predictor.predict(self._prior, timestamp=detection.timestamp)
         hypothesis = SingleHypothesis(prediction, detection)
         posterior = self._updater.update(hypothesis)
@@ -99,10 +103,12 @@ class SingleTargetEcefTracker:
             (s.timestamp, np.array(s.state_vector.flatten()))
             for s in self._track.states
         ]
-        if len(states) < 2:
+        if len(states) <= 3:
             return None
         else:
-            return theia.types.Track(id=str(self._id), sidc=self._sidc, states=states)
+            return theia.types.Track(
+                id=str(self._id), sidc=self._sidc, states=states[2:]
+            )
 
 
 class TargetDetections(pydantic.BaseModel):
