@@ -331,6 +331,7 @@ def sample_position(
 
 
 def build_single_target_from_Bodensee(
+    target_id: int = 0,
     speed: float = 300.0,
     rcs: float = 1.0,
     alt: float = 1000.0,
@@ -354,7 +355,7 @@ def build_single_target_from_Bodensee(
     velocities = v_ecef(timestamps)
 
     return Trajectory(
-        target_id=0,
+        target_id=target_id,
         target_sidc=SIDC_RED_FIXED_WING,
         times=times,
         lats=[p.lat for p in points],

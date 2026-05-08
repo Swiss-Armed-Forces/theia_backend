@@ -59,7 +59,6 @@ class MonostaticRadarController(Controller):
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
     ) -> list[Target]:
-
         return [
             Target(
                 id=self._target_id,

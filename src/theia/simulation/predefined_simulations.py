@@ -296,7 +296,7 @@ def build_single_radar_single_target(
     radar on top of Üetliberg.
     """
     red_sensor = build_fighter_jet_radar(0, 0, 0)
-    red_trajectory = build_single_target_from_Bodensee()
+    red_trajectory = build_single_target_from_Bodensee(target_id=0)
     red_controller = WaypointTargetController.from_trajectory(
         trajectory=red_trajectory,
         sidc="10060100001101000000",
@@ -315,7 +315,7 @@ def build_single_radar_single_target(
         1,
     )
     blue_controller = MonostaticRadarController(
-        target_id=red_trajectory.target_id + 1,
+        target_id=1,
         radar=blue_sensor,
         is_blue=True,
         rcs_model=ConstantRcsModel(rcs=1.0),
