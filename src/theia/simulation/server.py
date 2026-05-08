@@ -224,8 +224,6 @@ def create_app(
             target_alt,
             d_theta=azimuth_resolution_degree,
         )
-        # print(polygon)
-        # return
         return GeoJSONFeature(
             geometry=GeoJSONPolygon.from_shapely(polygon),
             properties={"name": "my polygon"},
