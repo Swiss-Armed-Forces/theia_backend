@@ -12,7 +12,7 @@ import shapely
 import theia
 from theia.config import FRONTEND_URL
 from theia.coordinates import CoordinateTransformations
-from theia.coverage import calculate_coverage
+from theia.coverage import calculate_coverage, calculate_range_polygon
 from theia.detection.pcl import PclDetector, pcl_track_init_update_masks
 from theia.grids import LatLonHeightGrid
 from theia.radar_equation import calculate_maximum_monostatic_range
@@ -212,18 +212,27 @@ def create_app(
         rcs: float,
         probability_threshold: float,
         azimuth_resolution_degree: float,
+        range_only: bool = False,
     ) -> GeoJSONFeature:
         max_dist = calculate_maximum_monostatic_range(
             radar=radar,
             target_rcs=rcs,
             probability_threshold=probability_threshold,
         )
-        polygon = calculate_coverage(
-            radar.receiver.point,
-            max_dist,
-            target_alt,
-            d_theta=azimuth_resolution_degree,
-        )
+        if range_only:
+            polygon = calculate_range_polygon(
+                radar.receiver.point,
+                max_dist,
+                target_alt,
+                azimuth_resolution_degree,
+            )
+        else:
+            polygon = calculate_coverage(
+                radar.receiver.point,
+                max_dist,
+                target_alt,
+                d_theta=azimuth_resolution_degree,
+            )
         return GeoJSONFeature(
             geometry=GeoJSONPolygon.from_shapely(polygon),
             properties={"name": "my polygon"},

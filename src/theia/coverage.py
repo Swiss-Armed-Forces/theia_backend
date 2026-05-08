@@ -5,6 +5,7 @@ import tempfile
 import numpy as np
 import geopandas as gpd
 import shapely
+from theia.distance import burstvincentydistance
 from theia.line_of_sight import line_of_sight_along_ray
 from theia.types import Point
 
@@ -40,3 +41,26 @@ def calculate_coverage(
         fp.close()
         with open(fp.name, "r") as file:
             return gpd.read_file(file).iloc[0]["geometry"]
+
+
+def calculate_range_polygon(
+    start: Point,
+    max_dist: float,
+    target_alt: float,
+    d_theta: float = 0.5,
+) -> shapely.geometry.polygon.Polygon:
+    thetas = np.arange(0.0, 360.0, d_theta)
+
+    visible_points = [
+        burstvincentydistance(
+            (start.lat, start.lon),
+            max_dist,
+            theta,
+            target_alt,
+        )
+        for theta in thetas
+    ]
+    if visible_points[-1] != visible_points[0]:
+        visible_points.append(visible_points[0])
+
+    return shapely.geometry.polygon.Polygon([[p.lon, p.lat] for p in visible_points])
