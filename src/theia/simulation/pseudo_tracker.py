@@ -17,6 +17,7 @@ from stonesoup.types.track import Track
 
 import theia
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
+from theia.distance import line_of_sight_distance
 from theia.measurement import MonostaticMeasurementTransformations
 from theia.types import (
     CLUTTER_TARGET,
@@ -25,6 +26,7 @@ from theia.types import (
     PclDetection,
     PetDetection,
     Point,
+    Target,
 )
 
 
@@ -106,9 +108,7 @@ class SingleTargetEcefTracker:
         if len(states) <= 1:
             return None
         else:
-            return theia.types.Track(
-                id=str(self._id), sidc=self._sidc, states=states
-            )
+            return theia.types.Track(id=str(self._id), sidc=self._sidc, states=states)
 
 
 class TargetDetections(pydantic.BaseModel):
@@ -170,24 +170,60 @@ class PseudoTracker(AbstractTracker):
             *prior_position.as_tuple()
         )
 
-    def _monostatic_init_update(
+    def _sample_position(
+        self,
+        target: Target,
+        sigmas: tuple[float, float, float],
+        detection_time: datetime.datetime,
+    ) -> tuple[float, float, float]:
+        mean = CoordinateTransformations.geodetic_to_cartesian(
+            target.lat,
+            target.lon,
+            target.alt,
+        )
+        # Sample a fake detection.
+        x, y, z = self._rng.normal(mean, sigmas)
+        measured_state = np.array([x, y, z])
+
+        covar = np.diag(sigmas)
+
+        return Detection(
+            measured_state,
+            measurement_model=LinearGaussian(
+                ndim_state=6, mapping=(0, 2, 4), noise_covar=covar
+            ),
+            timestamp=detection_time,
+        )
+
+    def _monostatic_detections_to_ecef(
         self,
         detections: list[MonostaticRadarDetection],
     ) -> Detection:
+        """
+        Summarize monostatic detections to a single detection in ECEF space.
+
+        Parameters
+        ----------
+        detections: list[MonostaticRadarDetection]
+            Detections for the same target. Must be of length > 0.
+
+        Returns
+        -------
+        stonesoup.types.detection.Detection
+            A detection representing a position in 3D space, including measurement model
+
+        Raises
+        ------
+        ValueError
+            If `len(detections) == 0`
+        """
+        if len(detections) == 0:
+            raise ValueError(
+                "Need at least 1 RAD detection to estimate target position in ECEF space"
+            )
         # Select detection with shortest range and initiate or update
         # the track.
         detection = sorted(detections, key=lambda d: d.target_range)[0]
-        detection_time = detection.time
-
-        x, y, z = (
-            MonostaticMeasurementTransformations.elevation_azimuth_range_to_cartesian(
-                detection.radar.receiver.point,
-                detection.elevation_angle,
-                detection.azimuth_angle,
-                detection.target_range,
-            )
-        )
-        measured_state = np.array([x, y, z])
 
         sigma = np.max(
             (
@@ -196,42 +232,147 @@ class PseudoTracker(AbstractTracker):
                 detection.sigma_elevation * detection.target_range,
             )
         )
-        covar = np.diag([sigma, sigma, sigma])
-
-        return Detection(
-            measured_state,
-            measurement_model=LinearGaussian(
-                ndim_state=6, mapping=(0, 2, 4), noise_covar=covar
-            ),
-            timestamp=detection_time,
+        detection = detections[0]
+        return self._sample_position(
+            detection.target,
+            (sigma, sigma, sigma),
+            detection.time,
         )
 
-    def _pcl_init_update(self, detections: list[PclDetection]) -> Detection:
-        # We sample a position around the real one using error propagation.
-        # All detections share the same target, i. e. we can select
-        # any of them to access the true target state.
-        # Finally, a fake detection is created.
+    def _pcl_detections_to_ecef(self, detections: list[PclDetection]) -> Detection:
+        """
+        Sample a position in ECEF space around the ground truth one using
+        error propagation.
+
+        Parameters
+        ----------
+        detections: list[PclDetection]
+            Detections for the same target. Must be of length >= 3.
+
+        Returns
+        -------
+        stonesoup.types.detection.Detection
+            A detection representing a position in 3D space, including measurement model
+
+        Raises
+        ------
+        ValueError
+            If `len(detections) < 3`
+        """
+        if len(detections) < 3:
+            raise ValueError(
+                "Need at least 3 PCL detections to estimate target position in ECEF space"
+            )
+
         detections = sorted(detections, key=lambda d: d.bistatic_range)
         sigma = np.max([d.sigma_bistatic_range for d in detections])
+        # All detections share the same target, i. e. we can select
+        # any of them to access the true target state.
         detection = detections[0]
-        detection_time = detection.time
-        target = detection.target
-        mean = CoordinateTransformations.geodetic_to_cartesian(
-            target.lat,
-            target.lon,
-            target.alt,
+        return self._sample_position(
+            detection.target,
+            (sigma, sigma, sigma),
+            detection.time,
         )
-        x, y, z = self._rng.normal(mean, [sigma, sigma, sigma])
-        measured_state = np.array([x, y, z])
 
-        covar = np.diag([sigma, sigma, sigma])
+    def _pet_detections_to_ecef(self, detections: list[PetDetection]) -> Detection:
+        """
+        Sample a position in ECEF space around the ground truth one using
+        error propagation.
 
-        return Detection(
-            measured_state,
-            measurement_model=LinearGaussian(
-                ndim_state=6, mapping=(0, 2, 4), noise_covar=covar
-            ),
-            timestamp=detection_time,
+        Parameters
+        ----------
+        detections: list[PetDetection]
+            Detections for the same target. Must be of length >= 2.
+
+        Returns
+        -------
+        stonesoup.types.detection.Detection
+            A detection representing a position in 3D space, including measurement model
+
+        Raises
+        ------
+        ValueError
+            If `len(detections) < 2`
+        """
+        if len(detections) < 2:
+            raise ValueError(
+                "Need at least 2 PET detections to estimate target position in ECEF space"
+            )
+
+        sigmas = []
+        for detection in detections:
+            d = line_of_sight_distance(
+                detection.target.lat,
+                detection.target.lon,
+                detection.target.alt,
+                detection.radar.receiver.lat,
+                detection.radar.receiver.lon,
+                detection.radar.receiver.alt,
+            )
+            sigmas.append(d * detection.azimuth)
+            sigmas.append(d * detection.elevation)
+        sigma = np.max(sigmas)
+
+        # All detections share the same target, i. e. we can select
+        # any of them to access the true target state.
+        detection = detections[0]
+        return self._sample_position(
+            detection.target,
+            (sigma, sigma, sigma),
+            detection.time,
+        )
+
+    def _combined_pcl_pet_detections_to_ecef(
+        self,
+        pcl_detections: tuple[PclDetection, PclDetection],
+        pet_detection: PetDetection,
+    ) -> Detection:
+        """
+        Sample a position in ECEF space around the ground truth one using
+        error propagation.
+
+        Parameters
+        ----------
+        pcl_detections: tuple[PclDetection, PclDetection]
+            PCL detections
+        pet_detection: PetDetection
+            PET detection
+
+        Returns
+        -------
+        stonesoup.types.detection.Detection
+            A detection representing a position in 3D space, including measurement model
+
+        Raises
+        ------
+        ValueError
+            If `len(detections) < 2`
+        """
+        d = line_of_sight_distance(
+            pet_detection.target.lat,
+            pet_detection.target.lon,
+            pet_detection.target.alt,
+            pet_detection.radar.receiver.lat,
+            pet_detection.radar.receiver.lon,
+            pet_detection.radar.receiver.alt,
+        )
+        sigma = np.max(
+            (
+                d * pet_detection.azimuth,
+                d * pet_detection.elevation,
+                pcl_detections[0].sigma_bistatic_range,
+                pcl_detections[1].sigma_bistatic_range,
+            )
+        )
+
+        # All detections share the same target, i. e. we can select
+        # any of them to access the true target state.
+        detection = pet_detection
+        return self._sample_position(
+            detection.target,
+            (sigma, sigma, sigma),
+            detection.time,
         )
 
     def _preprocess_detections(
@@ -313,23 +454,13 @@ class PseudoTracker(AbstractTracker):
             if len(detections.monostatic_detections) > 0:
                 # Whenever we have monostatic detections, we use those detections
                 # to initialize or update the track.
-                detection = self._monostatic_init_update(
+                detection = self._monostatic_detections_to_ecef(
                     detections.monostatic_detections
                 )
-            elif len(detections.pcl_detections) > 0:
-                if (
-                    detections.target_id in self._trackers
-                    or len(detections.pcl_detections) >= 3
-                ):
-                    detection = self._pcl_init_update(detections.pcl_detections)
-                else:
-                    # We do not have a track yet, but there are not enough
-                    # detections to initialize a new one.
-                    continue
-            else:
-                raise RuntimeError(
-                    "Unexpected behaviour: This code should never be reached!"
-                )
+            elif len(detections.pcl_detections) >= 3:
+                detection = self._pcl_detections_to_ecef(detections.pcl_detections)
+            elif len(detections.pet_detections) >= 2:
+                detection = self._pet_detections_to_ecef(detections.pet_detections)
 
             # Actually initialise or update the track.
             tracker = self._trackers.setdefault(
