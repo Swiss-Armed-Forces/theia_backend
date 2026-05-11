@@ -95,7 +95,7 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
     ):
         if not is_blue:
             return
-        # Check that the first tracked target is only when the track init region
+        # Check that the first track is created only when the track init region
         # is entered.
         if len(situational_picture.enemy_targets) > 0 and self._first_detection:
             self.assertLessEqual(

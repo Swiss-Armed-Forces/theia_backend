@@ -103,11 +103,11 @@ class SingleTargetEcefTracker:
             (s.timestamp, np.array(s.state_vector.flatten()))
             for s in self._track.states
         ]
-        if len(states) <= 3:
+        if len(states) <= 1:
             return None
         else:
             return theia.types.Track(
-                id=str(self._id), sidc=self._sidc, states=states[2:]
+                id=str(self._id), sidc=self._sidc, states=states
             )
 
 
