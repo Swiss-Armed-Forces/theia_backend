@@ -161,6 +161,15 @@ class LatLonTerrainGrid(pydantic.BaseModel):
         return points
 
     @property
+    def is_local_maximum(self) -> np.ndarray:
+        alts = np.empty((self.n_points[0], self.n_points[1]), dtype=np.float32)
+        for i, lat in enumerate(self.latitude_values):
+            for j, lon in enumerate(self.longitude_values):
+                alts[i, j] = elevationAt(lat, lon)
+        is_max = alts == maximum_filter(alts, size=3)
+        return is_max.flatten()
+
+    @property
     def points_local_maxima(self) -> np.ndarray:
         alts = np.empty((self.n_points[0], self.n_points[1]), dtype=np.float32)
         for i, lat in enumerate(self.latitude_values):
