@@ -2,14 +2,16 @@ import datetime
 import numpy as np
 import pydantic
 import scipy.constants as sc
+from scipy.ndimage import binary_erosion
 
 import theia
 from theia.coordinates import calculate_azimuth_angle, calculate_elevation_angle
 from theia.detection.active import calculate_probability_of_detection
 from theia.distance import line_of_sight_distance
+from theia.grids import LatLonTerrainGrid
 from theia.line_of_sight import has_line_of_sight
 from theia.snr import calculate_snr
-from theia.types import PetDetection, AbstractSensor, Target
+from theia.types import PetDetection, AbstractSensor, Point, Target
 from theia.util import get_clear_sky_attenuation
 
 
@@ -84,3 +86,37 @@ class PetDetector(pydantic.BaseModel):
             )
         else:
             return None
+
+
+def suggest_pet_receiver_locations(
+    grid: LatLonTerrainGrid,
+    target_positions: list[Point],
+) -> list[Point]:
+    all_has_los = np.full(
+        (grid.n_points[0], grid.n_points[1], len(target_positions)),
+        False,
+        dtype=bool,
+    )
+
+    for i, target_pos in enumerate(target_positions):
+        points = grid.points
+        is_local_max = grid.is_local_maximum
+        has_los = np.full(grid.n_points[0] * grid.n_points[1] * grid.n_points[2], False)
+        for j, (point, is_max) in enumerate(
+            zip(grid.points, is_local_max, strict=True)
+        ):
+            if not is_max:
+                continue
+            has_los[j] = has_line_of_sight(
+                target_pos,
+                Point(lat=point[0], lon=point[1], alt=point[2]),
+                60,
+            )
+        assert grid.n_points[2] == 1
+        has_los = has_los.reshape(grid.n_points)[:, :, 0]
+        has_los = np.logical_xor(has_los, binary_erosion(has_los))
+        all_has_los[:, :, i] = has_los
+
+    n_los = np.sum(all_has_los, axis=2)
+    best_points = points[np.where(n_los.flatten() == np.max(n_los))]
+    return best_points
