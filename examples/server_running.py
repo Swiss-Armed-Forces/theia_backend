@@ -1,11 +1,6 @@
+import numpy as np
 import uvicorn
-
-from theia.simulation.predefined_simulations import (
-    build_single_radar_single_target,
-    load_single_target_from_Bodensee_simulator,
-    load_uetliberg_opensky_simulator,
-    load_uetliberg_single_target_simulator_pcl,
-)
+from theia.simulation.factories.bodensee_monostatic import BodenseeMonostaticFactory
 from theia.simulation.server import create_app
 from theia.simulation.simulation_director import SimulationDirector
 
@@ -14,12 +9,9 @@ print("Initialise...")
 ################################################
 # Setup the simulation.
 ################################################
-# simulator, buffer = load_uetliberg_opensky_simulator()
-# simulator, buffer = load_uetliberg_single_target_simulator_pcl(
-#     bistatic_range_uncertainty=100.0,
-# )
-# simulator, buffer = load_single_target_from_Bodensee_simulator()
-simulator, buffer = build_single_radar_single_target(interactive=True)
+rng = np.random.Generator(np.random.PCG64(seed=4054080))
+factory = BodenseeMonostaticFactory(rng)
+simulator, buffer = factory.build_simulator(True, rng)
 
 ################################################
 # Setup the server.
