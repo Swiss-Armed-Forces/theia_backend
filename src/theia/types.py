@@ -573,6 +573,15 @@ class Trajectory(pydantic.BaseModel):
             cross_section_model=target.cross_section_model,
         )
 
+    def sample_in_time(self, dt: datetime.timedelta) -> list[Target]:
+        timestamps = np.arange(
+            self.times[0].timestamp(),
+            self.times[-1].timestamp(),
+            dt.seconds,
+        )
+        times = [datetime.datetime.fromtimestamp(t) for t in timestamps]
+        return [self(t) for t in times]
+
 
 class MonostaticRadarDetection(pydantic.BaseModel):
     detection_id: int
