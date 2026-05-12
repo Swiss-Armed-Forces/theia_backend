@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from theia.config import SIDC_RED_FIXED_WING
 from theia.coordinates import CoordinateTransformations
-from theia.terrain import elevationAt
+from theia.terrain import SrtmTerrainModel
 from theia.types import (
     AttenuationModel,
     Point,
@@ -218,10 +218,12 @@ def load_bakom_ukw_transmitters(
             attenuation_values_h = _parse_attenuation_str(row["attn_h_h"])
             attenuation_values_v = _parse_attenuation_str(row["attn_h_v"])
 
+            terrain_model = SrtmTerrainModel()
+
             tx = _build_transmitter(
                 lat,
                 lon,
-                elevationAt(lat, lon),
+                terrain_model.elevationAt(lat, lon),
                 antenna_height,
                 frequency,
                 bandwidth,

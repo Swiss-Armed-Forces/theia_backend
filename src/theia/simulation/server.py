@@ -228,6 +228,7 @@ def create_app(
             )
         else:
             polygon = calculate_coverage(
+                director._simulator._terrain_model,
                 radar.receiver.point,
                 max_dist,
                 target_alt,
