@@ -10,6 +10,7 @@ from theia.detection.active import calculate_monostatic_detection
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.radar_equation import calculate_maximum_monostatic_range
+from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
 from theia.types import (
     AbstractTracker,
     MonostaticRadarDetection,
@@ -57,6 +58,7 @@ class Simulator:
         rng: np.random.Generator,
         listener: AbstractSimulationListener,
         simulate_clutter: bool = True,
+        terrain_model: AbstractTerrainModel = SrtmTerrainModel(),
     ):
         """
         Parameters
@@ -106,6 +108,7 @@ class Simulator:
         self._rng = rng
         self._listener = listener
         self._simulate_clutter = simulate_clutter
+        self._terrain_model = terrain_model
 
         self._blue_monostatic_radars: list[MonostaticSensor] = []
         self._blue_pcl_sensors: list[PclSensor] = []
@@ -212,6 +215,7 @@ class Simulator:
                 continue
             for target in targets:
                 det = calculate_monostatic_detection(
+                    self._terrain_model,
                     radar,
                     target,
                     rng=self._rng,

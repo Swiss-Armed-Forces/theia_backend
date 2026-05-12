@@ -9,14 +9,13 @@ from theia.coordinates import calculate_azimuth_angle, calculate_elevation_angle
 from theia.detection.active import calculate_probability_of_detection
 from theia.distance import line_of_sight_distance
 from theia.grids import LatLonTerrainGrid
-from theia.line_of_sight import has_line_of_sight
 from theia.snr import calculate_snr
+from theia.terrain import SrtmTerrainModel
 from theia.types import PetDetection, AbstractSensor, Point, Target
 from theia.util import get_clear_sky_attenuation
 
 
 class PetDetector(pydantic.BaseModel):
-    distance_step: float = 30.0
     rf_loss: float = theia.config.RF_LOSS
 
     def calculate_pet_detection(
@@ -25,10 +24,10 @@ class PetDetector(pydantic.BaseModel):
         target: Target,
         rng: np.random.Generator,
     ) -> PetDetection | None:
-        los_ok = has_line_of_sight(
+        terrain_model = SrtmTerrainModel()
+        los_ok = terrain_model.has_line_of_sight(
             sensor.transmitter.point,
             sensor.receiver.point,
-            self.distance_step,
         )
 
         if not los_ok:
@@ -107,7 +106,7 @@ def suggest_pet_receiver_locations(
         ):
             if not is_max:
                 continue
-            has_los[j] = has_line_of_sight(
+            has_los[j] = grid.terrain_model.has_line_of_sight(
                 target_pos,
                 Point(lat=point[0], lon=point[1], alt=point[2]),
                 60,

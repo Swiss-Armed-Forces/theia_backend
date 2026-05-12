@@ -2,7 +2,7 @@ import numpy as np
 import pydantic
 import shapely
 from scipy.ndimage import maximum_filter
-from theia.terrain import elevationAt
+from theia.terrain import AbstractTerrainModel
 from theia.types import Point
 
 
@@ -106,6 +106,8 @@ class LatLonTerrainGrid(pydantic.BaseModel):
     lon_stop: float
     lon_res: float
 
+    terrain_model: AbstractTerrainModel
+
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
 
@@ -134,7 +136,7 @@ class LatLonTerrainGrid(pydantic.BaseModel):
         return (
             0.5 * (self.lat_stop + self.lat_start),
             0.5 * (self.lon_stop + self.lon_start),
-            elevationAt(
+            self.terrain_model.elevationAt(
                 0.5 * (self.lat_stop + self.lat_start),
                 0.5 * (self.lon_stop + self.lon_start),
             ),
@@ -156,7 +158,7 @@ class LatLonTerrainGrid(pydantic.BaseModel):
         i = 0
         for lat in self.latitude_values:
             for lon in self.longitude_values:
-                points[i, :] = lat, lon, elevationAt(lat, lon)
+                points[i, :] = lat, lon, self.terrain_model.elevationAt(lat, lon)
                 i += 1
         return points
 
@@ -165,7 +167,7 @@ class LatLonTerrainGrid(pydantic.BaseModel):
         alts = np.empty((self.n_points[0], self.n_points[1]), dtype=np.float32)
         for i, lat in enumerate(self.latitude_values):
             for j, lon in enumerate(self.longitude_values):
-                alts[i, j] = elevationAt(lat, lon)
+                alts[i, j] = self.terrain_model.elevationAt(lat, lon)
         is_max = alts == maximum_filter(alts, size=3)
         return is_max.flatten()
 
@@ -174,7 +176,7 @@ class LatLonTerrainGrid(pydantic.BaseModel):
         alts = np.empty((self.n_points[0], self.n_points[1]), dtype=np.float32)
         for i, lat in enumerate(self.latitude_values):
             for j, lon in enumerate(self.longitude_values):
-                alts[i, j] = elevationAt(lat, lon)
+                alts[i, j] = self.terrain_model.elevationAt(lat, lon)
         is_max = alts == maximum_filter(alts, size=3)
 
         ii, jj = np.where(is_max)

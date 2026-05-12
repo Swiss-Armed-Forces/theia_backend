@@ -11,7 +11,7 @@ import pandas as pd
 import pydantic
 
 from theia.coordinates import CoordinateTransformations, _ecef_to_enu_rotation_matrix
-from theia.terrain import elevationAt
+from theia.terrain import AbstractTerrainModel
 from theia.types import Trajectory
 
 
@@ -63,8 +63,8 @@ def write_ecef_structured_grid(
     lines = []
     lines.append('<?xml version="1.0" encoding="utf-8"?>')
     lines.append(
-        f'<VTKFile type="StructuredGrid" version="0.1" '
-        f'byte_order="LittleEndian" header_type="UInt32">'
+        '<VTKFile type="StructuredGrid" version="0.1" '
+        'byte_order="LittleEndian" header_type="UInt32">'
     )
     lines.append(f'  <StructuredGrid WholeExtent="0 {ni - 1} 0 {nj - 1} 0 {nk - 1}">')
     lines.append(f'    <Piece Extent="0 {ni - 1} 0 {nj - 1} 0 {nk - 1}">')
@@ -230,6 +230,7 @@ class ParaviewExporter:
         lon_min: float,
         lon_max: float,
         lon_res: float,
+        terrain_model: AbstractTerrainModel,
         elevation_factor: float = 10.0,
     ):
         self._terrain_path = Path(f"{output_dir}/terrain.vts").absolute()
@@ -243,6 +244,7 @@ class ParaviewExporter:
         self._lon_max = lon_max
         self._lon_res = lon_res
         self._elevation_factor = elevation_factor
+        self._terrain_model = terrain_model
 
         self._lats = np.arange(self._lat_min, self._lat_max, self._lat_res)
         self._lons = np.arange(self._lon_min, self._lon_max, self._lon_res)
@@ -252,7 +254,7 @@ class ParaviewExporter:
             (
                 center_lat,
                 center_lon,
-                elevationAt(center_lat, center_lon),
+                terrain_model.elevationAt(center_lat, center_lon),
             )
         )
         self._rotation = _ecef_to_enu_rotation_matrix(self._center[0], self._center[1])
@@ -262,7 +264,7 @@ class ParaviewExporter:
         i = 0
         for j, lat in enumerate(self._lats):
             for k, lon in enumerate(self._lons):
-                alt = elevationAt(lat, lon)
+                alt = self._terrain_model.elevationAt(lat, lon)
                 if alt < 0:
                     # Missing values in the dataset. We fill with the closest non-missing.
                     r = 1
@@ -273,7 +275,10 @@ class ParaviewExporter:
                                 self._lons[k - r : k + r],
                             )
                         )
-                        patch_alts = [elevationAt(lat, lon) for lat, lon in patch]
+                        patch_alts = [
+                            self._terrain_model.elevationAt(lat, lon)
+                            for lat, lon in patch
+                        ]
                         alt = np.max(patch_alts)
                         r += 1
 

@@ -7,10 +7,12 @@ import geopandas as gpd
 import shapely
 from theia.distance import burstvincentydistance
 from theia.line_of_sight import line_of_sight_along_ray
+from theia.terrain import AbstractTerrainModel
 from theia.types import Point
 
 
 def calculate_coverage(
+    terrain_model: AbstractTerrainModel,
     start: Point,
     max_dist: float,
     target_alt: float,
@@ -24,6 +26,7 @@ def calculate_coverage(
         target_alt=target_alt,
         d_max=max_dist,
         dist_res=dist_res,
+        terrain_model=terrain_model,
     )
     with Pool(5) as p:
         visible_points = p.map(f, thetas)

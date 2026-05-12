@@ -6,7 +6,7 @@ from pyproj import Transformer
 import shapely
 
 from theia.coverage import calculate_coverage
-from theia.terrain import elevationAt
+from theia.terrain import SrtmTerrainModel
 from theia.types import Point
 
 
@@ -27,7 +27,7 @@ class CoverageTest(unittest.TestCase):
         start = Point(
             lat=p.lat,
             lon=p.lon,
-            alt=elevationAt(p.lat, p.lon),
+            alt=SrtmTerrainModel().elevationAt(p.lat, p.lon),
         )
 
         target_flight_height = 1000.0
@@ -36,7 +36,11 @@ class CoverageTest(unittest.TestCase):
         max_dist = 16500.001
 
         coverage = calculate_coverage(
-            start, max_dist, target_flight_height, d_theta=0.1
+            SrtmTerrainModel(),
+            start,
+            max_dist,
+            target_flight_height,
+            d_theta=0.1,
         )
 
         # Convert to cartesian coordinates and calculate Dice simularity metric.

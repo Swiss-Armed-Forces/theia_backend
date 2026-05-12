@@ -7,9 +7,9 @@ from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, RF_LOSS
 from theia.coordinates import CoordinateTransformations
 from theia.distance import line_of_sight_distance
 from theia.doppler import calculate_doppler_shift
-from theia.line_of_sight import has_line_of_sight
 from theia.measurement import MonostaticMeasurementTransformations
 from theia.snr import calculate_snr
+from theia.terrain import AbstractTerrainModel
 from theia.types import (
     MonostaticRadarDetection,
     MonostaticRadarMeasurementModel,
@@ -21,6 +21,7 @@ from theia.util import get_clear_sky_attenuation, marcum_q_function
 
 
 def calculate_monostatic_detection(
+    terrain_model: AbstractTerrainModel,
     radar: MonostaticSensor,
     target: Target,
     rng: np.random.Generator,
@@ -54,6 +55,7 @@ def calculate_monostatic_detection(
         Error model to use on the range, elevation and azimuth
     """
     snr_dB = calculate_monostatic_snr(
+        terrain_model,
         radar,
         target,
         rcs_model=target.cross_section_model,
@@ -115,6 +117,7 @@ def calculate_monostatic_detection(
 
 
 def calculate_monostatic_snr(
+    terrain_model: AbstractTerrainModel,
     radar: MonostaticSensor,
     target: Target,
     rcs_model: RcsModel,
@@ -162,7 +165,10 @@ def calculate_monostatic_snr(
         tgt_height,
     )
 
-    los_ok = has_line_of_sight(radar.transmitter.point, target.point, distance_step)
+    los_ok = terrain_model.has_line_of_sight(
+        radar.transmitter.point,
+        target.point,
+    )
 
     if not los_ok:
         return 0.0

@@ -3,7 +3,7 @@ import unittest
 import scipy.constants as sc
 
 from theia.coordinates import POSITIONS_OF_INTEREST
-from theia.terrain import elevationAt
+from theia.terrain import SrtmTerrainModel
 from theia.snr import calculate_snr
 from theia.types import Point, Polarization, Transmitter, calculate_antenna_gain
 from theia.util import frequency_to_wavelength, from_dB, to_dB
@@ -16,7 +16,7 @@ class SnrTest(unittest.TestCase):
         p = Point(
             lat=POSITIONS_OF_INTEREST["CH_CENTER"]["lat"],
             lon=POSITIONS_OF_INTEREST["CH_CENTER"]["lon"],
-            alt=elevationAt(
+            alt=SrtmTerrainModel().elevationAt(
                 POSITIONS_OF_INTEREST["CH_CENTER"]["lat"],
                 POSITIONS_OF_INTEREST["CH_CENTER"]["lon"],
             ),

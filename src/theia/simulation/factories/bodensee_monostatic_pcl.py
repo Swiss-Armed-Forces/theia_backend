@@ -20,7 +20,7 @@ from theia.simulation.factories.abstract_simulator_factory import (
 )
 from theia.simulation.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
-from theia.terrain import elevationAt
+from theia.terrain import SrtmTerrainModel
 from theia.test_data import (
     build_fighter_jet_radar,
     build_flores_monostatic_radar,
@@ -43,6 +43,7 @@ class BodenseeMonostaticPclFactory(AbstractSimulatorFactory):
         self._rng = rng
         trajectory = build_single_target_from_Bodensee(alt=1000)
         self._trajectories = [trajectory]
+        self._terrain_model = SrtmTerrainModel()
 
     def _get_pcl_detector(self) -> PclDetector:
         return PclDetector()
@@ -70,7 +71,7 @@ class BodenseeMonostaticPclFactory(AbstractSimulatorFactory):
         point = Point(
             lat=pcl_rx_lat,
             lon=pcl_rx_lon,
-            alt=elevationAt(pcl_rx_lat, pcl_rx_lon),
+            alt=self._terrain_model.elevationAt(pcl_rx_lat, pcl_rx_lon),
         )
         pcl_rx = build_pcl_receiver(rx_id=1, point=point)
         txs = load_bakom_ukw_transmitters(start_id=1)
@@ -110,12 +111,16 @@ class BodenseeMonostaticPclFactory(AbstractSimulatorFactory):
         point = Point(
             lat=radar_lat,
             lon=radar_lon,
-            alt=elevationAt(radar_lat, radar_lon),
+            alt=self._terrain_model.elevationAt(radar_lat, radar_lon),
         )
         sensor_id = 0
         monostatic_radars: list[MonostaticSensor] = []
         for pos in monostatic_positions:
-            point = Point(lat=pos[0], lon=pos[1], alt=elevationAt(pos[0], pos[1]))
+            point = Point(
+                lat=pos[0],
+                lon=pos[1],
+                alt=self._terrain_model.elevationAt(pos[0], pos[1]),
+            )
             monostatic_radar = build_flores_monostatic_radar(point, sensor_id, 0, 0)
             monostatic_radars.append(monostatic_radar)
             sensor_id += 1

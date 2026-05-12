@@ -3,9 +3,9 @@ import numpy as np
 from scipy.spatial import ConvexHull
 import shapely
 from theia.coordinates import CoordinateTransformations
-from theia.terrain import elevationAt
 from theia.distance import line_of_sight_distance, linspace
 from theia.ellipsoid import Ellipsoid
+from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
 from theia.types import Point
 
 
@@ -16,16 +16,19 @@ def plot_profile(
     p2_label: str = "",
     plot_connection_p1_p2: bool = True,
     resolution: float = 30.0,
-    min_elevation: float = 0.,
+    min_elevation: float = 0.0,
+    terrain_model: AbstractTerrainModel = SrtmTerrainModel(),
 ) -> tuple[plt.Figure, plt.Axes]:
-    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
     points = list(linspace(p1, p2, resolution))
     distances = [
-        line_of_sight_distance(p1.lat, p1.lon, p1.alt, p.lat, p.lon, p.alt) / 1000.
+        line_of_sight_distance(p1.lat, p1.lon, p1.alt, p.lat, p.lon, p.alt) / 1000.0
         for p in points
     ]
-    elevations = np.clip([elevationAt(p.lat, p.lon) for p in points], 0, np.inf)
+    elevations = np.clip(
+        [terrain_model.elevationAt(p.lat, p.lon) for p in points], 0, np.inf
+    )
 
     fig, ax = plt.subplots(figsize=(8, 4.5))
 
@@ -35,14 +38,14 @@ def plot_profile(
     ax.annotate(
         p1_label,
         (distances[0], p1.alt),
-        xytext=(2 * resolution / 1000., p1.alt + 2 * resolution),
+        xytext=(2 * resolution / 1000.0, p1.alt + 2 * resolution),
         color=colors[1],
         fontweight="bold",
     )
     ax.annotate(
         p2_label,
         (distances[-1], p2.alt),
-        xytext=(distances[-1] - 4 * resolution / 1000., p2.alt),
+        xytext=(distances[-1] - 4 * resolution / 1000.0, p2.alt),
         horizontalalignment="right",
         color=colors[2],
         fontweight="bold",
@@ -90,7 +93,5 @@ def detection_ellipse(
 
     hull = ConvexHull(points_at_target_alt)
     points_at_target_alt = hull.points[hull.vertices]
-    ellipse = shapely.geometry.LineString(
-        [(p[1], p[0]) for p in points_at_target_alt]
-    )
+    ellipse = shapely.geometry.LineString([(p[1], p[0]) for p in points_at_target_alt])
     return ellipse

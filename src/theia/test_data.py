@@ -10,7 +10,7 @@ from theia.data_loading import load_bakom_ukw_transmitters
 from theia.distance import line_of_sight_distance
 from theia.grids import LatLonHeightGrid
 from theia.maneuvers import ConstantSpeedCurveManeuver
-from theia.terrain import elevationAt
+from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
 from theia.types import (
     ConstantRcsModel,
     MonostaticRadarMeasurementModel,
@@ -37,10 +37,13 @@ class TestSituationLoader:
         | Literal["south"]
         | Literal["west"] = "south",
     ) -> tuple[list[MonostaticSensor], list[Target]]:
+        terrain_model = SrtmTerrainModel()
         radar_lat = POSITIONS_OF_INTEREST["Uetliberg"]["lat"]
         radar_lon = POSITIONS_OF_INTEREST["Uetliberg"]["lon"]
         point = Point(
-            lat=radar_lat, lon=radar_lon, alt=elevationAt(radar_lat, radar_lon)
+            lat=radar_lat,
+            lon=radar_lon,
+            alt=terrain_model.elevationAt(radar_lat, radar_lon),
         )
 
         radar = get_uetliberg_radar(
@@ -300,6 +303,7 @@ def sample_position(
     alt_min: float = 0.0,
     alt_max: float = 10_000.0,
     alt_magl: bool = True,
+    terrain_model: AbstractTerrainModel = SrtmTerrainModel(),
 ) -> Point:
     """
     Parameters
@@ -326,7 +330,7 @@ def sample_position(
     lon = rng.uniform(lon_min, lon_max)
     alt = rng.uniform(alt_min, alt_max)
     if alt_magl:
-        alt += elevationAt(lat, lon)
+        alt += terrain_model.elevationAt(lat, lon)
     return Point(lat=lat, lon=lon, alt=alt)
 
 

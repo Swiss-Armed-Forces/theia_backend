@@ -3,12 +3,14 @@ import os
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.export_paraview import ParaviewExporter, PointOfInterest
 from theia.grids import LatLonHeightGrid
-from theia.terrain import elevationAt
+from theia.terrain import SrtmTerrainModel
 from theia.test_data import build_single_target_from_Bodensee
 
 out_dir = "output/paraview"
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
+
+terrain_model = SrtmTerrainModel()
 
 traj = build_single_target_from_Bodensee(alt=4000)
 
@@ -42,7 +44,7 @@ pois = [
         type="Rx",
         lat=46.9942,
         lon=8.5349,
-        alt=elevationAt(46.9942, 8.5349) + 10,
+        alt=terrain_model.elevationAt(46.9942, 8.5349) + 10,
     ),
     PointOfInterest(
         id=1,
@@ -50,7 +52,7 @@ pois = [
         type="Rx",
         lat=47.3258,
         lon=8.4914,
-        alt=elevationAt(47.3258, 8.4914) + 10,
+        alt=terrain_model.elevationAt(47.3258, 8.4914) + 10,
     ),
     PointOfInterest(
         id=2,
@@ -66,7 +68,7 @@ pois = [
         type="Rx",
         lat=47.4629,
         lon=8.5693,
-        alt=elevationAt(47.4629, 8.5693),
+        alt=terrain_model.elevationAt(47.4629, 8.5693),
     ),
 ]
 
