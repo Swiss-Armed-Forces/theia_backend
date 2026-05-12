@@ -1,7 +1,6 @@
 import numba
 import numpy as np
 import pyproj
-from theia.terrain import elevationAt
 from theia.types import Point, Velocity
 
 
@@ -13,19 +12,6 @@ POSITIONS_OF_INTEREST = {
     "CH_CENTER": {"lat": 46.801111, "lon": 8.226667},
     "Uetliberg": {"lat": 47.349491, "lon": 8.492063, "alt": 856.2037851199802},
 }
-
-
-def sample_location(
-    rng: np.random.Generator,
-    lat_min: float,
-    lat_max: float,
-    lon_min: float,
-    lon_max: float,
-) -> Point:
-    lat = rng.uniform(lat_min, lat_max)
-    lon = rng.uniform(lon_min, lon_max)
-    alt = elevationAt(lat, lon)
-    return Point(lat=lat, lon=lon, alt=alt)
 
 
 class CoordinateTransformations:

@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from theia import elevationAt
+from theia.terrain import SrtmTerrainModel
 
 
 class ElevationAtTest(unittest.TestCase):
@@ -22,9 +22,10 @@ class ElevationAtTest(unittest.TestCase):
             ]
         )
 
+        terrain_model = SrtmTerrainModel()
         for i in range(test_cases.shape[0]):
             lat, lon, correct_height = test_cases[i, :]
-            height = elevationAt(lat, lon)
+            height = terrain_model.elevationAt(lat, lon)
             diff = np.abs(height - correct_height)
             self.assertLess(diff, 10)
 

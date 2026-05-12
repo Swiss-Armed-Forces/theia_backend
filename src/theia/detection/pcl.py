@@ -12,7 +12,6 @@ from theia.distance import (
 )
 from theia.doppler import calculate_doppler_shift
 from theia.grids import LatLonHeightGrid
-from theia.line_of_sight import has_line_of_sight
 from theia.snr import calculate_snr
 from theia.types import (
     ConstantRcsModel,

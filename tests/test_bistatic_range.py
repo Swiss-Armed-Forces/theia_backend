@@ -3,16 +3,18 @@ import unittest
 from matplotlib import pyplot as plt
 import numpy as np
 
-from theia.coordinates import LATLON_BOUNDS, CoordinateTransformations, sample_location
+from theia.coordinates import LATLON_BOUNDS, CoordinateTransformations
 from theia.data_loading_testing import load_pcl_reference_data
 from theia.distance import get_bistatic_range
 from theia.ellipsoid import Ellipsoid
+from theia.terrain import SrtmTerrainModel
 
 
 class BistaticRangeTest(unittest.TestCase):
     def test_bistatic_range(self):
         n_examples = 100
         rng = np.random.Generator(np.random.PCG64(463799))
+        terrain_model = SrtmTerrainModel()
 
         # Sample within the boundaries of Switzerland (roughly).
         LAT_MIN, LAT_MAX = LATLON_BOUNDS["CH"]["lat"]
@@ -21,11 +23,11 @@ class BistaticRangeTest(unittest.TestCase):
         n = 0
         while n < n_examples:
             # Sample transmitter and emitter locations.
-            p1 = sample_location(rng, LAT_MIN, LAT_MAX, LON_MIN, LON_MAX)
-            p2 = sample_location(rng, LAT_MIN, LAT_MAX, LON_MIN, LON_MAX)
+            p1 = terrain_model.sample_location(rng, LAT_MIN, LAT_MAX, LON_MIN, LON_MAX)
+            p2 = terrain_model.sample_location(rng, LAT_MIN, LAT_MAX, LON_MIN, LON_MAX)
 
             # Sample target position with flight height in [1., 10'000] m.
-            target_position = sample_location(
+            target_position = terrain_model.sample_location(
                 rng,
                 LAT_MIN,
                 LAT_MAX,
@@ -62,8 +64,12 @@ class BistaticRangeTest(unittest.TestCase):
 
             # Sanity check to ensure that the on-ellipse-surface test is actually
             # correct.
-            p_not_on_ellipsoid = sample_location(
-                rng, LAT_MIN, LAT_MAX, LON_MIN, LON_MAX
+            p_not_on_ellipsoid = terrain_model.sample_location(
+                rng,
+                LAT_MIN,
+                LAT_MAX,
+                LON_MIN,
+                LON_MAX,
             )
             p_not_on_ellipsoid = CoordinateTransformations.geodetic_to_cartesian(
                 *p_not_on_ellipsoid.as_tuple()
@@ -114,7 +120,8 @@ class BistaticRangeTest(unittest.TestCase):
                 detections_ref_tx_rx = [
                     d
                     for d in detections
-                    if d.sensor.transmitter.id == Tx.id and d.sensor.receiver.id == Rx.id
+                    if d.sensor.transmitter.id == Tx.id
+                    and d.sensor.receiver.id == Rx.id
                 ]
                 detection_times_ref = [
                     detection.time for detection in detections_ref_tx_rx

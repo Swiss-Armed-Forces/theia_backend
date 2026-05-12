@@ -18,7 +18,6 @@ from stonesoup.types.track import Track
 import theia
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.distance import line_of_sight_distance
-from theia.measurement import MonostaticMeasurementTransformations
 from theia.types import (
     CLUTTER_TARGET,
     AbstractTracker,
@@ -451,6 +450,8 @@ class PseudoTracker(AbstractTracker):
         )
         updated_targets: set[int] = set()
         for detections in target_detections:
+            track_exists = detections.target_id in self._trackers
+            detection: Detection | None = None
             if len(detections.monostatic_detections) > 0:
                 # Whenever we have monostatic detections, we use those detections
                 # to initialize or update the track.
@@ -461,20 +462,31 @@ class PseudoTracker(AbstractTracker):
                 detection = self._pcl_detections_to_ecef(detections.pcl_detections)
             elif len(detections.pet_detections) >= 2:
                 detection = self._pet_detections_to_ecef(detections.pet_detections)
+            elif (
+                len(detections.pcl_detections) == 2
+                and len(detections.pet_detections) == 1
+            ):
+                detection = self._combined_pcl_pet_detections_to_ecef(
+                    tuple(detections.pcl_detections),
+                    detections.pet_detections[0],
+                )
+            elif (len(detections.pcl_detections) == 2) and track_exists:
+                detection = self._
 
             # Actually initialise or update the track.
-            tracker = self._trackers.setdefault(
-                detections.target_id,
-                SingleTargetEcefTracker(
+            if detection is not None:
+                tracker = self._trackers.setdefault(
                     detections.target_id,
-                    self._t0,
-                    self._prior,
-                    sidc=detections.target_sidc,
-                ),
-            )
-            tracker.add_detection(detection)
-            self._iterations_without_update[detections.target_id] = 0
-            updated_targets.add(detections.target_id)
+                    SingleTargetEcefTracker(
+                        detections.target_id,
+                        self._t0,
+                        self._prior,
+                        sidc=detections.target_sidc,
+                    ),
+                )
+                tracker.add_detection(detection)
+                self._iterations_without_update[detections.target_id] = 0
+                updated_targets.add(detections.target_id)
 
         # Remove targets that haven't been updated in a while.
         # The list() is important: It allows to modify the states dict during iteration.
