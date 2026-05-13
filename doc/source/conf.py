@@ -15,7 +15,7 @@ import numpy as np
 
 from theia.detection.pcl import PclDetector
 from theia.mapping import RadarMap
-from theia.terrain import elevationAt
+from theia.terrain import SrtmTerrainModel
 from theia.test_data import load_pcl_example
 
 
@@ -38,6 +38,8 @@ templates_path = ["_templates"]
 exclude_patterns = []
 
 html_logo = "_static/logo.png"
+
+numfig = True
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -93,11 +95,12 @@ def save_pcl_coverage_plots(app):
         dtype=np.float32,
     )
     minimum_detectable_rcs[:, :, :] = np.nan
+    terrain_model = SrtmTerrainModel()
     for s, sensor in enumerate(example_sensors):
         for i, lat in enumerate(grid.latitude_values):
             for j, lon in enumerate(grid.longitude_values):
                 for k, alt in enumerate(grid.altitude_values):
-                    if alt <= elevationAt(lat, lon):
+                    if alt <= terrain_model.elevationAt(lat, lon):
                         continue
                     minimum_detectable_rcs[i, j, k, s] = (
                         detector.minimum_detectable_rcs_vector(
