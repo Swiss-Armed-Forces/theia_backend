@@ -18,6 +18,7 @@ from stonesoup.types.track import Track
 import theia
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.distance import line_of_sight_distance
+from theia.ellipsoid import Ellipsoid, EllipsoidIntersection
 from theia.types import (
     CLUTTER_TARGET,
     AbstractTracker,
@@ -238,7 +239,7 @@ class PseudoTracker(AbstractTracker):
             detection.time,
         )
 
-    def _pcl_detections_to_ecef(self, detections: list[PclDetection]) -> Detection:
+    def _pcl_detections_to_ecef_init(self, detections: list[PclDetection]) -> Detection:
         """
         Sample a position in ECEF space around the ground truth one using
         error propagation.
@@ -272,6 +273,49 @@ class PseudoTracker(AbstractTracker):
             detection.target,
             (sigma, sigma, sigma),
             detection.time,
+        )
+
+    def _pcl_detections_to_ecef_update(
+        self,
+        detections: tuple[PclDetection, PclDetection],
+        n_samples: int = 32,
+    ) -> Detection:
+        detection = detections[0]
+        p11 = CoordinateTransformations.geodetic_to_cartesian(
+            *detection.sensor.receiver.point.as_tuple()
+        )
+        p12 = CoordinateTransformations.geodetic_to_cartesian(
+            *detection.sensor.transmitter.point.as_tuple()
+        )
+        d = np.linalg.norm(np.array(p11) - np.array(p12))
+        e1 = Ellipsoid(p1=p11, p2=p12, r=detection.bistatic_range + d)
+
+        detection = detections[1]
+        p21 = CoordinateTransformations.geodetic_to_cartesian(
+            *detection.sensor.receiver.point.as_tuple()
+        )
+        p22 = CoordinateTransformations.geodetic_to_cartesian(
+            *detection.sensor.transmitter.point.as_tuple()
+        )
+        d = np.linalg.norm(np.array(p21) - np.array(p22))
+        e2 = Ellipsoid(p1=p21, p2=p22, r=detection.bistatic_range + d)
+
+        intersection = EllipsoidIntersection(
+            e1=e1,
+            e2=e2,
+            sigma_r1=detections[0].sigma_bistatic_range,
+            sigma_r2=detections[1].sigma_bistatic_range,
+        )
+        points = np.array([intersection.sample(self._rng) for _ in range(n_samples)])
+
+        covar = np.diag(np.std(points, axis=0))
+
+        return Detection(
+            np.mean(points, axis=0),
+            measurement_model=LinearGaussian(
+                ndim_state=6, mapping=(0, 2, 4), noise_covar=covar
+            ),
+            timestamp=detections[0].time,
         )
 
     def _pet_detections_to_ecef(self, detections: list[PetDetection]) -> Detection:
@@ -459,7 +503,7 @@ class PseudoTracker(AbstractTracker):
                     detections.monostatic_detections
                 )
             elif len(detections.pcl_detections) >= 3:
-                detection = self._pcl_detections_to_ecef(detections.pcl_detections)
+                detection = self._pcl_detections_to_ecef_init(detections.pcl_detections)
             elif len(detections.pet_detections) >= 2:
                 detection = self._pet_detections_to_ecef(detections.pet_detections)
             elif (
@@ -471,7 +515,7 @@ class PseudoTracker(AbstractTracker):
                     detections.pet_detections[0],
                 )
             elif (len(detections.pcl_detections) == 2) and track_exists:
-                detection = self._
+                self._pcl_detections_to_ecef_update(tuple(detections.pcl_detections))
 
             # Actually initialise or update the track.
             if detection is not None:
