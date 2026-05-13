@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 from scipy.stats import chi2
 
-from theia.ellipsoid import Ellipsoid
+from theia.ellipsoid import Ellipsoid, EllipsoidIntersection
 
 
 class EllipsoidTest(unittest.TestCase):
@@ -62,7 +62,16 @@ class EllipsoidTest(unittest.TestCase):
                     + np.linalg.norm(ellipsoid.p2 - p)
                 # fmt: on
                 self.assertAlmostEqual(radius, ellipsoid.r)
-    
+
+    def test_calculate_radius(self):
+        p1 = (-10.0, 0.0, 0.0)
+        p2 = (10.0, 0.0, 0.0)
+        p = (-10.0, 10.0, 0.0)
+        correct = 10 + np.sqrt(20**2 + 10**2)
+
+        ellipsoid = Ellipsoid(p1=p1, p2=p2, r=100)
+        self.assertAlmostEqual(ellipsoid.calculate_radius(p), correct)
+
     def test_sampling(self):
         rng = np.random.default_rng(seed=4837)
         for ellipsoid in self._ellipsoids[:10]:
@@ -71,7 +80,6 @@ class EllipsoidTest(unittest.TestCase):
                 f"Chi-squared test rejected uniform distribution "
                 f"(focal_dist=?, r={ellipsoid.r}, p={result['p_value']:.4f})"
             )
-
 
 
 # Code by Claude.
@@ -136,8 +144,8 @@ def chi_squared_uniformity_test(
     samples = np.array(
         [ellipsoid.sample_surface_uniformly(rng) for _ in range(n_samples)]
     )
-    projections = (samples - center) @ ax1      # ∈ [-a, a]
-    u = projections / a                          # cos(θ) ∈ [-1, 1]
+    projections = (samples - center) @ ax1  # ∈ [-a, a]
+    u = projections / a  # cos(θ) ∈ [-1, 1]
 
     # --- Observed counts -------------------------------------------------
     bin_edges = np.linspace(-1.0, 1.0, n_bins + 1)
@@ -145,7 +153,7 @@ def chi_squared_uniformity_test(
 
     # --- Expected counts (analytic area element) -------------------------
     F = _area_antideriv(bin_edges, a, b)
-    expected_raw = np.diff(F)                    # proportional to area of each bin
+    expected_raw = np.diff(F)  # proportional to area of each bin
     expected = expected_raw / expected_raw.sum() * n_samples
 
     # Guard against empty bins, which would make the statistic undefined.
@@ -168,6 +176,43 @@ def chi_squared_uniformity_test(
         "observed": observed,
         "expected": expected,
     }
+
+
+# class EllipsoidIntersectionTest(unittest.TestCase):
+#     def test_sample(self):
+#         rng = np.random.default_rng(seed=83520757)
+#         p = (10.0, 10.0, 0.0)
+
+#         p11 = (-10.0, 0.0, 0.0)
+#         p12 = (10.0, 0.0, 0.0)
+#         sigma1 = 1.0
+#         r1_true = np.linalg.norm(np.array(p11) - np.array(p)) + np.linalg.norm(
+#             np.array(p12) - np.array(p)
+#         )
+#         r1 = rng.normal(r1_true, sigma1)
+#         e1 = Ellipsoid(p1=p11, p2=p12, r=r1)
+
+#         p21 = (-10.0, 10.0, 0.0)
+#         p22 = (-10.0, 0.0, 0.0)
+#         sigma2 = 2.0
+#         r2_true = np.linalg.norm(np.array(p21) - np.array(p)) + np.linalg.norm(
+#             np.array(p22) - np.array(p)
+#         )
+#         r2 = rng.normal(r2_true, sigma2)
+#         e2 = Ellipsoid(p1=p21, p2=p22, r=r2)
+
+#         intersection = EllipsoidIntersection(
+#             e1=e1,
+#             e2=e2,
+#             sigma_r1=sigma1,
+#             sigma_r2=sigma2,
+#         )
+
+#         samples = np.array([intersection.sample(rng) for _ in range(1000)])
+#         mean = np.mean(samples, axis=0)
+#         print(mean)
+#         print(p)
+#         self.assertTrue(np.allclose(mean, p))
 
 
 if __name__ == "__main__":
