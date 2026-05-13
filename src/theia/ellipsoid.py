@@ -1,182 +1,124 @@
-import itertools
+from functools import cached_property
+
 import numpy as np
+import pydantic
 
 
-def _standard_transformation(
-    A: np.typing.NDArray, B: np.typing.NDArray
-) -> tuple[np.typing.NDArray, np.typing.NDArray]:
-    """
-    Construct transformation to align ellipsis with focal points A, B with x-axis
-    and have the origin at their middle point.
+class Ellipsoid(pydantic.BaseModel):
+    p1: tuple[float, float, float]
+    """Focal point 1 in Cartesian ECEF coordinates [m]"""
+    p2: tuple[float, float, float]
+    """Focal point 2 in Cartesian ECEF coordinates [m]"""
+    r: float
+    """Radius of the ellipsoid (string length in pins-and-string construction) [m]"""
 
-    The transformation is as follows: ``x_new = R @ (x + translation_vector)``.
-
-    Parameters
-    ----------
-    A: np.typing.NDArray
-        Focus point
-    B: np.typing.NDArray
-        Other focus point
-
-    Returns
-    -------
-    translation_vector: np.NDArray
-    R: np.typing.NDArray
-        Rotation matrix
-    """
-    # Step 1: Translate to origin
-    midpoint = (A + B) / 2
-    A1 = A - midpoint
-    B1 = B - midpoint
-
-    # Step 2: Rotation
-    v = B1 - A1  # or just B - A
-    v_norm = v / np.linalg.norm(v)
-    x_axis = np.array([1, 0, 0])
-
-    # Check if already aligned
-    dot = np.dot(v_norm, x_axis)
-    if np.abs(dot - 1) < 1e-10:
-        # Already aligned
-        R = np.eye(3)
-    elif np.abs(dot + 1) < 1e-10:
-        # Anti-aligned, rotate 180° around y or z
-        R = np.diag([1, -1, -1])
-    else:
-        # General rotation
-        k = np.cross(v_norm, x_axis)
-        k = k / np.linalg.norm(k)
-        theta = np.arccos(dot)
-
-        # Rodrigues formula
-        K = np.array([[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]])
-        R = np.eye(3) + np.sin(theta) * K + (1 - np.cos(theta)) * (K @ K)
-
-    return -midpoint, R
-
-
-class Ellipsoid:
-    def __init__(
-        self,
-        p1: np.typing.ArrayLike,
-        p2: np.typing.ArrayLike,
-        bistatic_range: float,
-    ):
-        p1 = np.asarray(p1)
-        p2 = np.asarray(p2)
-        assert p1.shape == (3,) and p2.shape == (3,)
-        d2: float = (
-            np.square(p1[0] - p2[0])
-            + np.square(p1[1] - p2[1])
-            + np.square(p1[2] - p2[2])
+    @cached_property
+    def center(self) -> tuple[float, float, float]:
+        return (
+            (self.p1[0] + self.p2[0]) / 2.0,
+            (self.p1[1] + self.p2[1]) / 2.0,
+            (self.p1[2] + self.p2[2]) / 2.0,
         )
 
-        self._p1 = p1
-        self._p2 = p2
-        self._bistatic_range = bistatic_range
-
-        if d2 > np.square(bistatic_range):
-            raise ValueError(
-                f"Distance between transmitter and receiver is greater than bistatic range! ({d2:.1} > {bistatic_range**2:.1})"
-            )
-
-        # Determine ellipsoid parameters.
-        self._a: float = 0.5 * bistatic_range
-        self._b: float = 0.5 * np.sqrt(np.square(bistatic_range) - d2)
-
-        # Determine transformation.
-        self._t, self._R = _standard_transformation(p1, p2)
-
-    def _transform_world_to_standard(
-        self, p: np.typing.ArrayLike
-    ) -> np.typing.ArrayLike:
-        return self._R @ (p + self._t)
-
-    def _transform_standard_to_world(
-        self, p: np.typing.ArrayLike
-    ) -> np.typing.ArrayLike:
-        return self._R.T @ p - self._t
-
-    def is_inside(self, point: tuple[float, float, float]) -> bool:
-        p = self._transform_world_to_standard(point)
-        return (
-            np.square(p[0] / self._a)
-            + np.square(p[1] / self._b)
-            + np.square(p[2] / self._b)
-        ) <= 1.0
-
-    def is_on_surface(
+    @cached_property
+    def axes_directions(
         self,
-        point: tuple[float, float, float],
-        tol: float = 1e-2,
-        point_in_world_coord: bool = True,
-    ) -> bool:
-        r"""
-        Test whether the point in Cartesian coordinates lies approximately on
-        the ellipsoid's surface.
+    ) -> tuple[
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+    ]:
+        """Orthonormal main semi-axes of the ellipsoid."""
+        ax1 = np.array(self.p2) - np.array(self.p1)
+        ax1 = ax1 / np.linalg.norm(ax1)
 
-        The ``tol`` parameter controls how much relative deviation is still accepted
-        (after transformation so that the major axis lies on the x-axis and is
-        centered at the origin):
+        ax2 = np.array((1.0, 0.0, 0.0))
+        if np.abs(np.dot(ax1, ax2)) >= 0.9:
+            # Avoid collinear axes.
+            ax2 = np.array((0.0, 1.0, 0.0))
+        # Subtract non-orthogonal parts.
+        ax2 = ax2 - np.dot(ax1, ax2) * ax1
+        ax2 = ax2 / np.linalg.norm(ax2)
 
-        .. math::
+        ax3 = np.cross(ax1, ax2)
+        ax3 = ax3 / np.linalg.norm(ax3)
+        return tuple(ax1), tuple(ax2), tuple(ax3)
 
-            \frac{x^2}{a^2} + \frac{y^2}{b^2} + \frac{z^2}{b^2} - 1 \leq tol.
+    @cached_property
+    def axes_lengths(self) -> tuple[float, float, float]:
+        """Lengths of the ellipsoid's main semi-axes [m]"""
+        a = self.r / 2.0
+        d = np.sqrt(
+            np.square(self.p1[0] - self.p2[0])
+            + np.square(self.p1[1] - self.p2[1])
+            + np.square(self.p1[2] - self.p2[2])
+        )
+        b = 0.5 * np.sqrt(np.square(self.r) - np.square(d))
+        return (a, b, b)
 
-        Parameters
-        ----------
-        point: tuple[float, float, float]
-            Point in Cartesian coordinates for which to check whether it lies on
-            the ellipsoid surface.
-        tol: float, default 1e-2
-            Relative tolerance (see :ref:`notes`)
-        point_in_world_coord: bool, default True
-            Whether the point is given in world coordinates or in standardised
-            (major axis x-axis aligned, centered at origin) coordinates.
-            Most probably only needed for debugging.
+    def point_on_ellipsoid(self, p: tuple, tol=1e-6) -> bool:
+        axes = np.array(self.axes_directions)  # 3x3 orthonormal matrix
+        local = axes @ (np.array(p) - np.array(self.center))
+        lengths = np.array(self.axes_lengths)
+        return abs(np.sum((local / lengths) ** 2) - 1.0) < tol
 
-        .. _notes:
-
-        Notes
-        -----
-        The parameter ``tol`` indicates the tolerance in distance test!
-        In the special case of a sphere (``r = a = b``), the tolerance criterion
-        for x to lie on the sphere with radius ``r`` is
-
-        .. math::
-
-            \frac{x}{r}^2 + \frac{y}{r}^2 - 1 \leq tol
-
-        Therefore, a tolerance value of ``0.01`` means that the point's
-        corresponding radius deviates less than 1% from the sphere's radius.
+    def sample_surface_uniformly(
+        self,
+        rng: np.random.Generator,
+    ) -> tuple[float, float, float]:
         """
-        p = self._transform_world_to_standard(point) if point_in_world_coord else point
+        Sample a point uniformly on the ellipsoid's surface.
 
-        return (
-            np.abs(
-                np.square(p[0] / self._a)
-                + np.square(p[1] / self._b)
-                + np.square(p[2] / self._b)
-                - 1.0
-            )
-            <= tol
-        )
+        This means each area element has the same expected number of particles
+        to be sampled.
+        """
+        a, b, c = self.axes_lengths
+        # Maximum possible weight (numerical upper bound)
+        # w(φ,θ) = sinφ · sqrt(b²c²sin²φcos²θ + a²c²sin²φsin²θ + a²b²cos²φ)
+        # Upper-bound: sqrt(max(b²c², a²c², a²b²)) * sinφ ≤ max_semiaxis²
+        w_max = np.sqrt(max((b * c) ** 2, (a * c) ** 2, (a * b) ** 2))
+        w_max = max(a*b, a*c, b*c)
 
-    def sample_surface(
-        self,
-        n_theta: int = 50,
-        n_phi: int = 100,
-    ) -> list[np.typing.NDArray[np.float64]]:
-        """Sample surface using spherical parameterization"""
-        thetas = np.linspace(0, np.pi, n_theta)
-        phis = np.linspace(0, 2 * np.pi, n_phi)
+        while True:
+            phi = rng.uniform(0, np.pi)
+            theta = rng.uniform(0, 2 * np.pi)
 
-        # Parametric equations for ellipsoid
-        points = []
-        for theta, phi in itertools.product(thetas, phis):
-            x = self._a * np.sin(theta) * np.cos(phi)
-            y = self._b * np.sin(theta) * np.sin(phi)
-            z = self._b * np.cos(theta)
+            w = _area_weight(phi, theta, a, b, c)
+            assert w <= w_max
+            u = rng.uniform(0, w_max)
+            if u <= w:
+                x = a * np.sin(phi) * np.cos(theta)
+                y = b * np.sin(phi) * np.sin(theta)
+                z = c * np.cos(phi)
 
-            points.append(self._transform_standard_to_world(np.array([x, y, z])))
-        return points
+                ax1, ax2, ax3 = self.axes_directions
+                return (
+                    x * ax1[0] + y * ax2[0] + z * ax3[0] + self.center[0],
+                    x * ax1[1] + y * ax2[1] + z * ax3[1] + self.center[1],
+                    x * ax1[2] + y * ax2[2] + z * ax3[2] + self.center[2],
+                )
+
+
+def _area_weight(
+    phi: np.ndarray, theta: np.ndarray, a: float, b: float, c: float
+) -> np.ndarray:
+    """
+    Surface area element (without dθdφ):
+        w(θ,φ) = sinθ · sqrt(b²c²sin²θcos²φ + a²c²sin²θsin²φ + a²b²cos²θ)
+
+    This is |r_θ x r_φ|, the Jacobian of the parametrisation.
+
+    Notes
+    -----
+    Source: Equ. (26) in https://mathworld.wolfram.com/Ellipsoid.html
+    """
+    sin_p = np.sin(phi)
+    cos_p = np.cos(phi)
+    sin_t = np.sin(theta)
+    cos_t = np.cos(theta)
+    inner = (
+        (b * c) ** 2 * sin_p**2 * cos_t**2
+        + (a * c) ** 2 * sin_p**2 * sin_t**2
+        + (a * b) ** 2 * cos_p**2
+    )
+    return sin_p * np.sqrt(inner)
