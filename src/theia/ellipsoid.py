@@ -77,7 +77,7 @@ class Ellipsoid(pydantic.BaseModel):
         # w(φ,θ) = sinφ · sqrt(b²c²sin²φcos²θ + a²c²sin²φsin²θ + a²b²cos²φ)
         # Upper-bound: sqrt(max(b²c², a²c², a²b²)) * sinφ ≤ max_semiaxis²
         w_max = np.sqrt(max((b * c) ** 2, (a * c) ** 2, (a * b) ** 2))
-        w_max = max(a*b, a*c, b*c)
+        w_max = max(a * b, a * c, b * c)
 
         while True:
             phi = rng.uniform(0, np.pi)
@@ -97,6 +97,37 @@ class Ellipsoid(pydantic.BaseModel):
                     x * ax1[1] + y * ax2[1] + z * ax3[1] + self.center[1],
                     x * ax1[2] + y * ax2[2] + z * ax3[2] + self.center[2],
                 )
+
+    def calculate_radius(self, p: tuple[float, float, float]) -> float:
+        p = np.array(p)
+        d1 = np.linalg.norm(np.array(self.p1) - p)
+        d2 = np.linalg.norm(np.array(self.p2) - p)
+        return d1 + d2
+
+
+class EllipsoidIntersection(pydantic.BaseModel):
+    e1: Ellipsoid
+    e2: Ellipsoid
+    sigma_r1: float
+    """Uncertainty in the range of the first ellipsoid"""
+    sigma_r2: float
+    """Uncertainty in the range of the second ellipsoid"""
+
+    def sample(self, rng: np.random.Generator) -> tuple[float, float, float]:
+        # Apply rejection sampling: Suggest using distribution of ellipsoid1,
+        # then reject based on distribution of ellipsoid2.
+        while True:
+            p = self.e1.sample_surface_uniformly(rng)
+            r = self.e2.calculate_radius(p)
+            prob = (
+                1
+                / np.sqrt(2 * np.pi * self.sigma_r2)
+                * np.exp(-((self.e2.r - r) ** 2) / (2 * self.sigma_r2**2))
+            )
+
+            u = rng.uniform()
+            if u <= prob:
+                return p
 
 
 def _area_weight(
