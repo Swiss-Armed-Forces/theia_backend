@@ -163,3 +163,16 @@ def mask_to_polygon(
 
         final_polygons.append(shapely.Polygon(outer, holes=inner_holes))
     return final_polygons
+
+
+def normal_pdf(mean: float, sigma: float, x: float) -> float:
+    if sigma > 0:
+        prob = (
+            1 / np.sqrt(2 * np.pi * sigma) * np.exp(-((mean - x) ** 2) / (2 * sigma**2))
+        )
+    elif np.isclose(x, mean):
+        prob = 1.0
+    else:
+        prob = 0.0
+
+    return prob
