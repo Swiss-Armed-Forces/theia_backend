@@ -9,7 +9,7 @@ from stonesoup.models.transition.linear import (
     ConstantVelocity,
 )
 from stonesoup.predictor.kalman import ExtendedKalmanPredictor
-from stonesoup.updater.kalman import ExtendedKalmanUpdater, LinearGaussian
+from stonesoup.updater.kalman import ExtendedKalmanUpdater
 from stonesoup.types.detection import Detection
 from stonesoup.types.hypothesis import SingleHypothesis
 from stonesoup.types.state import GaussianState
@@ -19,11 +19,8 @@ import theia
 from theia.coordinates import (
     POSITIONS_OF_INTEREST,
     CoordinateTransformations,
-    calculate_azimuth_angle,
-    calculate_elevation_angle,
 )
-from theia.distance import line_of_sight_distance
-from theia.ellipsoid import Ellipsoid, EllipsoidIntersection
+from theia.detection.ecef_sampler import EcefDetectionSampler
 from theia.types import (
     CLUTTER_TARGET,
     AbstractTracker,
@@ -31,9 +28,7 @@ from theia.types import (
     PclDetection,
     PetDetection,
     Point,
-    Target,
 )
-from theia.util import normal_pdf
 
 
 class SingleTargetEcefTracker:
@@ -175,321 +170,7 @@ class PseudoTracker(AbstractTracker):
         self._prior = CoordinateTransformations.geodetic_to_cartesian(
             *prior_position.as_tuple()
         )
-
-    def _sample_position(
-        self,
-        target: Target,
-        sigmas: tuple[float, float, float],
-        detection_time: datetime.datetime,
-    ) -> tuple[float, float, float]:
-        mean = CoordinateTransformations.geodetic_to_cartesian(
-            target.lat,
-            target.lon,
-            target.alt,
-        )
-        # Sample a fake detection.
-        x, y, z = self._rng.normal(mean, sigmas)
-        measured_state = np.array([x, y, z])
-
-        covar = np.diag(sigmas)
-
-        return Detection(
-            measured_state,
-            measurement_model=LinearGaussian(
-                ndim_state=6, mapping=(0, 2, 4), noise_covar=covar
-            ),
-            timestamp=detection_time,
-        )
-
-    def _monostatic_detections_to_ecef(
-        self,
-        detections: list[MonostaticRadarDetection],
-    ) -> Detection:
-        """
-        Summarize monostatic detections to a single detection in ECEF space.
-
-        Parameters
-        ----------
-        detections: list[MonostaticRadarDetection]
-            Detections for the same target. Must be of length > 0.
-
-        Returns
-        -------
-        stonesoup.types.detection.Detection
-            A detection representing a position in 3D space, including measurement model
-
-        Raises
-        ------
-        ValueError
-            If `len(detections) == 0`
-        """
-        if len(detections) == 0:
-            raise ValueError(
-                "Need at least 1 RAD detection to estimate target position in ECEF space"
-            )
-        # Select detection with shortest range and initiate or update
-        # the track.
-        detection = sorted(detections, key=lambda d: d.target_range)[0]
-
-        sigma = np.max(
-            (
-                detection.sigma_target_range,
-                detection.sigma_azimuth * detection.target_range,
-                detection.sigma_elevation * detection.target_range,
-            )
-        )
-        detection = detections[0]
-        return self._sample_position(
-            detection.target,
-            (sigma, sigma, sigma),
-            detection.time,
-        )
-
-    def _pcl_detections_to_ecef_init(self, detections: list[PclDetection]) -> Detection:
-        """
-        Sample a position in ECEF space around the ground truth one using
-        error propagation.
-
-        Parameters
-        ----------
-        detections: list[PclDetection]
-            Detections for the same target. Must be of length >= 3.
-
-        Returns
-        -------
-        stonesoup.types.detection.Detection
-            A detection representing a position in 3D space, including measurement model
-
-        Raises
-        ------
-        ValueError
-            If `len(detections) < 3`
-        """
-        if len(detections) < 3:
-            raise ValueError(
-                "Need at least 3 PCL detections to estimate target position in ECEF space"
-            )
-
-        detections = sorted(detections, key=lambda d: d.bistatic_range)
-        sigma = np.max([d.sigma_bistatic_range for d in detections])
-        # All detections share the same target, i. e. we can select
-        # any of them to access the true target state.
-        detection = detections[0]
-        return self._sample_position(
-            detection.target,
-            (sigma, sigma, sigma),
-            detection.time,
-        )
-
-    def _two_pcl_detections_to_ecef(
-        self,
-        detections: tuple[PclDetection, PclDetection],
-        n_samples: int = 32,
-    ) -> Detection:
-        detection = detections[0]
-        p11 = CoordinateTransformations.geodetic_to_cartesian(
-            *detection.sensor.receiver.point.as_tuple()
-        )
-        p12 = CoordinateTransformations.geodetic_to_cartesian(
-            *detection.sensor.transmitter.point.as_tuple()
-        )
-        d = np.linalg.norm(np.array(p11) - np.array(p12))
-        e1 = Ellipsoid(p1=p11, p2=p12, r=detection.bistatic_range + d)
-
-        detection = detections[1]
-        p21 = CoordinateTransformations.geodetic_to_cartesian(
-            *detection.sensor.receiver.point.as_tuple()
-        )
-        p22 = CoordinateTransformations.geodetic_to_cartesian(
-            *detection.sensor.transmitter.point.as_tuple()
-        )
-        d = np.linalg.norm(np.array(p21) - np.array(p22))
-        e2 = Ellipsoid(p1=p21, p2=p22, r=detection.bistatic_range + d)
-
-        intersection = EllipsoidIntersection(
-            e1=e1,
-            e2=e2,
-            sigma_r1=detections[0].sigma_bistatic_range,
-            sigma_r2=detections[1].sigma_bistatic_range,
-        )
-        points = np.array([intersection.sample(self._rng) for _ in range(n_samples)])
-
-        covar = np.diag(np.std(points, axis=0))
-
-        return Detection(
-            np.mean(points, axis=0),
-            measurement_model=LinearGaussian(
-                ndim_state=6, mapping=(0, 2, 4), noise_covar=covar
-            ),
-            timestamp=detections[0].time,
-        )
-
-    def _multiple_pet_detections_to_ecef(
-        self, detections: list[PetDetection]
-    ) -> Detection:
-        """
-        Sample a position in ECEF space around the ground truth one using
-        error propagation.
-
-        Parameters
-        ----------
-        detections: list[PetDetection]
-            Detections for the same target. Must be of length >= 2.
-
-        Returns
-        -------
-        stonesoup.types.detection.Detection
-            A detection representing a position in 3D space, including measurement model
-
-        Raises
-        ------
-        ValueError
-            If `len(detections) < 2`
-        """
-        if len(detections) < 2:
-            raise ValueError(
-                "Need at least 2 PET detections to estimate target position in ECEF space"
-            )
-
-        sigmas = []
-        for detection in detections:
-            d = line_of_sight_distance(
-                detection.target.lat,
-                detection.target.lon,
-                detection.target.alt,
-                detection.radar.receiver.lat,
-                detection.radar.receiver.lon,
-                detection.radar.receiver.alt,
-            )
-            sigmas.append(d * detection.azimuth)
-            sigmas.append(d * detection.elevation)
-        sigma = np.max(sigmas)
-
-        # All detections share the same target, i. e. we can select
-        # any of them to access the true target state.
-        detection = detections[0]
-        return self._sample_position(
-            detection.target,
-            (sigma, sigma, sigma),
-            detection.time,
-        )
-
-    def _two_pcl_one_pet_detections_to_ecef(
-        self,
-        pcl_detections: tuple[PclDetection, PclDetection],
-        pet_detection: PetDetection,
-    ) -> Detection:
-        """
-        Sample a position in ECEF space around the ground truth one using
-        error propagation.
-
-        Parameters
-        ----------
-        pcl_detections: tuple[PclDetection, PclDetection]
-            PCL detections
-        pet_detection: PetDetection
-            PET detection
-
-        Returns
-        -------
-        stonesoup.types.detection.Detection
-            A detection representing a position in 3D space, including measurement model
-
-        Raises
-        ------
-        ValueError
-            If `len(detections) < 2`
-        """
-        d = line_of_sight_distance(
-            pet_detection.target.lat,
-            pet_detection.target.lon,
-            pet_detection.target.alt,
-            pet_detection.radar.receiver.lat,
-            pet_detection.radar.receiver.lon,
-            pet_detection.radar.receiver.alt,
-        )
-        sigma = np.max(
-            (
-                d * pet_detection.azimuth,
-                d * pet_detection.elevation,
-                pcl_detections[0].sigma_bistatic_range,
-                pcl_detections[1].sigma_bistatic_range,
-            )
-        )
-
-        # All detections share the same target, i. e. we can select
-        # any of them to access the true target state.
-        detection = pet_detection
-        return self._sample_position(
-            detection.target,
-            (sigma, sigma, sigma),
-            detection.time,
-        )
-
-    def _one_pcl_one_pet_detections_to_ecef(
-        self,
-        pcl_detection: PclDetection,
-        pet_detection: PetDetection,
-        n_samples: int = 32,
-    ) -> Detection:
-        p1 = CoordinateTransformations.geodetic_to_cartesian(
-            *pcl_detection.sensor.receiver.point.as_tuple()
-        )
-        p2 = CoordinateTransformations.geodetic_to_cartesian(
-            *pcl_detection.sensor.transmitter.point.as_tuple()
-        )
-        e = Ellipsoid(
-            p1=p1,
-            p2=p2,
-            r=pcl_detection.bistatic_range + np.linalg.norm(p1 - p2),
-        )
-
-        def sample_point() -> tuple[float, float, float]:
-            while True:
-                x = e.sample_surface_uniformly(self._rng)
-                p = CoordinateTransformations.cartesian_to_geodetic(*x)
-                p = Point(
-                    lat=p[0],
-                    lon=p[1],
-                    alt=p[2],
-                )
-                elevation_angle = (
-                    calculate_elevation_angle(
-                        pet_detection.sensor.transmitter.point,
-                        p,
-                    ),
-                )
-                azimuth_angle = (
-                    calculate_azimuth_angle(
-                        pet_detection.sensor.transmitter.point,
-                        p,
-                    ),
-                )
-
-                weight = normal_pdf(
-                    pet_detection.azimuth,
-                    pet_detection.sigma_azimuth,
-                    azimuth_angle,
-                ) * normal_pdf(
-                    pet_detection.elevation,
-                    pet_detection.sigma_elevation,
-                    elevation_angle,
-                )
-
-                u = self._rng.uniform()
-                if u <= weight:
-                    return x
-
-        points = np.array([sample_point(self._rng) for _ in range(n_samples)])
-        covar = np.diag(np.std(points, axis=0))
-
-        return Detection(
-            np.mean(points, axis=0),
-            measurement_model=LinearGaussian(
-                ndim_state=6, mapping=(0, 2, 4), noise_covar=covar
-            ),
-            timestamp=pcl_detection.time,
-        )
+        self._sampler = EcefDetectionSampler(rng)
 
     def _preprocess_detections(
         self,
@@ -568,40 +249,12 @@ class PseudoTracker(AbstractTracker):
         updated_targets: set[int] = set()
         for detections in target_detections:
             track_exists = detections.target_id in self._trackers
-            detection: Detection | None = None
-            if len(detections.monostatic_detections) > 0:
-                # Whenever we have monostatic detections, we use those detections
-                # to initialize or update the track.
-                detection = self._monostatic_detections_to_ecef(
-                    detections.monostatic_detections
-                )
-            elif len(detections.pcl_detections) >= 3:
-                detection = self._pcl_detections_to_ecef_init(detections.pcl_detections)
-            elif len(detections.pet_detections) >= 2:
-                detection = self._multiple_pet_detections_to_ecef(
-                    detections.pet_detections
-                )
-            elif (
-                len(detections.pcl_detections) == 2
-                and len(detections.pet_detections) == 1
-            ):
-                detection = self._two_pcl_one_pet_detections_to_ecef(
-                    tuple(detections.pcl_detections),
-                    detections.pet_detections[0],
-                )
-            elif (len(detections.pcl_detections) == 2) and track_exists:
-                detection = self._two_pcl_detections_to_ecef(
-                    tuple(detections.pcl_detections)
-                )
-            elif (
-                (len(detections.pcl_detections) == 1)
-                and (len(detections.pet_detections) == 1)
-                and track_exists
-            ):
-                detection = self._one_pcl_one_pet_detections_to_ecef(
-                    detections.pcl_detections[0],
-                    detections.pet_detections[0],
-                )
+            detection = self._sampler.sample(
+                detections.monostatic_detections,
+                detections.pcl_detections,
+                detections.pet_detections,
+                track_exists,
+            )
 
             # Actually initialise or update the track.
             if detection is not None:
