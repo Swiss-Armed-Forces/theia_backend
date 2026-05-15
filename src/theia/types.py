@@ -651,6 +651,10 @@ class PetDetection(pydantic.BaseModel):
     """Azimuth angle [rad] of the gaze vector towards the transmitter."""
     elevation: float
     """Elevation angle [rad] of the gaze vector towards the transmitter."""
+    sigma_azimuth: float
+    """Standard deviation of the azimuth [rad]"""
+    sigma_elevation: float
+    """Standard deviation of the elevation [rad]"""
 
 
 class RcsModel(abc.ABC):
