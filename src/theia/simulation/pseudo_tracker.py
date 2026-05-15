@@ -16,7 +16,12 @@ from stonesoup.types.state import GaussianState
 from stonesoup.types.track import Track
 
 import theia
-from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
+from theia.coordinates import (
+    POSITIONS_OF_INTEREST,
+    CoordinateTransformations,
+    calculate_azimuth_angle,
+    calculate_elevation_angle,
+)
 from theia.distance import line_of_sight_distance
 from theia.ellipsoid import Ellipsoid, EllipsoidIntersection
 from theia.types import (
@@ -28,6 +33,7 @@ from theia.types import (
     Point,
     Target,
 )
+from theia.util import normal_pdf
 
 
 class SingleTargetEcefTracker:
@@ -275,7 +281,7 @@ class PseudoTracker(AbstractTracker):
             detection.time,
         )
 
-    def _pcl_detections_to_ecef_update(
+    def _two_pcl_detections_to_ecef(
         self,
         detections: tuple[PclDetection, PclDetection],
         n_samples: int = 32,
@@ -318,7 +324,9 @@ class PseudoTracker(AbstractTracker):
             timestamp=detections[0].time,
         )
 
-    def _pet_detections_to_ecef(self, detections: list[PetDetection]) -> Detection:
+    def _multiple_pet_detections_to_ecef(
+        self, detections: list[PetDetection]
+    ) -> Detection:
         """
         Sample a position in ECEF space around the ground truth one using
         error propagation.
@@ -366,7 +374,7 @@ class PseudoTracker(AbstractTracker):
             detection.time,
         )
 
-    def _combined_pcl_pet_detections_to_ecef(
+    def _two_pcl_one_pet_detections_to_ecef(
         self,
         pcl_detections: tuple[PclDetection, PclDetection],
         pet_detection: PetDetection,
@@ -416,6 +424,71 @@ class PseudoTracker(AbstractTracker):
             detection.target,
             (sigma, sigma, sigma),
             detection.time,
+        )
+
+    def _one_pcl_one_pet_detections_to_ecef(
+        self,
+        pcl_detection: PclDetection,
+        pet_detection: PetDetection,
+        n_samples: int = 32,
+    ) -> Detection:
+        p1 = CoordinateTransformations.geodetic_to_cartesian(
+            *pcl_detection.sensor.receiver.point.as_tuple()
+        )
+        p2 = CoordinateTransformations.geodetic_to_cartesian(
+            *pcl_detection.sensor.transmitter.point.as_tuple()
+        )
+        e = Ellipsoid(
+            p1=p1,
+            p2=p2,
+            r=pcl_detection.bistatic_range + np.linalg.norm(p1 - p2),
+        )
+
+        def sample_point() -> tuple[float, float, float]:
+            while True:
+                x = e.sample_surface_uniformly(self._rng)
+                p = CoordinateTransformations.cartesian_to_geodetic(*x)
+                p = Point(
+                    lat=p[0],
+                    lon=p[1],
+                    alt=p[2],
+                )
+                elevation_angle = (
+                    calculate_elevation_angle(
+                        pet_detection.sensor.transmitter.point,
+                        p,
+                    ),
+                )
+                azimuth_angle = (
+                    calculate_azimuth_angle(
+                        pet_detection.sensor.transmitter.point,
+                        p,
+                    ),
+                )
+
+                weight = normal_pdf(
+                    pet_detection.azimuth,
+                    pet_detection.sigma_azimuth,
+                    azimuth_angle,
+                ) * normal_pdf(
+                    pet_detection.elevation,
+                    pet_detection.sigma_elevation,
+                    elevation_angle,
+                )
+
+                u = self._rng.uniform()
+                if u <= weight:
+                    return x
+
+        points = np.array([sample_point(self._rng) for _ in range(n_samples)])
+        covar = np.diag(np.std(points, axis=0))
+
+        return Detection(
+            np.mean(points, axis=0),
+            measurement_model=LinearGaussian(
+                ndim_state=6, mapping=(0, 2, 4), noise_covar=covar
+            ),
+            timestamp=pcl_detection.time,
         )
 
     def _preprocess_detections(
@@ -505,17 +578,30 @@ class PseudoTracker(AbstractTracker):
             elif len(detections.pcl_detections) >= 3:
                 detection = self._pcl_detections_to_ecef_init(detections.pcl_detections)
             elif len(detections.pet_detections) >= 2:
-                detection = self._pet_detections_to_ecef(detections.pet_detections)
+                detection = self._multiple_pet_detections_to_ecef(
+                    detections.pet_detections
+                )
             elif (
                 len(detections.pcl_detections) == 2
                 and len(detections.pet_detections) == 1
             ):
-                detection = self._combined_pcl_pet_detections_to_ecef(
+                detection = self._two_pcl_one_pet_detections_to_ecef(
                     tuple(detections.pcl_detections),
                     detections.pet_detections[0],
                 )
             elif (len(detections.pcl_detections) == 2) and track_exists:
-                self._pcl_detections_to_ecef_update(tuple(detections.pcl_detections))
+                detection = self._two_pcl_detections_to_ecef(
+                    tuple(detections.pcl_detections)
+                )
+            elif (
+                (len(detections.pcl_detections) == 1)
+                and (len(detections.pet_detections) == 1)
+                and track_exists
+            ):
+                detection = self._one_pcl_one_pet_detections_to_ecef(
+                    detections.pcl_detections[0],
+                    detections.pet_detections[0],
+                )
 
             # Actually initialise or update the track.
             if detection is not None:
