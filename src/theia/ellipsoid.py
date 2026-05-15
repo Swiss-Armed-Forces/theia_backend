@@ -115,16 +115,40 @@ class EllipsoidIntersection(pydantic.BaseModel):
     sigma_r2: float
     """Uncertainty in the range of the second ellipsoid"""
 
-    def sample(self, rng: np.random.Generator) -> tuple[float, float, float]:
-        # Apply rejection sampling: Suggest using distribution of ellipsoid1,
-        # then reject based on distribution of ellipsoid2.
-        while True:
-            p = self.e1.sample_surface_uniformly(rng)
-            r = self.e2.calculate_radius(p)
-            prob = normal_pdf(self.e2.r, self.sigma_r2, r)
+    def _precalculate(self, rng: np.random.Generator, n_per_ellipsoid: int) -> tuple[float, float]:
+        # Sample some points from both ellipsoids and keep the ones close to
+        # the points from the other ellipsoid.
+        points1 = np.array([
+            self.e1.sample_surface_uniformly(rng) for _ in range(n_per_ellipsoid)
+        ])
+        points2 = np.array([
+            self.e2.sample_surface_uniformly(rng) for _ in range(n_per_ellipsoid)
+        ])
 
-            u = rng.uniform()
-            if u <= prob:
+        distances = np.empty((n_per_ellipsoid, n_per_ellipsoid))
+        for i, p1 in enumerate(points1):
+            for j, p2 in enumerate(points2):
+                distances[i, j] = np.sqrt(
+                    (p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2 + (p1[2] - p2[2]) ** 2
+                )
+
+        threshold = max(self.e1.axes_lengths[0], self.e2.axes_lengths[0]) * 0.05
+        points1 = points1[np.where(np.min(distances, axis=1).squeeze() <= threshold)[0]]
+        points2 = points2[np.where(np.min(distances, axis=0).squeeze() <= threshold)[0]]
+
+        self._points = np.vstack([points1, points2])
+        self._i_points = 0
+
+
+    def sample(
+        self, rng: np.random.Generator, n_batch: int = 100) -> tuple[float, float, float]:
+        while True:
+            if not hasattr(self, "_points") or (self._i_points == self._points.shape[0]):
+                self._precalculate(rng, n_batch)
+
+            if self._i_points < self._points.shape[0]:
+                p = self._points[self._i_points]
+                self._i_points += 1
                 return p
 
 
