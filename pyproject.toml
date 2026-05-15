@@ -41,6 +41,7 @@ pylint = "^4.0.4"
 sphinxcontrib-bibtex = "^2.6.5"
 plotly = "^6.5.2"
 snakeviz = "^2.2.2"
+seaborn = "^0.13.2"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
