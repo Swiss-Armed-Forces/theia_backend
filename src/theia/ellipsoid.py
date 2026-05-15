@@ -119,11 +119,16 @@ class EllipsoidIntersection(pydantic.BaseModel):
         while True:
             p = self.e1.sample_surface_uniformly(rng)
             r = self.e2.calculate_radius(p)
-            prob = (
-                1
-                / np.sqrt(2 * np.pi * self.sigma_r2)
-                * np.exp(-((self.e2.r - r) ** 2) / (2 * self.sigma_r2**2))
-            )
+            if self.sigma_r2 > 0:
+                prob = (
+                    1
+                    / np.sqrt(2 * np.pi * self.sigma_r2)
+                    * np.exp(-((self.e2.r - r) ** 2) / (2 * self.sigma_r2**2))
+                )
+            elif np.isclose(r, self.e2.r):
+                prob = 1.0
+            else:
+                prob = 0.0
 
             u = rng.uniform()
             if u <= prob:
