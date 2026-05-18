@@ -6,13 +6,10 @@ from stonesoup.updater.kalman import LinearGaussian
 
 from theia.coordinates import (
     CoordinateTransformations,
-    calculate_azimuth_angle,
-    calculate_elevation_angle,
 )
 from theia.distance import line_of_sight_distance
-from theia.ellipsoid import Ellipsoid, EllipsoidIntersection
+from theia.ellipsoid import Ellipsoid
 from theia.types import MonostaticRadarDetection, PclDetection, PetDetection, Point
-from theia.util import normal_pdf
 
 
 class EcefDetectionSampler:
@@ -78,45 +75,42 @@ class EcefDetectionSampler:
     def sample_two_pcl_detections(
         self,
         detections: tuple[PclDetection, PclDetection],
-        n_samples: int = 32,
     ) -> Detection:
-        detection = detections[0]
+        d1 = detections[0]
         p11 = CoordinateTransformations.geodetic_to_cartesian(
-            *detection.sensor.receiver.point.as_tuple()
+            *d1.sensor.receiver.point.as_tuple()
         )
         p12 = CoordinateTransformations.geodetic_to_cartesian(
-            *detection.sensor.transmitter.point.as_tuple()
+            *d1.sensor.transmitter.point.as_tuple()
         )
         d = np.linalg.norm(np.array(p11) - np.array(p12))
-        e1 = Ellipsoid(p1=p11, p2=p12, r=detection.bistatic_range + d)
+        e1 = Ellipsoid(p1=p11, p2=p12, r=d1.bistatic_range + d)
 
-        detection = detections[1]
+        d2 = detections[1]
         p21 = CoordinateTransformations.geodetic_to_cartesian(
-            *detection.sensor.receiver.point.as_tuple()
+            *d2.sensor.receiver.point.as_tuple()
         )
         p22 = CoordinateTransformations.geodetic_to_cartesian(
-            *detection.sensor.transmitter.point.as_tuple()
+            *d2.sensor.transmitter.point.as_tuple()
         )
         d = np.linalg.norm(np.array(p21) - np.array(p22))
-        e2 = Ellipsoid(p1=p21, p2=p22, r=detection.bistatic_range + d)
+        e2 = Ellipsoid(p1=p21, p2=p22, r=d2.bistatic_range + d)
 
-        intersection = EllipsoidIntersection(
-            e1=e1,
-            e2=e2,
-            sigma_r1=detections[0].sigma_bistatic_range,
-            sigma_r2=detections[1].sigma_bistatic_range,
-        )
-        points = np.array([intersection.sample(self._rng) for _ in range(n_samples)])
+        a1 = e1.axes_lengths[0]
+        a2 = e2.axes_lengths[0]
 
-        covar = np.diag(np.std(points, axis=0))
-
-        return Detection(
-            np.mean(points, axis=0),
-            measurement_model=LinearGaussian(
-                ndim_state=6, mapping=(0, 2, 4), noise_covar=covar
+        # Estimate the joint detection probability geometrically:
+        # The "length" of the ellipsoid shells is given by the alignment of
+        # the ellipsoids and limited by their major semi-axis lengths.
+        # The "width" is given by the thickness of the ellipsoid shells.
+        sigma = max(
+            (
+                np.dot(e1.axes_directions[0], e2.axes_directions[0]) * min(a1, a2),
+                d1.sigma_bistatic_range,
+                d2.sigma_bistatic_range,
             ),
-            timestamp=detections[0].time,
         )
+        return self._sample_position(d1.target.point, (sigma, sigma, sigma), d1.time)
 
     def sample_multiple_pet(self, detections: list[PetDetection]) -> Detection:
         if len(detections) < 2:
@@ -129,9 +123,9 @@ class EcefDetectionSampler:
                 detection.target.lat,
                 detection.target.lon,
                 detection.target.alt,
-                detection.radar.receiver.lat,
-                detection.radar.receiver.lon,
-                detection.radar.receiver.alt,
+                detection.sensor.receiver.lat,
+                detection.sensor.receiver.lon,
+                detection.sensor.receiver.alt,
             )
             sigmas.append(d * detection.azimuth)
             sigmas.append(d * detection.elevation)
@@ -176,9 +170,9 @@ class EcefDetectionSampler:
             pet_detection.target.lat,
             pet_detection.target.lon,
             pet_detection.target.alt,
-            pet_detection.radar.receiver.lat,
-            pet_detection.radar.receiver.lon,
-            pet_detection.radar.receiver.alt,
+            pet_detection.sensor.receiver.lat,
+            pet_detection.sensor.receiver.lon,
+            pet_detection.sensor.receiver.alt,
         )
         sigma = np.max(
             (
@@ -204,6 +198,10 @@ class EcefDetectionSampler:
         pet_detection: PetDetection,
         n_samples: int = 32,
     ) -> Detection:
+        # Estimate the joint detection probability geometrically:
+        # One dimension is given by the width of the PET cone at the true target
+        # position, the other b the width of the ellipsoid shell.
+        # Consider alignment as well.
         p1 = CoordinateTransformations.geodetic_to_cartesian(
             *pcl_detection.sensor.receiver.point.as_tuple()
         )
@@ -216,51 +214,38 @@ class EcefDetectionSampler:
             r=pcl_detection.bistatic_range + np.linalg.norm(p1 - p2),
         )
 
-        def sample_point() -> tuple[float, float, float]:
-            while True:
-                x = e.sample_surface_uniformly(self._rng)
-                p = CoordinateTransformations.cartesian_to_geodetic(*x)
-                p = Point(
-                    lat=p[0],
-                    lon=p[1],
-                    alt=p[2],
-                )
-                elevation_angle = (
-                    calculate_elevation_angle(
-                        pet_detection.sensor.transmitter.point,
-                        p,
-                    ),
-                )
-                azimuth_angle = (
-                    calculate_azimuth_angle(
-                        pet_detection.sensor.transmitter.point,
-                        p,
-                    ),
-                )
+        r = line_of_sight_distance(
+            pet_detection.sensor.receiver.lat,
+            pet_detection.sensor.receiver.lon,
+            pet_detection.sensor.receiver.alt,
+            pet_detection.target.lat,
+            pet_detection.target.lon,
+            pet_detection.target.alt,
+        )
 
-                weight = normal_pdf(
-                    pet_detection.azimuth,
-                    pet_detection.sigma_azimuth,
-                    azimuth_angle,
-                ) * normal_pdf(
-                    pet_detection.elevation,
-                    pet_detection.sigma_elevation,
-                    elevation_angle,
-                )
+        r_direction = np.array(
+            CoordinateTransformations.geodetic_to_cartesian()
+            * pet_detection.target.point.as_tuple(),
+        ) - np.array(
+            *pet_detection.sensor.receiver.point.as_tuple(),
+        )
+        r_direction = r_direction / np.linalg.norm(r_direction)
 
-                u = self._rng.uniform()
-                if u <= weight:
-                    return x
+        sigma_radial = min(
+            abs(np.dot(e.axes_directions[0], r_direction)) * e.axes_lengths[0],
+            abs(np.dot(e.axes_directions[1], r_direction) * e.axes_lengths[1]),
+        )
+        sigma_transversal = max(
+            r * pet_detection.sigma_azimuth,
+            r * pet_detection.sigma_elevation,
+            pcl_detection.sigma_bistatic_range,
+        )
+        sigma = max(sigma_radial, sigma_transversal)
 
-        points = np.array([sample_point(self._rng) for _ in range(n_samples)])
-        covar = np.diag(np.std(points, axis=0))
-
-        return Detection(
-            np.mean(points, axis=0),
-            measurement_model=LinearGaussian(
-                ndim_state=6, mapping=(0, 2, 4), noise_covar=covar
-            ),
-            timestamp=pcl_detection.time,
+        return self._sample_position(
+            pcl_detection.target,
+            (sigma, sigma, sigma),
+            pcl_detection.time,
         )
 
     def sample(
