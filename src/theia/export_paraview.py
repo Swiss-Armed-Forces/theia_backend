@@ -232,6 +232,7 @@ class ParaviewExporter:
         lon_res: float,
         terrain_model: AbstractTerrainModel,
         elevation_factor: float = 10.0,
+        fill_negative_alts: bool = True,
     ):
         self._terrain_path = Path(f"{output_dir}/terrain.vts").absolute()
         self._pois_path = Path(f"{output_dir}/pois.csv").absolute()
@@ -245,19 +246,20 @@ class ParaviewExporter:
         self._lon_res = lon_res
         self._elevation_factor = elevation_factor
         self._terrain_model = terrain_model
+        self._fill_negative_alts = fill_negative_alts
 
         self._lats = np.arange(self._lat_min, self._lat_max, self._lat_res)
         self._lons = np.arange(self._lon_min, self._lon_max, self._lon_res)
-        center_lat = (lat_min + lat_max) / 2
-        center_lon = (lon_min + lon_max) / 2
         self._center = np.array(
-            (
-                center_lat,
-                center_lon,
-                terrain_model.elevationAt(center_lat, center_lon),
+            CoordinateTransformations.geodetic_to_cartesian(
+                lat_min,
+                lon_min,
+                0,
             )
         )
-        self._rotation = _ecef_to_enu_rotation_matrix(self._center[0], self._center[1])
+        center_lat = (lat_min + lat_max) / 2
+        center_lon = (lon_min + lon_max) / 2
+        self._rotation = _ecef_to_enu_rotation_matrix(center_lat, center_lon)
 
     def _build_points_geodetic(self) -> np.ndarray:
         points = np.empty((len(self._lats) * len(self._lons), 3), dtype=np.float32)
@@ -265,7 +267,7 @@ class ParaviewExporter:
         for j, lat in enumerate(self._lats):
             for k, lon in enumerate(self._lons):
                 alt = self._terrain_model.elevationAt(lat, lon)
-                if alt < 0:
+                if alt < 0 and self._fill_negative_alts:
                     # Missing values in the dataset. We fill with the closest non-missing.
                     r = 1
                     while alt < 0:
@@ -285,7 +287,7 @@ class ParaviewExporter:
                 points[i, :] = (
                     lat,
                     lon,
-                    np.clip(self._elevation_factor * alt, 0, np.inf),
+                    alt,
                 )
                 i += 1
         return points
@@ -304,6 +306,7 @@ class ParaviewExporter:
         points = self._build_points_ecef()
         points_transformed = points - self._center
         points_transformed = (self._rotation @ points_transformed.T).T
+        points_transformed[:, 2] *= self._elevation_factor
 
         scalars: dict[str, list[float]] = {}
         for name, fn in functions.items():
@@ -323,7 +326,7 @@ class ParaviewExporter:
             x, y, z = CoordinateTransformations.geodetic_to_cartesian(
                 poi.lat,
                 poi.lon,
-                poi.alt * self._elevation_factor,
+                poi.alt,
             )
             x, y, z = self._rotation @ np.array(
                 (
@@ -332,6 +335,7 @@ class ParaviewExporter:
                     z - self._center[2],
                 )
             )
+            z *= self._elevation_factor
             df.append(
                 {
                     "ID": poi.id,
@@ -397,14 +401,13 @@ class ParaviewExporter:
             # Scale elevation, convert to ECEF, then to local ENU frame.
             pts_ecef = np.array(
                 [
-                    CoordinateTransformations.geodetic_to_cartesian(
-                        lat, lon, self._elevation_factor * alt
-                    )
+                    CoordinateTransformations.geodetic_to_cartesian(lat, lon, alt)
                     for lat, lon, alt in pts_geo
                 ],
                 dtype=np.float64,
             )
             pts_local = (self._rotation @ (pts_ecef - self._center).T).T
+            pts_local[:, 2] *= self._elevation_factor
             ecef_line_arrays.append(pts_local)
 
         # Build per-point scalar arrays if requested.
@@ -564,6 +567,8 @@ print("Scene loaded successfully.")
         pois: list[PointOfInterest],
     ):
         self._export_terrain(self._terrain_path)
-        self._export_trajectories(trajectories, self._trajectories_path)
-        self._export_pois(pois, self._pois_path)
+        if len(trajectories) > 0:
+            self._export_trajectories(trajectories, self._trajectories_path)
+        if len(pois) > 0:
+            self._export_pois(pois, self._pois_path)
         self._export_paraview_script()
