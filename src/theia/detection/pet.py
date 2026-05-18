@@ -72,7 +72,7 @@ class PetDetector(pydantic.BaseModel):
             return PetDetection(
                 detection_id=-1,
                 time=datetime.datetime.fromtimestamp(0),
-                radar=sensor,
+                sensor=sensor,
                 target=target,
                 elevation_angle=calculate_elevation_angle(
                     sensor.transmitter.point,
