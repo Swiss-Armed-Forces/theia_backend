@@ -1,4 +1,3 @@
-import abc
 import datetime
 from pathlib import Path
 
@@ -32,26 +31,21 @@ class UetlibergOpenskySimulatorFactory(AbstractSimulatorFactory):
         )
         self._radar.receiver.cpi_pulses = 1
         self._trajectories, _ = load_trajectory_file(
-            f"{Path(__file__).resolve().parent}/../../../data/data_opensky_2022-06-27.csv"
+            f"{Path(__file__).resolve().parent}/../../../../data/data_opensky_2022-06-27.csv"
         )
 
-    @abc.abstractmethod
     def _get_pcl_detector(self) -> PclDetector:
         return PclDetector()
 
-    @abc.abstractmethod
     def _get_pet_detector(self) -> PetDetector:
         return PetDetector()
 
-    @abc.abstractmethod
     def _get_blue_tracker(self) -> AbstractTracker:
         return MonostaticPseudoTracker(removal_patience=30)
 
-    @abc.abstractmethod
     def _get_red_tracker(self) -> AbstractTracker:
         return MonostaticPseudoTracker(removal_patience=30)
 
-    @abc.abstractmethod
     def _get_blue_controller(self) -> Controller:
         return MonostaticRadarController(
             target_id=max([t.target_id for t in self._trajectories]) + 1,
@@ -60,7 +54,6 @@ class UetlibergOpenskySimulatorFactory(AbstractSimulatorFactory):
             rcs_model=ConstantRcsModel(rcs=1.0),
         )
 
-    @abc.abstractmethod
     def _get_red_controller(self) -> Controller:
         return ControllerGroup(
             [
@@ -69,15 +62,12 @@ class UetlibergOpenskySimulatorFactory(AbstractSimulatorFactory):
             ]
         )
 
-    @abc.abstractmethod
     def _get_start_time(self) -> datetime.datetime:
         return min([t.times[0] for t in self._trajectories])
 
-    @abc.abstractmethod
     def _get_timestep(self) -> datetime.timedelta:
         return datetime.timedelta(seconds=1)
 
-    @abc.abstractmethod
     def _get_termination_criterion(self) -> TerminationCriterion:
         stop_time = max([t.times[-1] for t in self._trajectories])
         return TimeCriterion(stop_time)
