@@ -19,4 +19,5 @@ documentation for details.
    api
    passive_radar
    pseudo_tracker
+   demo
    ./reference/modules
