@@ -52,9 +52,14 @@ class AbstractTerrainModel(abc.ABC, pydantic.BaseModel):
     def elevationAt(self, lat: float, lon: float) -> float:
         raise NotImplementedError()
 
-    @abc.abstractmethod
-    def has_line_of_sight(self, p1: Point, p2: Point) -> float:
-        raise NotImplementedError()
+    def has_line_of_sight(self, p1, p2):
+        """
+        Checks line of sight between two points accounting for Earth curvature
+        and terrain elevation.
+
+        step_m controls sampling resolution along the path.
+        """
+        return has_line_of_sight_ray_marching(p1, p2, self, self.step_m)
 
     def sample_location(
         self,
@@ -88,63 +93,6 @@ class SrtmTerrainModel(AbstractTerrainModel):
         lon_f = lon - lon0
 
         return interpolate_elevation_tile(lat_f, lon_f, arr)
-
-    def has_line_of_sight(self, p1: Point, p2: Point) -> float:
-        """
-        Checks line of sight between two points accounting for Earth curvature
-        and terrain elevation.
-
-        step_m controls sampling resolution along the path.
-        """
-
-        def rad(p):
-            return math.radians(p.lat), math.radians(p.lon)
-
-        lat1, lon1 = rad(p1)
-        lat2, lon2 = rad(p2)
-
-        distance = haversine(p1.lon, p1.lat, p2.lon, p2.lat)
-
-        if distance == 0:
-            return True
-
-        steps = max(1, int(distance / self.step_m) + 1)
-
-        # Heights above Earth's center
-        h1 = R_EARTH + p1.alt
-        h2 = R_EARTH + p2.alt
-
-        for i in range(1, steps):
-            t = i / steps
-
-            # Interpolate along great circle
-            A = math.sin((1 - t) * distance / R_EARTH) / math.sin(distance / R_EARTH)
-            B = math.sin(t * distance / R_EARTH) / math.sin(distance / R_EARTH)
-
-            x = A * math.cos(lat1) * math.cos(lon1) + B * math.cos(lat2) * math.cos(
-                lon2
-            )
-            y = A * math.cos(lat1) * math.sin(lon1) + B * math.cos(lat2) * math.sin(
-                lon2
-            )
-            z = A * math.sin(lat1) + B * math.sin(lat2)
-
-            lat = math.atan2(z, math.sqrt(x * x + y * y))
-            lon = math.atan2(y, x)
-
-            lat_deg = math.degrees(lat)
-            lon_deg = math.degrees(lon)
-
-            # Terrain height above Earth's center
-            terrain = R_EARTH + self.elevationAt(lat_deg, lon_deg)
-
-            # Height of LOS ray at this point
-            ray_height = (1 - t) * h1 + t * h2
-
-            if terrain > ray_height:
-                return False
-
-        return True
 
 
 class ConstantSphereTerrainModel(AbstractTerrainModel):
@@ -251,3 +199,62 @@ class FlatEarthTerrainModel(AbstractTerrainModel):
             and (p2.alt > self.p_start.alt)
             and (p2.alt > self.p_stop.alt)
         )
+
+
+def has_line_of_sight_ray_marching(
+    p1: Point,
+    p2: Point,
+    terrain_model: AbstractTerrainModel,
+    step_m: float,
+) -> float:
+    """
+    Checks line of sight between two points accounting for Earth curvature
+    and terrain elevation.
+
+    step_m controls sampling resolution along the path.
+    """
+
+    def rad(p):
+        return math.radians(p.lat), math.radians(p.lon)
+
+    lat1, lon1 = rad(p1)
+    lat2, lon2 = rad(p2)
+
+    distance = haversine(p1.lon, p1.lat, p2.lon, p2.lat)
+
+    if distance == 0:
+        return True
+
+    steps = max(1, int(distance / step_m) + 1)
+
+    # Heights above Earth's center
+    h1 = R_EARTH + p1.alt
+    h2 = R_EARTH + p2.alt
+
+    for i in range(1, steps):
+        t = i / steps
+
+        # Interpolate along great circle
+        A = math.sin((1 - t) * distance / R_EARTH) / math.sin(distance / R_EARTH)
+        B = math.sin(t * distance / R_EARTH) / math.sin(distance / R_EARTH)
+
+        x = A * math.cos(lat1) * math.cos(lon1) + B * math.cos(lat2) * math.cos(lon2)
+        y = A * math.cos(lat1) * math.sin(lon1) + B * math.cos(lat2) * math.sin(lon2)
+        z = A * math.sin(lat1) + B * math.sin(lat2)
+
+        lat = math.atan2(z, math.sqrt(x * x + y * y))
+        lon = math.atan2(y, x)
+
+        lat_deg = math.degrees(lat)
+        lon_deg = math.degrees(lon)
+
+        # Terrain height above Earth's center
+        terrain = R_EARTH + terrain_model.elevationAt(lat_deg, lon_deg)
+
+        # Height of LOS ray at this point
+        ray_height = (1 - t) * h1 + t * h2
+
+        if terrain > ray_height:
+            return False
+
+    return True
