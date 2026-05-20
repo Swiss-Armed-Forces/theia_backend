@@ -201,6 +201,33 @@ class FlatEarthTerrainModel(AbstractTerrainModel):
         )
 
 
+class PlateauHill(pydantic.BaseModel):
+    lat_min: float
+    """Minimum latitude at which the plateau starts [°]"""
+    lat_max: float
+    """Maximum latitude at which the plateau starts [°]"""
+    lon_min: float
+    """Minimum longitude at which the plateau starts [°]"""
+    lon_max: float
+    """Maximum longitude at which the plateau starts [°]"""
+    height: float
+    """Height above ground level of the plateau [m]"""
+
+
+class FlatEartWithHillsTerrainModel(FlatEarthTerrainModel):
+    plateaus: list[PlateauHill]
+    step_m: float = 30.0
+
+    def elevationAt(self, lat: float, lon: float) -> float:
+        alt = super().elevationAt(lat, lon)
+        for plateau in self.plateaus:
+            if (plateau.lat_min <= lat <= plateau.lat_max) and (
+                plateau.lon_min <= lon <= plateau.lon_max
+            ):
+                alt = max(alt, alt + plateau.height)
+        return alt
+
+
 def has_line_of_sight_ray_marching(
     p1: Point,
     p2: Point,
