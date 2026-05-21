@@ -83,7 +83,6 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
 
     def _get_pcl_sensors(self) -> list[PclSensor]:
         import numpy as np
-        from theia.test_data import build_pcl_receiver
         from theia.types import Polarization, Transmitter
         from theia.util import to_dB
 
@@ -106,7 +105,7 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
             tx = Transmitter(
                 id=i,
                 point=p,
-                power=10_000,
+                power=100_000,
                 erp=to_dB(10_000),
                 antenna_height=8,
                 antenna_diameter=2,
