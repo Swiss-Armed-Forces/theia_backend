@@ -1,5 +1,6 @@
 import datetime
 
+from theia.config import SIDC_BLUE_RECEIVER, SIDC_GREEN_TRANSMITTER, SIDC_RED_RECEIVER
 from theia.types import (
     ConstantRcsModel,
     Controller,
@@ -28,8 +29,8 @@ class PclSensorController(Controller):
         self._sensor = sensor
         self._name = name
         self._rcs_model = rcs_model
-        self._sidc_rx = f"100{3 if is_blue else 6}1500002203000000"
-        self._sidc_tx = f"100{4}2000001212010000"
+        self._sidc_rx = SIDC_BLUE_RECEIVER if is_blue else SIDC_RED_RECEIVER
+        self._sidc_tx = SIDC_GREEN_TRANSMITTER
         self._target_id_rx = target_id_rx
         self._target_id_tx = target_id_tx
         self._own_receiver = own_receiver
