@@ -1,6 +1,7 @@
 import numpy as np
 import uvicorn
 from theia.simulation.factories.bodensee_monostatic import BodenseeMonostaticFactory
+from theia.simulation.factories.performance_demo import PerformanceDemoFactory
 from theia.simulation.factories.uetliberg_opensky import (
     UetlibergOpenskySimulatorFactory,
 )
@@ -13,7 +14,8 @@ print("Initialise...")
 # Setup the simulation.
 ################################################
 rng = np.random.Generator(np.random.PCG64(seed=4054080))
-factory = UetlibergOpenskySimulatorFactory()
+factory = PerformanceDemoFactory(rng)
+# factory = UetlibergOpenskySimulatorFactory()
 # factory = BodenseeMonostaticFactory(rng)
 simulator, buffer = factory.build_simulator(True, rng)
 
