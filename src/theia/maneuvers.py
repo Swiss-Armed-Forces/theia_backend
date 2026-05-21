@@ -4,6 +4,7 @@ import itertools
 
 import numpy as np
 import pydantic
+from scipy.interpolate import CubicSpline
 
 from theia.coordinates import (
     CoordinateTransformations,
@@ -12,7 +13,7 @@ from theia.coordinates import (
 )
 from theia.distance import line_of_sight_distance
 from theia.measurement import MonostaticMeasurementTransformations
-from theia.types import Point
+from theia.types import ConstantRcsModel, Point, Trajectory
 
 
 class AbstractManeuver(abc.ABC):
@@ -23,6 +24,40 @@ class AbstractManeuver(abc.ABC):
         start_pos: Point,
     ) -> tuple[list[datetime.datetime], list[Point]]:
         raise NotImplementedError()
+
+    def to_trajectory(
+        self,
+        start_time: datetime.datetime,
+        start_pos: Point,
+        target_id: int,
+        sidc: str,
+        rcs: float,
+    ) -> Trajectory:
+        times, points = self.get_waypoints(start_time, start_pos)
+
+        timestamps = [t.timestamp() for t in times]
+        points_ecef = np.array(
+            [
+                CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple())
+                for p in points
+            ]
+        )
+        f_ecef = CubicSpline(timestamps, points_ecef, extrapolate=True)
+        v_ecef = f_ecef.derivative()
+        velocities = v_ecef(timestamps)
+
+        return Trajectory(
+            target_id=target_id,
+            target_sidc=sidc,
+            times=times,
+            lats=[p.lat for p in points],
+            lons=[p.lon for p in points],
+            alts=[p.alt for p in points],
+            vxs=[v[0] for v in velocities],
+            vys=[v[1] for v in velocities],
+            vzs=[v[2] for v in velocities],
+            cross_section_model=ConstantRcsModel(rcs=rcs),
+        )
 
 
 class CompositeManeuver(AbstractManeuver):
@@ -43,6 +78,60 @@ class CompositeManeuver(AbstractManeuver):
             start_time = times[-1]
             start_pos = points[-1]
         return all_times, all_points
+
+
+class ConstantSpeedStraightManeuver(AbstractManeuver, pydantic.BaseModel):
+    stop_point: Point
+    speed: float
+
+    def get_waypoints(
+        self,
+        start_time: datetime.datetime,
+        start_pos: Point,
+    ) -> tuple[list[datetime.datetime], list[Point]]:
+        res = 300
+
+        d = line_of_sight_distance(
+            start_pos.lat,
+            start_pos.lon,
+            start_pos.alt,
+            self.stop_point.lat,
+            self.stop_point.lon,
+            self.stop_point.alt,
+        )
+
+        N = int(np.ceil(d / res))
+
+
+        lats = np.linspace(start_pos.lat, self.stop_point.lat, N)
+        lons = np.linspace(start_pos.lon, self.stop_point.lon, N)
+        alts = np.linspace(start_pos.alt, self.stop_point.alt, N)
+
+        lat_prev = lats[0]
+        lon_prev = lons[0]
+        alt_prev = alts[0]
+        t_prev = start_time
+        t = None
+        points: list[Point] = []
+        times: list[datetime.datetime] = []
+        for lat, lon, alt in zip(lats[1:], lons[1:], alts[1:], strict=True):
+            d = line_of_sight_distance(
+                lat_prev,
+                lon_prev,
+                alt_prev,
+                lat,
+                lon,
+                alt,
+            )
+            seconds = d / self.speed
+            t = t_prev + datetime.timedelta(seconds=seconds)
+            points.append(Point(lat=lat, lon=lon, alt=alt))
+            times.append(t)
+
+        return (
+            times,
+            points,
+        )
 
 
 class ConstantSpeedCurveManeuver(AbstractManeuver, pydantic.BaseModel):
