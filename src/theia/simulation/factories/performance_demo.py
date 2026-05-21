@@ -105,7 +105,7 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
                 alt=alt,
             )
             tx = Transmitter(
-                id=i,
+                id=2 + i,
                 point=p,
                 power=100_000,
                 erp=to_dB(10_000),
@@ -119,25 +119,30 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
             )
             txs.append(tx)
 
-        rx = build_pcl_receiver(
-            rx_id=0,
-            point=Point(
-                lat=47.42535,
-                lon=8.19448,
-                alt=636.02301025,
-            ),
-        )
+        rx_locs = [
+            [47.42535, 8.19448, 636.02301025],
+            [47.56635, 7.73148, 517.47009277],
+        ]
 
         sensors = []
-        for i, tx in enumerate(txs):
-            sensors.append(
-                PclSensor(
-                    id=2 + i,
-                    transmitter=tx,
-                    receiver=rx,
-                    error_model=PclMeasurementModel(),
-                )
+        for i, rx_loc in enumerate(rx_locs):
+            rx = build_pcl_receiver(
+                rx_id=i,
+                point=Point(
+                    lat=rx_loc[0],
+                    lon=rx_loc[1],
+                    alt=rx_loc[2],
+                ),
             )
+            for j, tx in enumerate(txs):
+                sensors.append(
+                    PclSensor(
+                        id=2 + i * len(rx_locs) + j,
+                        transmitter=tx,
+                        receiver=rx,
+                        error_model=PclMeasurementModel(),
+                    )
+                )
         return sensors
 
     def _get_blue_controller(self) -> Controller:
@@ -148,7 +153,7 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
                 alt=POSITIONS_OF_INTEREST["Uetliberg"]["alt"],
             ),
             1,
-            1,
+            2,
             1,
         )
         blue_controllers = [
@@ -162,20 +167,17 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
         ]
 
         sensors = self._get_pcl_sensors()
-        rx_target_ids = {
-            0: 3,
-        }
+        rx_ids = set([s.receiver.id for s in sensors])
+        tx_ids = set([s.transmitter.id for s in sensors])
+        rx_target_ids = {rx_id: 3 + i for i, rx_id in enumerate(rx_ids)}
         tx_target_ids = {
-            0: 4,
-            1: 5,
-            2: 6,
-            3: 7,
-            4: 8,
-            5: 9,
+            tx_id: 3 + len(rx_target_ids) + i for i, tx_id in enumerate(tx_ids)
         }
         used_receiver_ids = []
+        used_transmitter_ids = []
         for sensor in sensors:
             receiver_owned = sensor.receiver.id in used_receiver_ids
+            transmitter_owned = sensor.transmitter.id in used_transmitter_ids
             c = PclSensorController(
                 target_id_rx=rx_target_ids[sensor.receiver.id],
                 target_id_tx=tx_target_ids[sensor.transmitter.id],
@@ -183,10 +185,12 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
                 is_blue=True,
                 rcs_model=ConstantRcsModel(rcs=1.0),
                 own_receiver=not receiver_owned,
-                own_transmitter=True,
+                own_transmitter=not transmitter_owned,
             )
             if not receiver_owned:
                 used_receiver_ids.append(sensor.receiver.id)
+            if not transmitter_owned:
+                used_transmitter_ids.append(sensor.transmitter.id)
             blue_controllers.append(c)
 
         return ControllerGroup(controllers=blue_controllers)
