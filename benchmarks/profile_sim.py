@@ -11,8 +11,8 @@ from theia.simulation.logging import FileLogger
 rng = np.random.Generator(np.random.PCG64(seed=4054080))
 factory = PerformanceDemoFactory(rng)
 simulator, buffer = factory.build_simulator(False, rng)
-# listener = FileLogger("log.json")
-# simulator.set_listener(listener)
+listener = FileLogger("log.json")
+simulator.set_listener(listener)
 
 profiler = cProfile.Profile()
 profiler.enable()
