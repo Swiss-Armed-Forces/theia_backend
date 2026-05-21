@@ -92,6 +92,8 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
                 [47.47835, 7.64948, 756.82000732],
                 [47.53035, 8.17048, 697.52001953],
                 [47.68535, 8.29048, 704.26000977],
+                [47.65835, 7.96348, 1038.01635742],
+                [47.22435, 8.02548, 761.62097168],
             ]
         )
 
@@ -168,6 +170,8 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
             1: 5,
             2: 6,
             3: 7,
+            4: 8,
+            5: 9,
         }
         used_receiver_ids = []
         for sensor in sensors:
