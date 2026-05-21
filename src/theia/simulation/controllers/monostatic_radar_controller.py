@@ -1,4 +1,5 @@
 import datetime
+from theia.config import SIDC_BLUE_RADAR, SIDC_RED_RADAR
 from theia.types import (
     ConstantRcsModel,
     Controller,
@@ -37,7 +38,7 @@ class MonostaticRadarController(Controller):
         self._radar = radar
         self._target_id = target_id
         self._name = name
-        self._sidc = f"100{3 if is_blue else 6}1500002203000000"
+        self._sidc = SIDC_BLUE_RADAR if is_blue else SIDC_RED_RADAR
         self._rcs_model = rcs_model
 
     def get_monostatic_radars(
