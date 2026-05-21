@@ -82,47 +82,61 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
         )
 
     def _get_pcl_sensors(self) -> list[PclSensor]:
-        pcl_rx = build_pcl_receiver(
-            2,
-            Point(
-                lat=47.0658,
-                lon=8.5250,
-                alt=SrtmTerrainModel().elevationAt(47.0658, 8.5250),
-            ),
-        )
-        pcl_rx2 = build_pcl_receiver(
-            3,
-            Point(
-                lat=47.5674,
-                lon=8.1393,
-                alt=SrtmTerrainModel().elevationAt(47.5674, 8.1393),
-            ),
+        import numpy as np
+        from theia.test_data import build_pcl_receiver
+        from theia.types import Polarization, Transmitter
+        from theia.util import to_dB
+
+        tx_locs = np.array(
+            [
+                [47.42035, 7.95848, 954.34130859],
+                [47.47835, 7.64948, 756.82000732],
+                [47.53035, 8.17048, 697.52001953],
+                [47.68535, 8.29048, 704.26000977],
+            ]
         )
 
-        txs = load_bakom_ukw_transmitters()
-        sensors: list[PclSensor] = []
-
-        tx_ids1 = (920, 1150, 942)
-        txs1 = [tx for tx in txs if tx.id in tx_ids1]
-        for i, tx in enumerate(txs1):
-            sensor = PclSensor(
-                id=2 + i,
-                transmitter=tx,
-                receiver=pcl_rx,
-                error_model=PclMeasurementModel(),
+        txs = []
+        for i, (lat, lon, alt) in enumerate(tx_locs):
+            p = Point(
+                lat=lat,
+                lon=lon,
+                alt=alt,
             )
-            sensors.append(sensor)
-
-        tx_ids2 = (421, 1222, 756)
-        txs2 = [tx for tx in txs if tx.id in tx_ids2]
-        for i, tx in enumerate(txs2):
-            sensor = PclSensor(
-                id=2 + i + len(tx_ids1),
-                transmitter=tx,
-                receiver=pcl_rx2,
-                error_model=PclMeasurementModel(),
+            tx = Transmitter(
+                id=i,
+                point=p,
+                power=10_000,
+                erp=to_dB(10_000),
+                antenna_height=8,
+                antenna_diameter=2,
+                antenna_gain=0,
+                frequency=95.0,
+                pulse_width=0.0,
+                bandwidth=0.190,
+                polarization=Polarization.VERTICAL,
             )
-            sensors.append(sensor)
+            txs.append(tx)
+
+        rx = build_pcl_receiver(
+            rx_id=0,
+            point=Point(
+                lat=47.42535,
+                lon=8.19448,
+                alt=636.02301025,
+            ),
+        )
+
+        sensors = []
+        for i, tx in enumerate(txs):
+            sensors.append(
+                PclSensor(
+                    id=2 + i,
+                    transmitter=tx,
+                    receiver=rx,
+                    error_model=PclMeasurementModel(),
+                )
+            )
         return sensors
 
     def _get_blue_controller(self) -> Controller:
@@ -147,24 +161,21 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
         ]
 
         sensors = self._get_pcl_sensors()
-        rx_ids = {
-            2: 3,
-            3: 4,
+        rx_target_ids = {
+            0: 3,
         }
-        tx_ids = {
-            920: 5,
-            1150: 6,
-            942: 7,
-            421: 8,
-            1222: 9,
-            756: 10,
+        tx_target_ids = {
+            0: 4,
+            1: 5,
+            2: 6,
+            3: 7,
         }
         used_receiver_ids = []
         for sensor in sensors:
             receiver_owned = sensor.receiver.id in used_receiver_ids
             c = PclSensorController(
-                target_id_rx=rx_ids[sensor.receiver.id],
-                target_id_tx=tx_ids[sensor.transmitter.id],
+                target_id_rx=rx_target_ids[sensor.receiver.id],
+                target_id_tx=tx_target_ids[sensor.transmitter.id],
                 sensor=sensor,
                 is_blue=True,
                 rcs_model=ConstantRcsModel(rcs=1.0),
