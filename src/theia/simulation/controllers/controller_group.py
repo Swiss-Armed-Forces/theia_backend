@@ -37,7 +37,8 @@ class ControllerGroup(Controller):
         all_targets = [
             c.get_targets(situational_picture, dt) for c in self._controllers
         ]
-        return list(itertools.chain.from_iterable(all_targets))
+        all_targets = list(itertools.chain.from_iterable(all_targets))
+        return all_targets
 
     def get_pet_receivers(
         self,

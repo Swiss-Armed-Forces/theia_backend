@@ -165,11 +165,24 @@ class FlatEarthTerrainModel(AbstractTerrainModel):
 
     @functools.cached_property
     def plane_normal(self) -> tuple[float, float, float]:
+        return self.plane_directions[2]
+
+    @functools.cached_property
+    def plane_directions(
+        self,
+    ) -> tuple[
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+    ]:
         p1, p2, p3, p4 = self.corners_ecef
         d1 = np.array(p2) - np.array(p1)
+        d1 = d1 / np.linalg.norm(d1)
         d2 = np.array(p4) - np.array(p1)
+        d2 = d2 - np.dot(d1, d2) * d1
+        d2 = d2 / np.linalg.norm(d2)
         n = np.cross(d2, d1)
-        return tuple(n / np.linalg.norm(n))
+        return tuple(d1), tuple(d2), tuple(n)
 
     @functools.cached_property
     def plane_constant(self) -> float:

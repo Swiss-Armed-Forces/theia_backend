@@ -1,18 +1,18 @@
 import cProfile
 
+import numpy as np
 from tqdm import tqdm
 
+from theia.simulation.factories.performance_demo import PerformanceDemoFactory
 from theia.simulation.logging import FileLogger
-from theia.simulation.predefined_simulations import (
-    build_single_radar_single_target,
-    load_single_target_from_Bodensee_simulator,
-)
 
 
 # simulator, buffer = load_single_target_from_Bodensee_simulator(interactive=False)
-simulator, buffer = build_single_radar_single_target(interactive=False)
-listener = FileLogger("log.json")
-simulator.set_listener(listener)
+rng = np.random.Generator(np.random.PCG64(seed=4054080))
+factory = PerformanceDemoFactory(rng)
+simulator, buffer = factory.build_simulator(False, rng)
+# listener = FileLogger("log.json")
+# simulator.set_listener(listener)
 
 profiler = cProfile.Profile()
 profiler.enable()
