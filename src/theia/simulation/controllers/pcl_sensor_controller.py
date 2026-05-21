@@ -21,15 +21,19 @@ class PclSensorController(Controller):
         sensor: PclSensor,
         is_blue: bool,
         rcs_model: ConstantRcsModel,
+        own_receiver: bool,
+        own_transmitter: bool,
         name: str = "",
     ):
         self._sensor = sensor
         self._name = name
         self._rcs_model = rcs_model
-        self._sidc_rx = f"10-0-{3 if is_blue else 6}-15-0-0-00-220300-00-00"
-        self._sidc_tx = f"10-0-{4}-20-0-0-00-121201-00-00"
+        self._sidc_rx = f"100{3 if is_blue else 6}1500002203000000"
+        self._sidc_tx = f"100{4}2000001212010000"
         self._target_id_rx = target_id_rx
         self._target_id_tx = target_id_tx
+        self._own_receiver = own_receiver
+        self._own_transmitter = own_transmitter
 
     def get_monostatic_radars(
         self, situational_picture: SituationalPicture, dt: datetime.timedelta
@@ -43,31 +47,37 @@ class PclSensorController(Controller):
 
     def get_targets(
         self, situational_picture: SituationalPicture, dt: datetime.timedelta
-    ) -> list[AbstractSensor]:
-        return [
-            Target(
-                id=self._target_id_rx,
-                is_stationary=True,
-                name=self._name,
-                sidc=self._sidc_rx,
-                point=self._sensor.receiver.point,
-                cross_section_model=self._rcs_model,
-                velocity=Velocity(vx=0, vy=0, vz=0),
-                receiver=self._sensor.receiver,
-                transmitter=None,
-            ),
-            Target(
-                id=self._target_id_tx,
-                is_stationary=True,
-                name=f"Tx (ID {self._sensor.transmitter})",
-                sidc=self._sidc_tx,
-                point=self._sensor.receiver.point,
-                cross_section_model=self._rcs_model,
-                velocity=Velocity(vx=0, vy=0, vz=0),
-                receiver=None,
-                transmitter=self._sensor.transmitter,
-            ),
-        ]
+    ) -> list[Target]:
+        targets = []
+        if self._own_receiver:
+            targets.append(
+                Target(
+                    id=self._target_id_rx,
+                    is_stationary=True,
+                    name=self._name,
+                    sidc=self._sidc_rx,
+                    point=self._sensor.receiver.point,
+                    cross_section_model=self._rcs_model,
+                    velocity=Velocity(vx=0, vy=0, vz=0),
+                    receiver=self._sensor.receiver,
+                    transmitter=None,
+                )
+            )
+        if self._own_transmitter:
+            targets.append(
+                Target(
+                    id=self._target_id_tx,
+                    is_stationary=True,
+                    name=f"Tx (ID {self._sensor.transmitter})",
+                    sidc=self._sidc_tx,
+                    point=self._sensor.receiver.point,
+                    cross_section_model=self._rcs_model,
+                    velocity=Velocity(vx=0, vy=0, vz=0),
+                    receiver=None,
+                    transmitter=self._sensor.transmitter,
+                )
+            )
+        return targets
 
     def get_pet_receivers(
         self,
