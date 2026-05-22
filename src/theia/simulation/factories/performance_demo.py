@@ -4,7 +4,6 @@ import numpy as np
 
 from theia.config import SIDC_RED_FIXED_WING
 from theia.coordinates import POSITIONS_OF_INTEREST
-from theia.data_loading import load_bakom_ukw_transmitters
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.maneuvers import ConstantSpeedStraightManeuver
@@ -21,7 +20,6 @@ from theia.simulation.factories.abstract_simulator_factory import (
 )
 from theia.simulation.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
-from theia.terrain import SrtmTerrainModel
 from theia.test_data import (
     build_fighter_jet_radar,
     build_flores_monostatic_radar,
@@ -127,7 +125,7 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
         sensors = []
         for i, rx_loc in enumerate(rx_locs):
             rx = build_pcl_receiver(
-                rx_id=i,
+                rx_id=2 + i,
                 point=Point(
                     lat=rx_loc[0],
                     lon=rx_loc[1],
@@ -137,7 +135,7 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
             for j, tx in enumerate(txs):
                 sensors.append(
                     PclSensor(
-                        id=2 + i * len(rx_locs) + j,
+                        id=2 + i * len(txs) + j,
                         transmitter=tx,
                         receiver=rx,
                         error_model=PclMeasurementModel(),
