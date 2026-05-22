@@ -12,8 +12,8 @@ import shapely
 import theia
 from theia.config import FRONTEND_URL
 from theia.coordinates import CoordinateTransformations
-from theia.coverage import calculate_coverage, calculate_range_polygon
-from theia.detection.pcl import PclDetector, pcl_track_init_update_masks
+from theia.coverage import calculate_coverage, calculate_range_polygon, pcl_track_init_update_masks_parallel
+from theia.detection.pcl import PclDetector
 from theia.grids import LatLonHeightGrid
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.logging import SituationalPictureBuffer
@@ -287,7 +287,7 @@ def create_app(
             delay_threshold=delay_threshold,
         )
 
-        track_init_mask, track_update_mask = pcl_track_init_update_masks(
+        track_init_mask, track_update_mask = pcl_track_init_update_masks_parallel(
             detector,
             sensors,
             grid,
