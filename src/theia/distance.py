@@ -1,9 +1,9 @@
+import math
 from typing import Generator
 import geopy
 from geopy.distance import distance
 import numba
 import numpy as np
-from numpy import radians
 import pyproj
 
 from theia.coordinates import CoordinateTransformations
@@ -37,13 +37,19 @@ def haversine(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
     on the earth (specified in decimal degrees)
     """
     # convert decimal degrees to radians
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    lat1 = math.radians(lat1)
+    lat2 = math.radians(lat2)
+    lon1 = math.radians(lon1)
+    lon2 = math.radians(lon2)
 
     # haversine formula
     dlon = lon2 - lon1
     dlat = lat2 - lat1
-    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
-    c = 2 * np.asin(np.sqrt(a))
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.asin(math.sqrt(a))
     r = R_EARTH
     return c * r
 

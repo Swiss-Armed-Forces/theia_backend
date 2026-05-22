@@ -14,7 +14,11 @@ from theia.types import Point
 
 
 @functools.cache
-def load_hgt_file(path: str):
+def load_hgt_file(lat0: 0, lon0: int) -> np.ndarray:
+    ns = "N" if lat0 >= 0 else "S"
+    ew = "E" if lon0 >= 0 else "W"
+    filename = f"{ns}{abs(lat0):02d}{ew}{abs(lon0):03d}.hgt"
+    path = f"{ELEVATION_DATA_DIR}/{filename}"
     size = os.path.getsize(path)
     dim = int(math.sqrt(size / 2))
     assert dim**2 * 2 == size
@@ -79,14 +83,10 @@ class SrtmTerrainModel(AbstractTerrainModel):
     step_m: float = 30.0
 
     def elevationAt(self, lat: float, lon: float) -> float:
-        lat0 = math.floor(lat)
-        lon0 = math.floor(lon)
+        lat0 = lat.__floor__()
+        lon0 = lon.__floor__()
 
-        ns = "N" if lat0 >= 0 else "S"
-        ew = "E" if lon0 >= 0 else "W"
-        filename = f"{ns}{abs(lat0):02d}{ew}{abs(lon0):03d}.hgt"
-
-        arr = load_hgt_file(f"{ELEVATION_DATA_DIR}/{filename}")
+        arr = load_hgt_file(lat0, lon0)
 
         # local fractional degree within tile
         lat_f = lat - lat0
@@ -253,12 +253,10 @@ def has_line_of_sight_ray_marching(
 
     step_m controls sampling resolution along the path.
     """
-
-    def rad(p):
-        return math.radians(p.lat), math.radians(p.lon)
-
-    lat1, lon1 = rad(p1)
-    lat2, lon2 = rad(p2)
+    lat1 = math.radians(p1.lat)
+    lon1 = math.radians(p1.lon)
+    lat2 = math.radians(p2.lat)
+    lon2 = math.radians(p2.lon)
 
     distance = haversine(p1.lon, p1.lat, p2.lon, p2.lat)
 
