@@ -56,7 +56,7 @@ class AbstractTerrainModel(abc.ABC, pydantic.BaseModel):
     def elevationAt(self, lat: float, lon: float) -> float:
         raise NotImplementedError()
 
-    def has_line_of_sight(self, p1, p2):
+    def has_line_of_sight(self, p1: Point, p2: Point) -> bool:
         """
         Checks line of sight between two points accounting for Earth curvature
         and terrain elevation.
