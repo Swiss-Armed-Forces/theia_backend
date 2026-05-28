@@ -13,3 +13,4 @@ doc/source/_static/pcl_example_init_coverage.png
 .coverage
 bistatic_range_*.png
 output/
+**/__pycache__
