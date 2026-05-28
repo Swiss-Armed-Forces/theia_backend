@@ -14,7 +14,7 @@ from theia.types import Point
 
 
 @functools.cache
-def load_hgt_file(lat0: 0, lon0: int) -> np.ndarray:
+def load_hgt_file(lat0: int, lon0: int) -> np.ndarray:
     ns = "N" if lat0 >= 0 else "S"
     ew = "E" if lon0 >= 0 else "W"
     filename = f"{ns}{abs(lat0):02d}{ew}{abs(lon0):03d}.hgt"
