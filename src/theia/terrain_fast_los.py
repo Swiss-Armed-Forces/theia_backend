@@ -235,11 +235,13 @@ class HbvTree:
         self._data = data
         """
         Parameters of each AABB, i. e. xmin, ymin, zmin, xmax, ymax, zmax.
+        The nodes are ordered by ascending depth, i. e. larger nodes come first.
         Shape (N_nodes, 6)
         """
         self._children = children
         """
         Flat indices of the child nodes. Value -1 indicates no children.
+        The nodes are ordered by ascending depth, i. e. larger nodes come first.
         Shape (N_nodes, 4). 
         """
         # Convert number of nodes to depth.
@@ -397,18 +399,18 @@ class HbvTree:
 # ---------------------------------------------------------------------------
 
 
-@numba.njit(cache=True)  # cache=True persists the compiled binary to disk
+@numba.njit(cache=True)
 def _los_kernel(
-    data: np.ndarray,  # (N_nodes, 6)  float64, C-contiguous
-    children: np.ndarray,  # (N_nodes, 4)  int64,   C-contiguous
+    data: np.ndarray,
+    children: np.ndarray,
     px: float,
     py: float,
     pz: float,
     idx: float,
     idy: float,
-    idz: float,  # pre-inverted direction components
+    idz: float,
     t_max: float,
-    stack: np.ndarray,  # pre-allocated int64 scratch, length >= 3*depth+1
+    stack: np.ndarray,
 ) -> bool:
     """
     Iterative DFS.  Returns False as soon as a leaf AABB is intersected
@@ -426,6 +428,31 @@ def _los_kernel(
     impossible; at worst one extra subtree is visited.
 
     Assumes a complete quadtree: every internal node has exactly 4 children.
+
+    Parameters
+    ----------
+    data: np.ndarray
+        Extents of all AABB. Shape: (N_nodes, 6), float64, C-contiguous
+        The lower-depth (larger) AABB are placed first, the leaf nodes last.
+    children: np.ndarray
+        Children of all AABB nodes. Shape: (N_nodes, 4), int64, C-contiguous
+        The lower-depth (larger) AABB are placed first, the leaf nodes last.
+    px: float
+        Ray starting point x coordinate
+    py: float
+        Ray starting point y coordinate
+    pz: float
+        Ray starting point z coordinate
+    idx: float
+        Inverted ray x-direction
+    idy: float
+        Inverted ray y-direction
+    idz: float
+        Inverted ray z-direction
+    t_max: float
+        Maximum distance along the ray
+    stack: np.ndarray
+        pre-allocated int64 scratch memory of length >= 3*depth+1
     """
     stack[0] = 0
     top = 1
