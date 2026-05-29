@@ -1,9 +1,11 @@
 import math
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
-from theia.terrain_fast_los import _los_kernel, build_higher_level
+from theia.coordinates import CoordinateTransformations
+from theia.terrain_fast_los import _los_kernel, build_bounding_boxes, build_higher_level
 
 
 def _make_stack(max_depth: int) -> np.ndarray:
@@ -391,6 +393,7 @@ class TestLosKernelNaNBehaviour(unittest.TestCase):
         )
         self.assertFalse(result)
 
+
 def _make_grid(
     h: int,
     w: int,
@@ -629,18 +632,256 @@ class TestBuildHigherLevelShape(unittest.TestCase):
         self.assertTrue(out.flags["C_CONTIGUOUS"])
 
 
+class TestBuildBoundingBoxes(unittest.TestCase):
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _make_grid(nlats=3, nlons=3, spacing=1.0, lat0=0.0, lon0=0.0):
+        """Return (lats, lons, flat-zero data) for a regular grid."""
+        lats = np.array([lat0 + i * spacing for i in range(nlats)])
+        lons = np.array([lon0 + j * spacing for j in range(nlons)])
+        data = np.zeros((nlats, nlons))
+        return lats, lons, data
+
+    @staticmethod
+    def _identity_geodetic_to_cartesian(lat, lon, alt):
+        """
+        Trivial stub: ECEF ≈ (lon, lat, alt).
+        Simple enough to compute expected min/max by hand.
+        """
+        return np.array([lon, lat, alt], dtype=float)
+
+    # ------------------------------------------------------------------
+    # Output shape / dtype
+    # ------------------------------------------------------------------
+
+    def test_output_shape(self):
+        """Result must be (Nlats, Nlons, 6)."""
+        lats, lons, data = self._make_grid(nlats=4, nlons=5)
+        with patch(
+            "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
+            side_effect=self._identity_geodetic_to_cartesian,
+        ):
+            result = build_bounding_boxes(lats, lons, data)
+        self.assertEqual(result.shape, (4, 5, 6))
+
+    def test_output_dtype_is_float(self):
+        """Output array should contain floating-point values."""
+        lats, lons, data = self._make_grid()
+        with patch(
+            "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
+            side_effect=self._identity_geodetic_to_cartesian,
+        ):
+            result = build_bounding_boxes(lats, lons, data)
+        self.assertTrue(np.issubdtype(result.dtype, np.floating))
+
+    # ------------------------------------------------------------------
+    # Bounding-box geometry invariants
+    # ------------------------------------------------------------------
+
+    def test_min_le_max_for_all_cells(self):
+        """x_min ≤ x_max, y_min ≤ y_max, z_min ≤ z_max for every cell."""
+        lats, lons, data = self._make_grid(nlats=3, nlons=3)
+        with patch(
+            "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
+            side_effect=self._identity_geodetic_to_cartesian,
+        ):
+            result = build_bounding_boxes(lats, lons, data)
+        self.assertTrue(np.all(result[..., :3] <= result[..., 3:]))
+
+    def test_bbox_values_match_manual_calculation(self):
+        """
+        Verify all four AABB cells for a 2×2 grid with uniform elevation=100.
+
+        With the identity stub (lat, lon, alt) → [lon, lat, alt] and
+        half_spacing=0.5, alt_below = clip(100,0,None) - 30 = 70:
+
+        Cell [0,0]: lat=0, lon=0 → x∈{-0.5,0.5}, y∈{-0.5,0.5}, z∈{70,100}
+        Cell [0,1]: lat=0, lon=1 → x∈{ 0.5,1.5}, y∈{-0.5,0.5}, z∈{70,100}
+        Cell [1,0]: lat=1, lon=0 → x∈{-0.5,0.5}, y∈{ 0.5,1.5}, z∈{70,100}
+        Cell [1,1]: lat=1, lon=1 → x∈{ 0.5,1.5}, y∈{ 0.5,1.5}, z∈{70,100}
+
+        Note: x tracks longitude and y tracks latitude because the stub
+        returns [lon, lat, alt] rather than a true ECEF vector.
+        """
+        ALT = 100.0
+        ALT_BELOW = ALT - 30  # mirrors clip(alt, 0, None) - 30
+
+        lats = np.array([0.0, 1.0])
+        lons = np.array([0.0, 1.0])
+        data = np.full((2, 2), ALT)
+
+        with patch(
+            "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
+            side_effect=self._identity_geodetic_to_cartesian,
+        ):
+            result = build_bounding_boxes(lats, lons, data)
+
+        expected = np.array(
+            [
+                [
+                    [-0.5, -0.5, ALT_BELOW, 0.5, 0.5, ALT],
+                    [0.5, -0.5, ALT_BELOW, 1.5, 0.5, ALT],
+                ],
+                [
+                    [-0.5, 0.5, ALT_BELOW, 0.5, 1.5, ALT],
+                    [0.5, 0.5, ALT_BELOW, 1.5, 1.5, ALT],
+                ],
+            ]
+        )
+        np.testing.assert_allclose(result, expected)
+
+    def test_alt_below_positive_elevation(self):
+        """
+        For positive alt, alt_below = alt - 30.
+        With the identity stub z_min should equal alt - 30.
+        """
+        lats = np.array([0.0, 1.0])
+        lons = np.array([0.0, 1.0])
+        alt = 500.0
+        data = np.full((2, 2), alt)
+
+        with patch(
+            "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
+            side_effect=self._identity_geodetic_to_cartesian,
+        ):
+            result = build_bounding_boxes(lats, lons, data)
+
+        z_min = result[:, :, 2]
+        self.assertTrue(np.allclose(z_min, alt - 30.0))
+
+    def test_alt_below_zero_elevation(self):
+        """
+        For alt=0 (sea level), clip(0, 0, None)=0, so alt_below = -30.
+        z_min for the identity stub should be -30.
+        """
+        lats = np.array([0.0, 1.0])
+        lons = np.array([0.0, 1.0])
+        alt = 0
+        data = np.full((2, 2), alt)
+
+        with patch(
+            "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
+            side_effect=self._identity_geodetic_to_cartesian,
+        ):
+            result = build_bounding_boxes(lats, lons, data)
+
+        z_min = result[:, :, 2]
+        self.assertTrue(np.allclose(z_min, alt - 30.0))
+
+    # ------------------------------------------------------------------
+    # Spacing / assertion guard
+    # ------------------------------------------------------------------
+
+    def test_unequal_lat_lon_spacing_raises(self):
+        """Unequal lat/lon spacing must trigger the internal assertion."""
+        lats = np.array([0.0, 1.0, 2.0])
+        lons = np.array([0.0, 2.0, 4.0])  # spacing=2 ≠ spacing=1
+        data = np.zeros((3, 3))
+
+        with self.assertRaises(AssertionError):
+            build_bounding_boxes(lats, lons, data)
+
+    def test_equal_spacing_does_not_raise(self):
+        """Equal lat/lon spacing must not raise."""
+        lats, lons, data = self._make_grid(spacing=0.5)
+        try:
+            with patch(
+                "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
+                side_effect=self._identity_geodetic_to_cartesian,
+            ):
+                build_bounding_boxes(lats, lons, data)
+        except AssertionError:
+            self.fail("build_bounding_boxes raised AssertionError for equal spacing")
+
+    # ------------------------------------------------------------------
+    # Call count – geodetic_to_cartesian is called 8× per cell
+    # ------------------------------------------------------------------
+
+    def test_geodetic_to_cartesian_call_count(self):
+        """The transform must be called exactly 8 times per grid cell."""
+        nlats, nlons = 2, 3
+        lats, lons, data = self._make_grid(nlats=nlats, nlons=nlons)
+
+        with patch(
+            "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
+            side_effect=self._identity_geodetic_to_cartesian,
+        ) as mock_fn:
+            build_bounding_boxes(lats, lons, data)
+
+        expected_calls = 8 * nlats * nlons
+        self.assertEqual(mock_fn.call_count, expected_calls)
+
+    # ------------------------------------------------------------------
+    # Varying elevation across cells
+    # ------------------------------------------------------------------
+
+    def test_different_elevations_per_cell(self):
+        """Each cell's z_max should equal that cell's elevation."""
+        lats = np.array([0.0, 1.0, 2.0])
+        lons = np.array([0.0, 1.0, 2.0])
+        data = np.array(
+            [[100.0, 200.0, 300.0], [400.0, 500.0, 600.0], [700.0, 800.0, 900.0]]
+        )
+
+        with patch(
+            "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
+            side_effect=self._identity_geodetic_to_cartesian,
+        ):
+            result = build_bounding_boxes(lats, lons, data)
+
+        # z_max (index 5) equals the surface elevation for each cell
+        np.testing.assert_allclose(result[..., 5], data)
+
+    # ------------------------------------------------------------------
+    # Correct corners are passed to the transform
+    # ------------------------------------------------------------------
+
+    def test_correct_corner_coordinates_passed(self):
+        """
+        For cell (lat=1, lon=1) with half_spacing=0.5, verify that the
+        8 exact (lat±0.5, lon±0.5, alt / alt_below) corner combos are
+        all present in the mock call arguments.
+        """
+        lats = np.array([1.0, 2.0])
+        lons = np.array([1.0, 2.0])
+        alt = 50.0
+        data = np.full((2, 2), alt)
+
+        with patch(
+            "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
+            side_effect=self._identity_geodetic_to_cartesian,
+        ) as mock_fn:
+            build_bounding_boxes(lats, lons, data)
+
+        # Extract calls for cell (0,0): first 8 calls
+        first_8 = mock_fn.call_args_list[:8]
+        actual = {(c.args[0], c.args[1], c.args[2]) for c in first_8}
+
+        hs = 0.5
+        lat, lon = 1.0, 1.0
+        alt_below = alt - 30.0
+        expected = {
+            (lat - hs, lon - hs, alt),
+            (lat + hs, lon - hs, alt),
+            (lat - hs, lon + hs, alt),
+            (lat + hs, lon + hs, alt),
+            (lat - hs, lon - hs, alt_below),
+            (lat + hs, lon - hs, alt_below),
+            (lat - hs, lon + hs, alt_below),
+            (lat + hs, lon + hs, alt_below),
+        }
+        self.assertEqual(actual, expected)
+
+
 # class FastLosTest(unittest.TestCase):
 #     """
 #     Important tests:
 #     ----------------
 
 #     - HbvTree.has_line_of_sight()
-
-#     Nice to have tests:
-#     -------------------
-
-#     - build_bounding_boxes()
-
 #     """
 
 
