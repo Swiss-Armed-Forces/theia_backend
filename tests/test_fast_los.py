@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from theia.terrain_fast_los import _los_kernel
+from theia.terrain_fast_los import _los_kernel, build_higher_level
 
 
 def _make_stack(max_depth: int) -> np.ndarray:
@@ -358,7 +358,6 @@ class TestLosKernelTree(unittest.TestCase):
     # ------------------------------------------------------------------
     def test_ray_on_leaf_boundary(self):
         data, children = self._build_tree()
-        stack = _make_stack(2)
         # Ray travels along y=0, the boundary between SW/SE and NW/NE leaves.
         # Conservative: the ray grazes both SW and SE leaf faces; either or
         # both may register as a hit (implementation-defined), so we just
@@ -392,21 +391,255 @@ class TestLosKernelNaNBehaviour(unittest.TestCase):
         )
         self.assertFalse(result)
 
+def _make_grid(
+    h: int,
+    w: int,
+    *,
+    x_min=0.0,
+    y_min=0.0,
+    z_min=0.0,
+    x_max=1.0,
+    y_max=1.0,
+    z_max=1.0,
+) -> np.ndarray:
+    """Return a (H, W, 6) array where every cell has the same AABB."""
+    cell = np.array([x_min, y_min, z_min, x_max, y_max, z_max], dtype=np.float64)
+    return np.broadcast_to(cell, (h, w, 6)).copy()
+
+
+# ---------------------------------------------------------------------------
+# Shape
+# ---------------------------------------------------------------------------
+
+
+class TestBuildHigherLevelShape(unittest.TestCase):
+    def test_grid_shape(self):
+        # Even grid shape.
+        out = build_higher_level(_make_grid(4, 4))
+        self.assertEqual(out.shape, (2, 2, 6))
+
+        # Even non-square.
+        out = build_higher_level(_make_grid(4, 8))
+        self.assertEqual(out.shape, (2, 4, 6))
+
+        # Odd height drops last row.
+        # 5×4 → only the first 4 rows are used → 2×2 output
+        out = build_higher_level(_make_grid(5, 4))
+        self.assertEqual(out.shape, (2, 2, 6))
+
+        # 5×2 input: the 5th row is dropped. Output must equal that of a 4×2 input
+        # with the same first four rows, regardless of what the 5th row contains.
+        base = np.random.default_rng(0).random((4, 2, 6))
+        with_extra = np.concatenate(
+            [base, np.full((1, 2, 6), fill_value=999.0)], axis=0
+        )
+        self.assertTrue(
+            np.allclose(
+                build_higher_level(base),
+                build_higher_level(with_extra),
+            )
+        )
+
+        # Odd width drops last column.
+        out = build_higher_level(_make_grid(4, 5))
+        self.assertEqual(out.shape, (2, 2, 6))
+
+        base = np.random.default_rng(1).random((2, 4, 6))
+        with_extra = np.concatenate(
+            [base, np.full((2, 1, 6), fill_value=999.0)], axis=1
+        )
+        self.assertTrue(
+            np.allclose(
+                build_higher_level(base),
+                build_higher_level(with_extra),
+            )
+        )
+
+        # Odd height and width drop last row and column.
+        out = build_higher_level(_make_grid(5, 5))
+        self.assertEqual(out.shape, (2, 2, 6))
+
+        # Minimum 2x2 case.
+        out = build_higher_level(_make_grid(2, 2))
+        self.assertEqual(out.shape, (1, 1, 6))
+
+        # 1x1 case returns empty array.
+        # 1//2 == 0 in each spatial dimension
+        out = build_higher_level(_make_grid(1, 1))
+        self.assertEqual(out.shape, (0, 0, 6))
+
+    def test_correct_pooling(self):
+        """
+        Each output cell must be the tightest AABB enclosing its 4 input children.
+        The 6 channels are: [x_min, y_min, z_min, x_max, y_max, z_max].
+        min-pool is applied to channels 0-2 (lower bounds).
+        max-pool is applied to channels 3-5 (upper bounds).
+        """
+
+        def _four_distinct_cells():
+            """
+            2×2 input where each cell has a distinct, non-overlapping AABB.
+            Arranged so the correct parent AABB is unambiguous.
+
+            cell (0,0): x∈[0,1], y∈[0,1], z∈[0,1]
+            cell (0,1): x∈[1,2], y∈[0,1], z∈[0,1]
+            cell (1,0): x∈[0,1], y∈[1,2], z∈[0,1]
+            cell (1,1): x∈[1,2], y∈[1,2], z∈[0,1]
+
+            Expected parent: x∈[0,2], y∈[0,2], z∈[0,1]
+            """
+            grid = np.array(
+                [
+                    [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0], [1.0, 0.0, 0.0, 2.0, 1.0, 1.0]],
+                    [[0.0, 1.0, 0.0, 1.0, 2.0, 1.0], [1.0, 1.0, 0.0, 2.0, 2.0, 1.0]],
+                ],
+                dtype=np.float64,
+            )
+            return grid
+
+        out = build_higher_level(_four_distinct_cells())
+
+        # Lower bounds use min.
+        # x_min, y_min, z_min should all be 0.0 (minimum across the 4 cells)
+        self.assertTrue(np.allclose(out[0, 0, :3], [0.0, 0.0, 0.0]))
+
+        # Upper bounds use max.
+        # x_max, y_max, z_max should all be 2.0 (maximum across the 4 cells)
+        self.assertTrue(np.allclose(out[0, 0, 3:], [2.0, 2.0, 1.0]))
+
+        # If axes were swapped, lower bounds would be too large and upper
+        # bounds too small — the AABB would fail to enclose its children.
+        self.assertTrue(
+            np.all(out[..., :3] <= out[..., 3:]),
+            "Every lower bound must be <= the corresponding upper bound",
+        )
+
+    def test_axes_are_not_mixed_up(self):
+        def _4x4_quadrant_grid():
+            """
+            4×4 grid where each 2×2 quadrant has a distinct z range so any
+            cross-quadrant bleed is immediately visible.
+
+            NW patch (rows 0-1, cols 0-1): z∈[0, 1]
+            NE patch (rows 0-1, cols 2-3): z∈[2, 3]
+            SW patch (rows 2-3, cols 0-1): z∈[4, 5]
+            SE patch (rows 2-3, cols 2-3): z∈[6, 7]
+
+            All cells share x∈[0,1], y∈[0,1] so only z distinguishes patches.
+            """
+            grid = np.zeros((4, 4, 6), dtype=np.float64)
+            grid[:, :, 3] = 1.0  # x_max
+            grid[:, :, 4] = 1.0  # y_max
+            for (rs, re, cs, ce), (z_lo, z_hi) in [
+                ((0, 2, 0, 2), (0.0, 1.0)),
+                ((0, 2, 2, 4), (2.0, 3.0)),
+                ((2, 4, 0, 2), (4.0, 5.0)),
+                ((2, 4, 2, 4), (6.0, 7.0)),
+            ]:
+                grid[rs:re, cs:ce, 2] = z_lo
+                grid[rs:re, cs:ce, 5] = z_hi
+            return grid
+
+        # Use asymmetric extents so a channel mix-up (e.g. y_min pooled into
+        # x_min) would produce a wrong value.
+        grid = np.array(
+            [
+                [
+                    [1.0, 10.0, 100.0, 2.0, 20.0, 200.0],
+                    [3.0, 30.0, 300.0, 4.0, 40.0, 400.0],
+                ],
+                [
+                    [5.0, 50.0, 500.0, 6.0, 60.0, 600.0],
+                    [7.0, 70.0, 700.0, 8.0, 80.0, 800.0],
+                ],
+            ],
+            dtype=np.float64,
+        )
+        out = build_higher_level(grid)
+        expected = np.array([1.0, 10.0, 100.0, 8.0, 80.0, 800.0])
+        self.assertTrue(np.allclose(out[0, 0], expected))
+
+        # Correct spatial grouping of cells.
+        # pool2d groups cells into non-overlapping 2×2 patches.
+        # A 4×4 input produces 4 independent output cells; each must reflect
+        # only its own 2×2 patch and not bleed into neighbours.
+        out = build_higher_level(_4x4_quadrant_grid())
+        self.assertEqual(out.shape, (2, 2, 6))
+        self.assertTrue(np.allclose(out[0, 0, 2:6:3], [0.0, 1.0]))  # NW: z∈[0,1]
+        self.assertTrue(np.allclose(out[0, 1, 2:6:3], [2.0, 3.0]))  # NE: z∈[2,3]
+        self.assertTrue(np.allclose(out[1, 0, 2:6:3], [4.0, 5.0]))  # SW: z∈[4,5]
+        self.assertTrue(np.allclose(out[1, 1, 2:6:3], [6.0, 7.0]))  # SE: z∈[6,7]
+
+        # No cross-patch-bleed.
+        out = build_higher_level(_4x4_quadrant_grid())
+        # If any patch bled into a neighbour the z ranges would overlap
+        z_mins = out[:, :, 2]
+        z_maxs = out[:, :, 5]
+        self.assertLess(z_maxs[0, 0], z_mins[0, 1], "NW z_max must be < NE z_min")
+        self.assertLess(z_maxs[0, 0], z_mins[1, 0], "NW z_max must be < SW z_min")
+
+    def test_edge_and_special_cases(self):
+        # Uniform grid: AABB out = AABB in
+        grid = _make_grid(
+            4,
+            4,
+            x_min=1.0,
+            y_min=2.0,
+            z_min=3.0,
+            x_max=4.0,
+            y_max=5.0,
+            z_max=6.0,
+        )
+        out = build_higher_level(grid)
+        expected = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+        self.assertTrue(np.allclose(out[0, 0], expected))
+        self.assertTrue(np.allclose(out[1, 1], expected))
+
+        # Negative coordinates.
+        grid = _make_grid(
+            2,
+            2,
+            x_min=-5.0,
+            y_min=-3.0,
+            z_min=-1.0,
+            x_max=-4.0,
+            y_max=-2.0,
+            z_max=0.0,
+        )
+        out = build_higher_level(grid)
+        self.assertTrue(
+            np.allclose(out[0, 0], [-5.0, -3.0, -1.0, -4.0, -2.0, 0.0]),
+        )
+
+        # AABB of volume zero should not raise an error.
+        grid = _make_grid(
+            2, 2, x_min=1.0, y_min=1.0, z_min=1.0, x_max=1.0, y_max=1.0, z_max=1.0
+        )
+        out = build_higher_level(grid)
+        self.assertTrue(np.allclose(out[0, 0], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
+
+        # Test output type.
+        grid = _make_grid(2, 2)
+        out = build_higher_level(grid)
+        self.assertEqual(out.dtype, np.float64)
+
+        # Test output is c-contiguous.
+        grid = _make_grid(4, 4)
+        out = build_higher_level(grid)
+        self.assertTrue(out.flags["C_CONTIGUOUS"])
+
 
 # class FastLosTest(unittest.TestCase):
 #     """
 #     Important tests:
 #     ----------------
 
-#     - _los_kernel() -> understand it!!!
 #     - HbvTree.has_line_of_sight()
 
 #     Nice to have tests:
 #     -------------------
 
 #     - build_bounding_boxes()
-#     - pool2d()
-#     - build_higher_level()
 
 #     """
 
