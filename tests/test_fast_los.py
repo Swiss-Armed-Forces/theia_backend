@@ -876,6 +876,223 @@ class TestBuildBoundingBoxes(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def make_hgt_tile(lat: int, lon: int, fill_value: float = 0.0) -> np.ndarray:
+    """Return a synthetic 1201×1201 HGT tile (standard SRTM-3 resolution)."""
+    return np.full((1201, 1201), fill_value, dtype=np.float32)
+
+
+def make_hgt_tile_gradient(lat: int, lon: int) -> np.ndarray:
+    """Return a tile whose values encode (lat, lon) for traceability."""
+    tile = np.zeros((1201, 1201), dtype=np.float32)
+    tile[:] = lat * 1000 + lon  # every cell = lat*1000 + lon
+    return tile
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+class TestLoadSrtmBboxes(unittest.TestCase):
+    """Unit tests for load_srtm_bboxes.
+
+    load_hgt_file is mocked throughout so no real .hgt files are needed.
+    """
+
+    # ------------------------------------------------------------------
+    # Return-type / shape invariants
+    # ------------------------------------------------------------------
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_returns_three_arrays(self, _mock):
+
+        result = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 3)
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_output_shapes_are_square_power_of_two(self, _mock):
+
+        lats, lons, data = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
+        N = len(lats)
+        self.assertEqual(len(lons), N)
+        self.assertEqual(data.shape, (N, N))
+        # N must be a power of two
+        self.assertTrue(
+            np.log2(N).is_integer(), f"Expected power-of-two side length, got {N}"
+        )
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_lats_and_lons_are_1d(self, _mock):
+
+        lats, lons, data = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
+        self.assertEqual(lats.ndim, 1)
+        self.assertEqual(lons.ndim, 1)
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_data_is_2d(self, _mock):
+
+        lats, lons, data = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
+        self.assertEqual(data.ndim, 2)
+
+    # ------------------------------------------------------------------
+    # Coordinate range / ordering
+    # ------------------------------------------------------------------
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_lats_start_at_floored_lat_start(self, _mock):
+
+        lats, lons, _ = load_srtm_bboxes(47.3, 48.7, 11.0, 12.0)
+        self.assertAlmostEqual(lats[0], 47.0)  # floor(47.3)
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_lons_start_at_floored_lon_start(self, _mock):
+
+        lats, lons, _ = load_srtm_bboxes(47.0, 48.0, 11.2, 12.8)
+        self.assertAlmostEqual(lons[0], 11.0)  # floor(11.2)
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_lats_are_monotonically_increasing(self, _mock):
+
+        lats, _, _ = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
+        self.assertTrue(np.all(np.diff(lats) > 0))
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_lons_are_monotonically_increasing(self, _mock):
+
+        _, lons, _ = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
+        self.assertTrue(np.all(np.diff(lons) > 0))
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_lats_are_uniformly_spaced(self, _mock):
+
+        lats, _, _ = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
+        diffs = np.diff(lats)
+        self.assertTrue(np.allclose(diffs, diffs[0]), "Latitude spacing is not uniform")
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_lons_are_uniformly_spaced(self, _mock):
+
+        _, lons, _ = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
+        diffs = np.diff(lons)
+        self.assertTrue(
+            np.allclose(diffs, diffs[0]), "Longitude spacing is not uniform"
+        )
+
+    # ------------------------------------------------------------------
+    # Bounding-box snapping (non-integer inputs)
+    # ------------------------------------------------------------------
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_fractional_bbox_is_snapped_to_integer_degrees(self, _mock):
+        """Non-integer lat/lon bounds must be snapped before tiling."""
+
+        # Fractional inputs — should snap to 47, 49, 11, 13
+        lats, lons, _ = load_srtm_bboxes(47.4, 48.9, 11.1, 12.6)
+        self.assertAlmostEqual(lats[0], 47.0)
+        self.assertAlmostEqual(lons[0], 11.0)
+
+    # ------------------------------------------------------------------
+    # Multi-tile stitching: load_hgt_file call count
+    # ------------------------------------------------------------------
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_single_tile_calls_load_hgt_once(self, mock_load):
+        load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
+        self.assertEqual(mock_load.call_count, 1)
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_two_lon_tiles_calls_load_hgt_twice(self, mock_load):
+        load_srtm_bboxes(47.0, 48.0, 11.0, 13.0)  # 1 lat × 2 lon tiles
+        self.assertEqual(mock_load.call_count, 2)
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_two_lat_tiles_calls_load_hgt_twice(self, mock_load):
+        load_srtm_bboxes(47.0, 49.0, 11.0, 12.0)  # 2 lat × 1 lon tiles
+        self.assertEqual(mock_load.call_count, 2)
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_2x2_grid_calls_load_hgt_four_times(self, mock_load):
+        load_srtm_bboxes(47.0, 49.0, 11.0, 13.0)  # 2 lat × 2 lon tiles
+        self.assertEqual(mock_load.call_count, 4)
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_correct_tile_coordinates_requested(self, mock_load):
+        """Verify that the correct (lat, lon) pairs are fetched."""
+
+        load_srtm_bboxes(47.0, 49.0, 11.0, 13.0)
+        called_args = {call.args for call in mock_load.call_args_list}
+        expected = {(47, 11), (47, 12), (48, 11), (48, 12)}
+        self.assertEqual(called_args, expected)
+
+    # ------------------------------------------------------------------
+    # Padding: zeros fill the padded region
+    # ------------------------------------------------------------------
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile_gradient)
+    def test_padded_region_is_zero(self, _mock):
+        """Cells outside the real data area must be zero-padded."""
+
+        lats, lons, data = load_srtm_bboxes(47.0, 48.0, 11.0, 13.0)
+        # For a 1-lat × 2-lon input the real columns are narrower than N
+        # when N is the next power-of-two; excess columns should be zero.
+        # The real data should be in the slice data[:1201, :2*1201] because
+        # the test data has side length 1201 per tile and consecutive tiles share
+        # the first row or column, respectively.
+        real_data = data[:1201, : 2 * 1201 - 1]
+        self.assertTrue(np.all(real_data != 0), "Real data should not be zero")
+        self.assertTrue(
+            np.all(data[1201:, :] == 0),
+            "Padded rows should be zero",
+        )
+        self.assertTrue(
+            np.all(data[:, 2 * 1201 - 1 :] == 0),
+            "Padded columns should be zero",
+        )
+
+    # ------------------------------------------------------------------
+    # Edge case: zero-fill for flat terrain
+    # ------------------------------------------------------------------
+
+    @patch(
+        "theia.terrain.load_hgt_file",
+        side_effect=lambda lat, lon: make_hgt_tile(lat, lon, 0.0),
+    )
+    def test_flat_terrain_returns_zero_data(self, _mock):
+
+        _, _, data = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
+        self.assertTrue(np.all(data == 0.0))
+
+    # ------------------------------------------------------------------
+    # Internal assertions in the function must not fire
+    # ------------------------------------------------------------------
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_no_assertion_error_single_tile(self, _mock):
+
+        try:
+            load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
+        except AssertionError as exc:
+            self.fail(f"load_srtm_bboxes raised AssertionError: {exc}")
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
+    def test_no_assertion_error_multi_tile(self, _mock):
+
+        try:
+            load_srtm_bboxes(47.0, 49.0, 11.0, 13.0)
+        except AssertionError as exc:
+            self.fail(f"load_srtm_bboxes raised AssertionError: {exc}")
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
 # class FastLosTest(unittest.TestCase):
 #     """
 #     Important tests:
