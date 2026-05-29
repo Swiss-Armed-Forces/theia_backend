@@ -57,6 +57,9 @@ def build_bounding_boxes(
     """
     Build the leafs of the terrain HBV tree.
 
+    Iterates through the terrain elevation grid in geodetic space and builds
+    an AABB in ECEF space for each grid cell.
+
     Parameters
     ----------
     lats: np.ndarray
