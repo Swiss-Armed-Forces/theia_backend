@@ -11,6 +11,7 @@ from pydantic import ConfigDict
 import tqdm
 
 from theia.coordinates import CoordinateTransformations
+import theia.terrain
 from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
 from theia.types import Point
 
@@ -87,7 +88,7 @@ def build_bounding_boxes(
     for i, lat in tqdm.tqdm(enumerate(lats), total=len(lats)):
         for j, lon in enumerate(lons):
             alt = data[i, j]
-            alt_below = np.clip(alt, 0, None) - 30
+            alt_below = alt - 30
             p1 = CoordinateTransformations.geodetic_to_cartesian(
                 lat - half_spacing,
                 lon - half_spacing,
@@ -515,3 +516,85 @@ def _los_kernel(
         top += 4
 
     return True  # no leaf hit → clear LOS
+
+
+def load_srtm_bboxes(
+    lat_start: float,
+    lat_stop: float,
+    lon_start: float,
+    lon_stop: float,
+    subsample_factor: int = 1,
+) -> np.ndarray:
+    """
+    Load SRTM data for the given region and stitch it together.
+    Also apply padding so that ``N`` is a power of two.
+    The padded elevation cells have altitude zero.
+
+    Returns
+    -------
+    lats: np.ndarray
+        Latitude values [°]; shape (N,)
+    lons: np.ndarray
+        Longitude values [°]; shape (N,)
+    data: np.ndarray
+        Altitude values [meters above sea level]; shape (N, N)
+    """
+
+    lat_start = np.floor(lat_start)
+    lat_stop = np.ceil(lat_stop)
+    lon_start = np.floor(lon_start)
+    lon_stop = np.ceil(lon_stop)
+
+    rows = []
+    for lat in range(int(lat_stop) - 1, int(lat_start) - 1, -1):  # ← north→south
+        row = []
+        for lon in range(int(lon_start), int(lon_stop)):
+            data = theia.terrain.load_hgt_file(lat, lon)[::-1, :]  # row 0 = north edge
+            if lon != lon_stop - 1:
+                data = data[:, :-1]
+            if lat != lat_start:
+                data = data[:-1, :]
+            row.append(data)
+        rows.append(np.hstack(row))
+    data = np.vstack(rows)
+
+    lats = np.linspace(lat_start, lat_stop, data.shape[0])
+    lons = np.linspace(lon_start, lon_stop, data.shape[1])
+
+    # Pad the data such that its shape is square with side length a power of 2.
+    N = 2 ** int(np.ceil(np.log2(max(len(lats), len(lons)))))
+
+    data_new = np.zeros((N, N))
+    data_new[: data.shape[0], : data.shape[1]] = data
+    lats_new = np.arange(N) * (lats[1] - lats[0]) + lats[0]
+    lons_new = np.arange(N) * (lons[1] - lons[0]) + lons[0]
+
+    assert np.allclose(lats_new[: len(lats)], lats)
+    assert np.allclose(lons_new[: len(lons)], lons)
+    assert np.allclose(data_new[: data.shape[0], : data.shape[1]], data)
+
+    data = data_new
+    lats = lats_new
+    lons = lons_new
+
+    assert np.log2(len(lats)).is_integer()
+    assert np.log2(len(lons)).is_integer()
+    assert len(lats) == len(lons)
+
+    return lats, lons, data
+
+
+def build_terrain_tree(
+    lat_start: float,
+    lat_stop: float,
+    lon_start: float,
+    lon_stop: float,
+) -> HbvTree:
+    lats, lons, data = load_srtm_bboxes(
+        lat_start,
+        lat_stop,
+        lon_start,
+        lon_stop,
+    )
+    bbox_coords = build_bounding_boxes(lats, lons, data)
+    return HbvTree.from_leaf_bboxes(bbox_coords)
