@@ -17,6 +17,7 @@ from theia.simulation.simulator import (
     Simulator,
     TimeCriterion,
 )
+from theia.terrain import SrtmTerrainModel
 from theia.test_data import load_pcl_example
 from theia.types import ConstantRcsModel, SituationalPicture
 
@@ -32,8 +33,6 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
                 for t in trajectories
             ]
         )
-        pcl_detector = PclDetector()
-        pet_detector = PetDetector()
 
         start_time = min([t.times[0] for t in trajectories])
         stop_time = max([t.times[-1] for t in trajectories])
@@ -42,9 +41,11 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
 
         rng = np.random.Generator(np.random.PCG64(seed=4054080))
 
+        terrain = SrtmTerrainModel()
+
         simulator = Simulator(
-            pcl_detector=pcl_detector,
-            pet_detector=pet_detector,
+            pcl_detector=PclDetector(),
+            pet_detector=PetDetector(terrain_model=terrain),
             blue_controller=ControllerGroup(
                 [
                     PclSensorController(
@@ -55,6 +56,8 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
                         sensor,
                         True,
                         ConstantRcsModel(rcs=1.0),
+                        own_receiver=True,
+                        own_transmitter=True,
                     )
                     for sensor in sensors
                 ]
@@ -77,6 +80,7 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
             rng=rng,
             listener=self,
             simulate_clutter=False,
+            terrain_model=terrain,
         )
 
         while simulator.advance():
