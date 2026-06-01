@@ -12,6 +12,7 @@ from theia.types import Point
 
 class CoverageTest(unittest.TestCase):
     def test_coverage(self):
+        terrain_model = SrtmTerrainModel()
         # Load reference coverage.
         reference_coverage = gpd.read_file(
             f"{Path(__file__).resolve().parent}/test_data/reference_coverage.geojson"
@@ -27,7 +28,7 @@ class CoverageTest(unittest.TestCase):
         start = Point(
             lat=p.lat,
             lon=p.lon,
-            alt=SrtmTerrainModel().elevationAt(p.lat, p.lon),
+            alt=terrain_model.elevationAt(p.lat, p.lon),
         )
 
         target_flight_height = 1000.0
@@ -36,7 +37,7 @@ class CoverageTest(unittest.TestCase):
         max_dist = 16500.001
 
         coverage = calculate_coverage(
-            SrtmTerrainModel(),
+            terrain_model,
             start,
             max_dist,
             target_flight_height,
