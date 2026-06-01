@@ -10,7 +10,7 @@ from theia.detection.active import calculate_monostatic_detection
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.radar_equation import calculate_maximum_monostatic_range
-from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
+from theia.terrain import AbstractTerrainModel
 from theia.types import (
     AbstractTracker,
     MonostaticRadarDetection,
@@ -57,8 +57,8 @@ class Simulator:
         termination_criterion: TerminationCriterion,
         rng: np.random.Generator,
         listener: AbstractSimulationListener,
+        terrain_model: AbstractTerrainModel,
         simulate_clutter: bool = True,
-        terrain_model: AbstractTerrainModel = SrtmTerrainModel(),
     ):
         """
         Parameters
