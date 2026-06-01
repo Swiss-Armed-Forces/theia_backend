@@ -2,11 +2,11 @@ import abc
 import functools
 import math
 import os
+from rasterio.fill import fillnodata
 
 import numba
 import numpy as np
 import pydantic
-
 from theia.config import ELEVATION_DATA_DIR
 from theia.coordinates import CoordinateTransformations
 from theia.distance import R_EARTH, haversine
@@ -22,7 +22,22 @@ def load_hgt_file(lat0: int, lon0: int) -> np.ndarray:
     size = os.path.getsize(path)
     dim = int(math.sqrt(size / 2))
     assert dim**2 * 2 == size
-    return np.fromfile(path, ">i2").reshape(dim, dim).astype(np.int16)
+    data = np.fromfile(path, ">i2").reshape(dim, dim).astype(np.int16)
+
+    # Fill in missing data.
+    nodata_value = -32768
+    mask = (data != nodata_value).astype(np.uint8) * 255
+    filled = data.astype(float)
+    filled[filled == nodata_value] = np.nan
+
+    filled = fillnodata(
+        image=filled,
+        mask=mask,
+        max_search_distance=100,
+        smoothing_iterations=0,
+    )
+
+    return np.round(filled).astype(data.dtype)
 
 
 @numba.jit
