@@ -5,10 +5,10 @@ import threading
 from typing import Callable
 from zipfile import ZipFile
 
+from joblib import Parallel, delayed
 import numba
 import numpy as np
 from pydantic import ConfigDict
-import tqdm
 
 from theia.coordinates import CoordinateTransformations
 import theia.terrain
@@ -84,8 +84,8 @@ def build_bounding_boxes(
     assert np.isclose(half_spacing_lat, half_spacing_lon)
     half_spacing = half_spacing_lat
 
-    bbox_coords = np.empty((len(lats), len(lons), 6))
-    for i, lat in tqdm.tqdm(enumerate(lats), total=len(lats)):
+    def process_row(i, lat):
+        row = np.empty((len(lons), 6))
         for j, lon in enumerate(lons):
             alt = data[i, j]
             alt_below = alt - 30
@@ -129,10 +129,18 @@ def build_bounding_boxes(
                 lon + half_spacing,
                 alt_below,
             )
-
             points = np.stack([p1, p2, p3, p4, p5, p6, p7, p8])
-            bbox_coords[i, j, :3] = np.min(points, axis=0)
-            bbox_coords[i, j, 3:] = np.max(points, axis=0)
+            row[j, :3] = np.min(points, axis=0)
+            row[j, 3:] = np.max(points, axis=0)
+        return row
+
+    results = Parallel(n_jobs=-1)(
+        delayed(process_row)(i, lat) for i, lat in enumerate(lats)
+    )
+
+    bbox_coords = np.empty((len(lats), len(lons), 6))
+    for i, row in enumerate(results):
+        bbox_coords[i] = row
     return bbox_coords
 
 
