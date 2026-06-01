@@ -1,11 +1,21 @@
 import math
+import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
 import numpy as np
 
-from theia.coordinates import CoordinateTransformations
-from theia.terrain_fast_los import _los_kernel, build_bounding_boxes, build_higher_level
+from theia.terrain_fast_los import (
+    HbvTree,
+    Ray,
+    _depth_to_num_nodes,
+    _los_kernel,
+    _num_nodes_to_depth,
+    build_bounding_boxes,
+    build_higher_level,
+    load_srtm_bboxes,
+)
 
 
 def _make_stack(max_depth: int) -> np.ndarray:
@@ -717,7 +727,7 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ):
-            result = build_bounding_boxes(lats, lons, data)
+            result = build_bounding_boxes(lats, lons, data, n_jobs=1)
 
         expected = np.array(
             [
@@ -747,10 +757,10 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ):
-            result = build_bounding_boxes(lats, lons, data)
+            result = build_bounding_boxes(lats, lons, data, n_jobs=1)
 
         z_min = result[:, :, 2]
-        self.assertTrue(np.allclose(z_min, alt - 30.0))
+        np.testing.assert_allclose(z_min, alt - 30.0)
 
     def test_alt_below_zero_elevation(self):
         """
@@ -766,7 +776,7 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ):
-            result = build_bounding_boxes(lats, lons, data)
+            result = build_bounding_boxes(lats, lons, data, n_jobs=1)
 
         z_min = result[:, :, 2]
         self.assertTrue(np.allclose(z_min, alt - 30.0))
@@ -809,7 +819,7 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ) as mock_fn:
-            build_bounding_boxes(lats, lons, data)
+            build_bounding_boxes(lats, lons, data, n_jobs=1)
 
         expected_calls = 8 * nlats * nlons
         self.assertEqual(mock_fn.call_count, expected_calls)
@@ -830,7 +840,7 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ):
-            result = build_bounding_boxes(lats, lons, data)
+            result = build_bounding_boxes(lats, lons, data, n_jobs=1)
 
         # z_max (index 5) equals the surface elevation for each cell
         np.testing.assert_allclose(result[..., 5], data)
@@ -854,7 +864,7 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ) as mock_fn:
-            build_bounding_boxes(lats, lons, data)
+            build_bounding_boxes(lats, lons, data, n_jobs=1)
 
         # Extract calls for cell (0,0): first 8 calls
         first_8 = mock_fn.call_args_list[:8]
@@ -1087,6 +1097,339 @@ class TestLoadSrtmBboxes(unittest.TestCase):
             load_srtm_bboxes(47.0, 49.0, 11.0, 13.0)
         except AssertionError as exc:
             self.fail(f"load_srtm_bboxes raised AssertionError: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+
+def _unit_leaf_grid(n: int) -> np.ndarray:
+    """Return an (n, n, 6) grid of unit cubes with AABB [j, i, 0, j+1, i+1, 1]."""
+    leaves = np.zeros((n, n, 6))
+    for i in range(n):
+        for j in range(n):
+            leaves[i, j] = [j, i, 0.0, j + 1.0, i + 1.0, 1.0]
+    return leaves
+
+
+def _simple_2x2_tree() -> HbvTree:
+    """
+    2×2 grid of unit cubes tiling [0,2]×[0,2]×[0,1].
+
+    Leaf layout (x increases right, y increases up):
+        (0,1)=[0,1,0,1,2,1]  (1,1)=[1,1,0,2,2,1]
+        (0,0)=[0,0,0,1,1,1]  (1,0)=[1,0,0,2,1,1]
+    """
+    return HbvTree.from_leaf_bboxes(_unit_leaf_grid(2))
+
+
+# ===========================================================================
+# 1. Helper function tests
+# ===========================================================================
+
+
+class TestDepthToNumNodes(unittest.TestCase):
+    def test_depth_0(self):
+        self.assertEqual(_depth_to_num_nodes(0), 0)
+
+    def test_depth_1(self):
+        # Root only
+        self.assertEqual(_depth_to_num_nodes(1), 1)
+
+    def test_depth_2(self):
+        # 1 root + 4 children
+        self.assertEqual(_depth_to_num_nodes(2), 5)
+
+    def test_depth_3(self):
+        # 1 + 4 + 16
+        self.assertEqual(_depth_to_num_nodes(3), 21)
+
+    def test_depth_4(self):
+        # 1 + 4 + 16 + 64
+        self.assertEqual(_depth_to_num_nodes(4), 85)
+
+    def test_geometric_formula(self):
+        for d in range(1, 8):
+            expected = (4**d - 1) // 3
+            with self.subTest(depth=d):
+                self.assertEqual(_depth_to_num_nodes(d), expected)
+
+
+class TestNumNodesToDepth(unittest.TestCase):
+    def test_depth_1(self):
+        self.assertEqual(_num_nodes_to_depth(1), 1)
+
+    def test_depth_2(self):
+        self.assertEqual(_num_nodes_to_depth(5), 2)
+
+    def test_depth_3(self):
+        self.assertEqual(_num_nodes_to_depth(21), 3)
+
+    def test_roundtrip(self):
+        for d in range(1, 8):
+            with self.subTest(depth=d):
+                self.assertEqual(_num_nodes_to_depth(_depth_to_num_nodes(d)), d)
+
+
+class TestRay(unittest.TestCase):
+    def test_basic_construction(self):
+        r = Ray([0, 0, 0], [1, 0, 0], t_max=10.0)
+        np.testing.assert_array_equal(r.p_start, [0, 0, 0])
+        np.testing.assert_array_equal(r.direction, [1, 0, 0])
+        self.assertEqual(r.t_max, 10.0)
+
+    def test_zero_direction_raises(self):
+        with self.assertRaises(ValueError):
+            Ray([0, 0, 0], [0, 0, 0], t_max=1.0)
+
+    def test_list_input_accepted(self):
+        r = Ray([1.0, 2.0, 3.0], [0.0, 0.0, 1.0], 100.0)
+        self.assertEqual(r.t_max, 100.0)
+
+
+# ===========================================================================
+# 3 & 4. Tree construction and structural tests
+# ===========================================================================
+
+
+class TestFromLeafBboxes(unittest.TestCase):
+    def test_non_power_of_two_raises(self):
+        with self.assertRaises(ValueError):
+            HbvTree.from_leaf_bboxes(np.zeros((3, 3, 6)))
+
+    def test_zero_size_raises(self):
+        with self.assertRaises(ValueError):
+            HbvTree.from_leaf_bboxes(np.zeros((0, 0, 6)))
+
+    def test_2x2_node_count(self):
+        # 2×2 leaves → depth 2 → 5 nodes
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2))
+        self.assertEqual(tree._data.shape, (5, 6))
+        self.assertEqual(tree._children.shape, (5, 4))
+
+    def test_4x4_node_count(self):
+        # 4×4 leaves → depth 3 → 21 nodes
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        self.assertEqual(tree._data.shape[0], 21)
+
+    def test_8x8_node_count(self):
+        # 8×8 leaves → depth 4 → 85 nodes
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(8))
+        self.assertEqual(tree._data.shape[0], 85)
+
+    def test_root_aabb_2x2(self):
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2))
+        root = tree._data[0]
+        # Leaves span x∈[0,2], y∈[0,2], z∈[0,1]
+        self.assertAlmostEqual(root[0], 0.0)  # xmin
+        self.assertAlmostEqual(root[1], 0.0)  # ymin
+        self.assertAlmostEqual(root[2], 0.0)  # zmin
+        self.assertAlmostEqual(root[3], 2.0)  # xmax
+        self.assertAlmostEqual(root[4], 2.0)  # ymax
+        self.assertAlmostEqual(root[5], 1.0)  # zmax
+
+    def test_root_aabb_4x4(self):
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        root = tree._data[0]
+        self.assertAlmostEqual(root[0], 0.0)
+        self.assertAlmostEqual(root[3], 4.0)
+        self.assertAlmostEqual(root[4], 4.0)
+
+    def test_leaves_have_no_children(self):
+        """All child indices of leaf nodes must be -1."""
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2))
+        # For a depth-2 tree the leaves are nodes 1–4
+        for node_idx in range(1, 5):
+            with self.subTest(node=node_idx):
+                self.assertTrue(np.all(tree._children[node_idx] == -1))
+
+    def test_root_has_four_children(self):
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2))
+        self.assertTrue(np.all(tree._children[0] == [1, 2, 3, 4]))
+
+    def test_parent_aabb_contains_children_aabbs(self):
+        """Every internal node AABB must contain each of its children's AABBs."""
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        data = tree._data
+        children = tree._children
+        for node_idx in range(len(data)):
+            for c in children[node_idx]:
+                if c == -1:
+                    continue
+                with self.subTest(parent=node_idx, child=int(c)):
+                    self.assertTrue(
+                        np.all(data[node_idx, :3] <= data[c, :3] + 1e-12),
+                        msg=f"Node {node_idx} min exceeds child {c} min",
+                    )
+                    self.assertTrue(
+                        np.all(data[node_idx, 3:] >= data[c, 3:] - 1e-12),
+                        msg=f"Node {node_idx} max less than child {c} max",
+                    )
+
+
+# ===========================================================================
+# 5. Line-of-sight query tests
+# ===========================================================================
+
+
+class TestHasLineOfSightClear(unittest.TestCase):
+    """Rays that should pass through unobstructed."""
+
+    def setUp(self):
+        self.tree = _simple_2x2_tree()
+
+    def test_ray_above_terrain(self):
+        """Ray well above terrain (z > 1) travels horizontally → clear."""
+        ray = Ray([0.5, 0.5, 2.0], [1, 0, 0], t_max=5.0)
+        self.assertTrue(self.tree.has_line_of_sight(ray))
+
+    def test_ray_beside_terrain_in_x(self):
+        """Ray travels in +y at x = -1, entirely outside [0,2] → clear."""
+        ray = Ray([-1, 0, 0.5], [0, 1, 0], t_max=3.0)
+        self.assertTrue(self.tree.has_line_of_sight(ray))
+
+    def test_ray_t_max_zero_outside_terrain(self):
+        """t_max = 0 with origin above terrain → clear (ray travels nowhere)."""
+        ray = Ray([1.0, 1.0, 2.0], [0, 0, 1], t_max=0.0)
+        self.assertTrue(self.tree.has_line_of_sight(ray))
+
+    def test_ray_too_short_to_reach_terrain(self):
+        """Ray aimed at terrain but t_max too small to arrive → clear."""
+        # Terrain top at z=1, origin at z=5, t_max=2 → ray stops at z=3
+        ray = Ray([1.0, 1.0, 5.0], [0, 0, -1], t_max=2.0)
+        self.assertTrue(self.tree.has_line_of_sight(ray))
+
+    def test_ray_travelling_away_from_terrain(self):
+        """Ray starts above terrain and moves further away → clear."""
+        ray = Ray([1.0, 1.0, 2.0], [0, 0, 1], t_max=5.0)
+        self.assertTrue(self.tree.has_line_of_sight(ray))
+
+
+class TestHasLineOfSightBlocked(unittest.TestCase):
+    """Rays that should be obstructed by terrain."""
+
+    def setUp(self):
+        self.tree = _simple_2x2_tree()
+
+    def test_vertical_ray_through_centre(self):
+        """Vertical ray downward from above hits terrain → blocked."""
+        ray = Ray([1.0, 1.0, 2.0], [0, 0, -1], t_max=5.0)
+        self.assertFalse(self.tree.has_line_of_sight(ray))
+
+    def test_horizontal_ray_through_terrain(self):
+        """Horizontal ray at mid-height sweeps through the terrain slab → blocked."""
+        ray = Ray([-0.5, 1.0, 0.5], [1, 0, 0], t_max=10.0)
+        self.assertFalse(self.tree.has_line_of_sight(ray))
+
+    def test_diagonal_ray_enters_terrain(self):
+        """45° diagonal ray enters a leaf AABB → blocked."""
+        ray = Ray([-1, -1, 0.5], [1, 1, 0], t_max=10.0)
+        self.assertFalse(self.tree.has_line_of_sight(ray))
+
+    def test_ray_just_long_enough_to_reach_terrain(self):
+        """t_max sufficient to enter terrain → blocked."""
+        # Origin z=2, direction -z; terrain top at z=1, so t=1 enters terrain
+        ray = Ray([1.0, 1.0, 2.0], [0, 0, -1], t_max=1.5)
+        self.assertFalse(self.tree.has_line_of_sight(ray))
+
+    def test_origin_inside_terrain(self):
+        """Ray origin inside a leaf AABB, t_max = 0 → blocked."""
+        ray = Ray([1.0, 1.0, 0.5], [0, 0, 1], t_max=0.0)
+        self.assertFalse(self.tree.has_line_of_sight(ray))
+
+
+class TestHasLineOfSightEdgeCases(unittest.TestCase):
+    def setUp(self):
+        self.tree = _simple_2x2_tree()
+
+    def test_result_is_bool(self):
+        """Return type must be bool for both clear and blocked rays."""
+        clear_ray = Ray([0, 0, 5], [0, 0, 1], t_max=1.0)
+        blocked_ray = Ray([0, 0, 5], [0, 0, -1], t_max=10.0)
+        self.assertIsInstance(self.tree.has_line_of_sight(clear_ray), bool)
+        self.assertIsInstance(self.tree.has_line_of_sight(blocked_ray), bool)
+
+    def test_ray_grazing_aabb_top_face(self):
+        """Ray at exactly z=1 (top face of terrain) must not raise."""
+        ray = Ray([1.0, 1.0, 1.0], [1, 0, 0], t_max=5.0)
+        result = self.tree.has_line_of_sight(ray)
+        self.assertIsInstance(result, bool)
+        self.assertFalse(result)
+
+    def test_repeated_queries_are_consistent(self):
+        """Same ray queried multiple times must return the same result."""
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        blocked_ray = Ray([2.0, 2.0, 5.0], [0, 0, -1], t_max=10.0)
+        clear_ray = Ray([2.0, 2.0, 5.0], [0, 0, 1], t_max=3.0)
+        for _ in range(10):
+            self.assertFalse(tree.has_line_of_sight(blocked_ray))
+            self.assertTrue(tree.has_line_of_sight(clear_ray))
+
+
+class TestHasLineOfSightDeepTrees(unittest.TestCase):
+    """Line-of-sight queries on deeper (4×4 and 8×8) trees."""
+
+    def test_4x4_clear(self):
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        ray = Ray([2.0, 2.0, 5.0], [0, 0, 1], t_max=3.0)
+        self.assertTrue(tree.has_line_of_sight(ray))
+
+    def test_4x4_blocked(self):
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        ray = Ray([2.0, 2.0, 5.0], [0, 0, -1], t_max=10.0)
+        self.assertFalse(tree.has_line_of_sight(ray))
+
+    def test_8x8_clear(self):
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(8))
+        ray = Ray([4.0, 4.0, 5.0], [0, 0, 1], t_max=3.0)
+        self.assertTrue(tree.has_line_of_sight(ray))
+
+    def test_8x8_blocked(self):
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(8))
+        ray = Ray([4.0, 4.0, 5.0], [0, 0, -1], t_max=10.0)
+        self.assertFalse(tree.has_line_of_sight(ray))
+
+
+# ===========================================================================
+# 6. Persistence (save / load round-trip)
+# ===========================================================================
+
+
+class TestSaveLoad(unittest.TestCase):
+    def setUp(self):
+        self.tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+        tmp.close()
+        self.path = tmp.name
+        self.tree.save(self.path)
+        self.loaded = HbvTree.load(self.path)
+
+    def tearDown(self):
+        os.unlink(self.path)
+
+    def test_data_array_preserved(self):
+        np.testing.assert_array_equal(self.tree._data, self.loaded._data)
+
+    def test_children_array_preserved(self):
+        np.testing.assert_array_equal(self.tree._children, self.loaded._children)
+
+    def test_stack_size_preserved(self):
+        self.assertEqual(self.tree._stack_size, self.loaded._stack_size)
+
+    def test_queries_match_original(self):
+        """Reloaded tree must give identical query results to the original."""
+        rays = [
+            Ray([2, 2, 5], [0, 0, -1], 10.0),  # blocked
+            Ray([2, 2, 5], [0, 0, 1], 3.0),  # clear
+            Ray([-1, 2, 0.5], [1, 0, 0], 10.0),  # blocked (enters terrain)
+        ]
+        for ray in rays:
+            with self.subTest(ray_origin=ray.p_start):
+                self.assertEqual(
+                    self.tree.has_line_of_sight(ray),
+                    self.loaded.has_line_of_sight(ray),
+                )
 
 
 if __name__ == "__main__":
