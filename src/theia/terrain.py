@@ -36,8 +36,10 @@ def load_hgt_file(lat0: int, lon0: int) -> np.ndarray:
         max_search_distance=100,
         smoothing_iterations=0,
     )
+    # Set 0 MASL to spots where no missing data could be imputed.
+    filled = np.where(np.isfinite(filled), np.round(filled), 0)
 
-    return np.round(filled).astype(data.dtype)
+    return filled.astype(np.int16)
 
 
 @numba.jit
