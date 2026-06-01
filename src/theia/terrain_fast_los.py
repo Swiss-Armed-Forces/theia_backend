@@ -53,7 +53,10 @@ class FastSrtmModel(AbstractTerrainModel):
 
 
 def build_bounding_boxes(
-    lats: np.ndarray, lons: np.ndarray, data: np.ndarray
+    lats: np.ndarray,
+    lons: np.ndarray,
+    data: np.ndarray,
+    n_jobs: int = -1,
 ) -> np.ndarray:
     """
     Build the leafs of the terrain HBV tree.
@@ -69,6 +72,8 @@ def build_bounding_boxes(
         Array of longitude values [°]; shape (Nlons,)
     data: np.ndarray
         Elevation data [meters above sea level]; shape (Nlats, Nlons)
+    n_jobs: int, default -1
+        Number of parallel jobs. By default, joblib will try to use all CPUs
 
     Returns
     -------
@@ -134,7 +139,7 @@ def build_bounding_boxes(
             row[j, 3:] = np.max(points, axis=0)
         return row
 
-    results = Parallel(n_jobs=-1)(
+    results = Parallel(n_jobs=n_jobs)(
         delayed(process_row)(i, lat) for i, lat in enumerate(lats)
     )
 
@@ -205,40 +210,66 @@ class Ray:
     Maximum ray parameter to consider (corresponds to maximum distance, but is unitless)
     """
 
+    def __post_init__(self):
+        if np.allclose(self.direction, 0):
+            raise ValueError("Ray direction must not be zero!")
+
+
+def _num_nodes_to_depth(N: int) -> int:
+    """
+    Convert number of nodes in a quadtree to its depth.
+    """
+    # The number of nodes in a tree of depth d is N = 4^0 + 4^1 + 4^2 + ... + 4^(d-1),
+    # which is a geometric series and therefore simplifies to
+    # N = (4^d - 1) / (4 - 1)
+    # Solving for d yields:
+    # d = 0.5 * log2(3N + 1)
+    return int(np.round(0.5 * np.log2(3 * N + 1)))
+
+
+def _depth_to_num_nodes(depth: int) -> int:
+    """
+    Get the number of nodes in a complete quadtree from its depth.
+    """
+    # The number of nodes in a tree of depth d is N = 4^0 + 4^1 + 4^2 + ... + 4^d,
+    # which is a geometric series and therefore simplifies to
+    # N = (4^d - 1) / (4 - 1)
+    return int(np.round((4**depth - 1) / 3))
+
 
 class HbvTree:
     """
-    Hierarchical bounding volumes tree for terrain data.
+    Hierarchical Bounding Volume (HBV) tree for terrain line-of-sight queries.
 
-    The bounding volumes are axis-aligned bounding boxes (AABB) in Cartesian space.
+    The tree is a complete quadtree in which each node stores an
+    axis-aligned bounding box (AABB) in Cartesian ECEF (x, y, z) space.  Internal
+    nodes contain the tightest AABB that encloses all four children; leaf nodes
+    correspond 1-to-1 with the input terrain grid cells.
+
+    Nodes are stored in breadth-first order so that the root is at index 0 and
+    leaves occupy the highest indices.  Within each depth level nodes are in
+    row-major (C) order over the 2-D geodetic grid.
+
+    Parameters
+    ----------
+    data:
+        ``float64`` array, shape ``(N_nodes, 6)``.  Each row contains
+        ``[xmin, ymin, zmin, xmax, ymax, zmax]`` for the corresponding AABB.
+    children:
+        ``int64`` array, shape ``(N_nodes, 4)``.  Each row contains the flat
+        indices of the four child nodes.  ``-1`` means "no child" (leaf).
+
+    Thread safety
+    -------------
+    :meth:`has_line_of_sight` is thread-safe.  The Numba kernel releases the
+    GIL; each calling thread uses its own scratch stack buffer allocated via
+    :attr:`_tls` (thread-local storage) on first use.
+
+    See Also
+    --------
+    HbvTree.from_leaf_bboxes : Recommended constructor from a leaf-AABB grid.
+    HbvTree.load             : Load a previously saved tree from disk.
     """
-
-    # def __getitem__(
-    #     self, index: int | tuple[int, int, int]
-    # ) -> tuple[BBoxParams, tuple[int, int, int, int]]:
-    #     """
-    #     Access the node either by flat index or (depth, i, j) index.
-
-    #     Returns
-    #     -------
-    #     BBoxParams:
-    #         Parameters of the node with the given index
-    #     tuple[int, int, int, int]:
-    #         Flat indices of the four children;
-    #         equal to (-1, -1, -1, -1) for lead nodes
-    #     """
-    #     if isinstance(index, int):
-    #         flat_index = index
-    #     elif isinstance(index) is tuple and len(index) == 3:
-    #         depth, i, j = index
-    #         flat_index = (
-    #             self._cum_N_per_depth[depth - 1]
-    #             + self._N_linear_per_depth[depth - 1] * i
-    #             + j
-    #         )
-    #     else:
-    #         raise RuntimeError()
-    #     return self._data[flat_index, :], self._children[flat_index, :]
 
     def __init__(self, data: np.ndarray, children: np.ndarray):
         data = np.ascontiguousarray(data, dtype=np.float64)
@@ -246,99 +277,124 @@ class HbvTree:
 
         self._data = data
         """
-        Parameters of each AABB, i. e. xmin, ymin, zmin, xmax, ymax, zmax.
-        The nodes are ordered by ascending depth, i. e. larger nodes come first.
-        Shape (N_nodes, 6)
+        AABB parameters for every node: ``[xmin, ymin, zmin, xmax, ymax, zmax]``.
+        Nodes are in breadth-first / ascending-depth order (root at index 0).
+        Shape ``(N_nodes, 6)``.
         """
+
         self._children = children
         """
-        Flat indices of the child nodes. Value -1 indicates no children.
-        The nodes are ordered by ascending depth, i. e. larger nodes come first.
-        Shape (N_nodes, 4). 
+        Flat child indices for every node.  ``-1`` indicates no child (leaf).
+        Nodes are in breadth-first / ascending-depth order (root at index 0).
+        Shape ``(N_nodes, 4)``.
         """
-        # Convert number of nodes to depth.
-        max_depths = {
-            1: 1,
-            5: 2,
-            21: 3,
-            85: 4,
-            341: 5,
-            1365: 6,
-            5461: 7,
-            21845: 8,
-            87381: 9,
-            349525: 10,
-            1398101: 11,
-            5592405: 12,
-            22369621: 13,
-            89478485: 14,
-            357913941: 15,
-            1431655765: 16,
-            5726623061: 17,
-            22906492245: 18,
-            91625968981: 19,
-            366503875925: 20,
-        }
-        max_depth = max_depths[data.shape[0]]
-        self._N_linear_per_depth = [2**i for i in range(max_depth + 1)]
-        self._cum_N_per_depth = [0] + list(
-            itertools.accumulate((2 ** (2 * i) for i in range(max_depth)))
-        )
 
-        # Maximum DFS stack occupancy for a complete quadtree:
-        #   start with 1 (root), each level pops 1 and pushes 4 → net +3.
-        #   After traversing d levels: 1 + 3*(d-1) + 4 = 3*d + 2.
-        # A small constant over-allocation is cheaper than a bounds check.
+        # Stack size for iterative DFS over a complete quadtree:
+        #   Depth d → at most 1 + 3*(d-1) + 4 = 3*d + 2 entries on the stack
+        #   simultaneously.  A small constant over-allocation avoids
+        #   per-push bounds checks inside the hot kernel.
+        max_depth = _num_nodes_to_depth(data.shape[0])
         self._stack_size = 3 * max_depth + 4
 
-        # Thread-local storage: numba releases the GIL so multiple Python
-        # threads can call has_line_of_sight concurrently on the same tree.
-        # Each thread gets its own stack buffer; no locks required.
+        # Thread-local scratch buffers; allocated lazily on first use per thread.
         self._tls = threading.local()
 
     @staticmethod
     def from_leaf_bboxes(leaf_bbox_coordinates: np.ndarray) -> HbvTree:
         """
+        Build a complete quadtree from a 2-D grid of leaf AABBs.
+
+        The input grid must be square with a side length that is a power of
+        two.  The tree is constructed bottom-up: each internal node's AABB is
+        the union of its four children's AABBs.
+
         Parameters
         ----------
-        leaf_bbox_coordinates: np.ndarray
-            Parameters of the AABB. Shape: ``(N, N, 6)``
-            The first two axes refer to the geodetic coordinate grid on which
-            the AABBs are defined. The last axis corresponds to the AABB parameters
-                ``xmin, ymin, zmin, xmax, ymax, zmax``.
-            ``N`` is the number of leafs.
+        leaf_bbox_coordinates:
+            ``float64`` array, shape ``(N, N, 6)``.
+            The first two axes index the geodetic grid; the last axis contains
+            ``[xmin, ymin, zmin, xmax, ymax, zmax]`` for each leaf cell.
+            ``N`` must be a positive power of two.
+
+        Returns
+        -------
+        HbvTree
+            Fully constructed tree ready for line-of-sight queries.
+
+        Raises
+        ------
+        ValueError
+            If the grid side length is not a positive power of two.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> leaves = np.zeros((2, 2, 6))          # 2×2 grid of unit AABBs
+        >>> leaves[..., 3:] = 1.0                  # xmax=ymax=zmax=1
+        >>> tree = HbvTree.from_leaf_bboxes(leaves)
         """
-        max_depth = int(np.log2(leaf_bbox_coordinates.shape[0])) + 1
+        N = leaf_bbox_coordinates.shape[0]
+        if N == 0 or (N & (N - 1)) != 0:
+            raise ValueError(
+                f"Leaf grid side length must be a positive power of two; got {N}."
+            )
+
+        max_depth = int(np.round(np.log2(N))) + 1
         all_bbox_coords: dict[int, np.ndarray] = {max_depth: leaf_bbox_coordinates}
         for depth in range(max_depth, 1, -1):
             all_bbox_coords[depth - 1] = build_higher_level(all_bbox_coords[depth])
-        N_linear_per_depth = [2**i for i in range(max_depth + 1)]
-        cum_N_per_depth = [0] + list(
-            itertools.accumulate((2 ** (2 * i) for i in range(max_depth)))
-        )
-        N_nodes = cum_N_per_depth[max_depth]
+
+        # depth_start_index[d] = flat index of the first node at depth d.
+        # Nodes at depth d occupy positions [total_nodes_in_(d-1), total_nodes_in_d).
+        depth_start_index = [_depth_to_num_nodes(d - 1) for d in range(max_depth + 2)]
+        N_nodes = _depth_to_num_nodes(max_depth)
 
         data: np.ndarray = np.empty((N_nodes, 6))
         children: np.ndarray = np.full((N_nodes, 4), -1, dtype=np.int64)
+
         for depth in range(1, max_depth + 1):
-            N = N_linear_per_depth[depth - 1]
-            N_deeper = N_linear_per_depth[depth]
-            for i, j in itertools.product(range(N), range(N)):
-                parent_index = (
-                    cum_N_per_depth[depth - 1] + N_linear_per_depth[depth - 1] * i + j
-                )
+            # Number of nodes along one side at this depth.
+            n_side = 2 ** (depth - 1)
+            n_side_deeper = 2 * n_side
+            for i, j in itertools.product(range(n_side), range(n_side)):
+                parent_index = depth_start_index[depth] + n_side * i + j
                 data[parent_index] = all_bbox_coords[depth][i, j, :]
 
                 if depth < max_depth:
-                    index1 = cum_N_per_depth[depth] + i * N_deeper + j
-                    index2 = cum_N_per_depth[depth] + i * N_deeper + j + 1
-                    index3 = cum_N_per_depth[depth] + (i + 1) * N_deeper + j
-                    index4 = cum_N_per_depth[depth] + (i + 1) * N_deeper + j + 1
+                    base = depth_start_index[depth + 1]
+                    # The four children of (i, j) at depth+1 form a 2×2 block
+                    # starting at grid position (2i, 2j).
+                    index1 = base + (2 * i) * n_side_deeper + (2 * j)  # (2i,   2j  )
+                    index2 = (
+                        base + (2 * i) * n_side_deeper + (2 * j) + 1
+                    )  # (2i,   2j+1)
+                    index3 = (
+                        base + (2 * i + 1) * n_side_deeper + (2 * j)
+                    )  # (2i+1, 2j  )
+                    index4 = (
+                        base + (2 * i + 1) * n_side_deeper + (2 * j) + 1
+                    )  # (2i+1, 2j+1)
                     children[parent_index] = (index1, index2, index3, index4)
 
         return HbvTree(data, children)
 
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
     def save(self, filename: str):
+        """
+        Persist the tree to a ZIP archive containing two ``.npy`` files.
+
+        Parameters
+        ----------
+        filename:
+            Path to the output ``.zip`` file.  Existing files are overwritten.
+
+        See Also
+        --------
+        HbvTree.load : Counterpart for loading a saved tree.
+        """
         with ZipFile(filename, "w") as zip_file:
             with zip_file.open("data.npy", "w") as file:
                 np.save(file, self._data)
@@ -347,6 +403,19 @@ class HbvTree:
 
     @staticmethod
     def load(filename: str) -> HbvTree:
+        """
+        Load a tree that was previously saved with :meth:`save`.
+
+        Parameters
+        ----------
+        filename:
+            Path to a ``.zip`` archive produced by :meth:`save`.
+
+        Returns
+        -------
+        HbvTree
+            The reconstructed tree (without recomputing AABB merges).
+        """
         with ZipFile(filename, "r") as zip_file:
             with zip_file.open("data.npy", "r") as file:
                 data = np.load(file)
@@ -355,7 +424,7 @@ class HbvTree:
         return HbvTree(data=data, children=children)
 
     def _get_stack(self) -> np.ndarray:
-        """Return this thread's scratch buffer, allocating on first access."""
+        """Return this thread's scratch buffer, allocating it on first access."""
         buf = getattr(self._tls, "stack", None)
         if buf is None:
             buf = np.empty(self._stack_size, dtype=np.int64)
@@ -364,12 +433,12 @@ class HbvTree:
 
     def warmup(self) -> None:
         """
-        Force JIT compilation synchronously.
+        Trigger Numba JIT compilation synchronously.
 
-        Call once after construction (or after loading from cache) to pay
-        the ~1 s compilation cost at a predictable moment rather than on
-        the first real query.  cache=True means subsequent process starts
-        skip this entirely.
+        Calling this once after construction (or after loading from cache)
+        pays the ~1 s compilation cost at a predictable moment rather than
+        on the first real query.  With ``cache=True`` on the kernel,
+        subsequent process starts will skip compilation entirely.
         """
         _los_kernel(
             np.zeros((1, 6), dtype=np.float64),
@@ -385,9 +454,36 @@ class HbvTree:
         )
 
     def has_line_of_sight(self, ray: Ray) -> bool:
-        """True when no terrain blocks the ray between origin and t_max."""
+        """
+        Test whether a ray is unobstructed by any terrain leaf AABB.
+
+        Parameters
+        ----------
+        ray:
+            The query ray.  See :class:`Ray` for details.
+
+        Returns
+        -------
+        bool
+            ``True``  - the ray does **not** intersect any leaf AABB within
+            ``[0, t_max]``; line of sight is clear.
+            ``False`` - at least one leaf AABB is hit; terrain blocks the ray.
+
+        Notes
+        -----
+        This method is thread-safe: the Numba kernel releases the GIL, and
+        each thread allocates its own DFS (depth-first-search) stack buffer
+        on first use.
+        """
         px, py, pz = ray.p_start
         dx, dy, dz = ray.direction
+
+        # Use the IEEE 754 reciprocal convention: 1/0 → ±inf.
+        # The slab test handles ±inf correctly (parallel rays never enter a slab
+        # whose normal is aligned with the zero-component axis, so t_enter > t_exit).
+        def _safe_inv(v: float) -> float:
+            return float("inf") if v == 0.0 else 1.0 / v
+
         return bool(
             _los_kernel(
                 self._data,
@@ -395,9 +491,9 @@ class HbvTree:
                 float(px),
                 float(py),
                 float(pz),
-                1.0 / float(dx),
-                1.0 / float(dy),
-                1.0 / float(dz),
+                _safe_inv(float(dx)),
+                _safe_inv(float(dy)),
+                _safe_inv(float(dz)),
                 float(ray.t_max),
                 self._get_stack(),
             )
