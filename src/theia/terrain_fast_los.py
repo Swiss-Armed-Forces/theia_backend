@@ -9,6 +9,7 @@ from joblib import Parallel, delayed
 import numba
 import numpy as np
 from pydantic import ConfigDict
+from tqdm import tqdm
 
 from theia.coordinates import CoordinateTransformations
 import theia.terrain
@@ -139,8 +140,13 @@ def build_bounding_boxes(
             row[j, 3:] = np.max(points, axis=0)
         return row
 
-    results = Parallel(n_jobs=n_jobs)(
-        delayed(process_row)(i, lat) for i, lat in enumerate(lats)
+    results = list(
+        tqdm(
+            Parallel(n_jobs=n_jobs, return_as="generator")(
+                delayed(process_row)(i, lat) for i, lat in enumerate(lats)
+            ),
+            total=len(lats),
+        )
     )
 
     bbox_coords = np.empty((len(lats), len(lons), 6))
