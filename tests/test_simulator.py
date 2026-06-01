@@ -20,6 +20,7 @@ from theia.simulation.controllers.waypoint_target_controller import (
 from theia.simulation.logging import FileLogger, InMemoryLogger
 from theia.simulation.simulator import Simulator, TimeCriterion
 from theia.simulation.tracking import DummyTracker
+from theia.terrain import SrtmTerrainModel
 from theia.test_data import get_uetliberg_radar
 from theia.types import ConstantRcsModel
 
@@ -50,9 +51,11 @@ class SimulatorTest(unittest.TestCase):
 
         logger = InMemoryLogger()
 
+        terrain = SrtmTerrainModel()
+
         simulator = Simulator(
             pcl_detector=PclDetector(),
-            pet_detector=PetDetector(),
+            pet_detector=PetDetector(terrain_model=terrain),
             blue_controller=MonostaticRadarController(
                 len(scripted_target_controller._controllers) + 1,
                 radar,
@@ -68,6 +71,7 @@ class SimulatorTest(unittest.TestCase):
             termination_criterion=TimeCriterion(stop_time),
             rng=np.random.Generator(np.random.PCG64(seed=4054080)),
             listener=logger,
+            terrain_model=terrain,
         )
         # Simulate until the end.
         while simulator.advance():
@@ -96,9 +100,11 @@ class SimulatorTest(unittest.TestCase):
 
         time_step = datetime.timedelta(seconds=1)
 
+        terrain = SrtmTerrainModel()
+
         simulator = Simulator(
             pcl_detector=PclDetector(),
-            pet_detector=PetDetector(),
+            pet_detector=PetDetector(terrain_model=terrain),
             blue_controller=MonostaticRadarController(
                 len(scripted_target_controller._controllers) + 1,
                 radar,
@@ -114,6 +120,7 @@ class SimulatorTest(unittest.TestCase):
             termination_criterion=TimeCriterion(stop_time),
             rng=np.random.Generator(np.random.PCG64(seed=4054080)),
             listener=logger,
+            terrain_model=terrain,
         )
         n_iterations = int(
             np.ceil((stop_time - start_time).seconds / time_step.seconds)
