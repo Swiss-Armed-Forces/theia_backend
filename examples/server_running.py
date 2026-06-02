@@ -7,6 +7,7 @@ from theia.simulation.factories.uetliberg_opensky import (
 )
 from theia.simulation.server import create_app
 from theia.simulation.simulation_director import SimulationDirector
+from theia.terrain import SrtmTerrainModel
 
 print("Initialise...")
 
@@ -14,10 +15,11 @@ print("Initialise...")
 # Setup the simulation.
 ################################################
 rng = np.random.Generator(np.random.PCG64(seed=4054080))
-factory = PerformanceDemoFactory(rng)
+terrain = SrtmTerrainModel()
+factory = PerformanceDemoFactory(rng, terrain)
 # factory = UetlibergOpenskySimulatorFactory()
 # factory = BodenseeMonostaticFactory(rng)
-simulator, buffer = factory.build_simulator(True, rng)
+simulator, buffer = factory.build_simulator(True, rng, terrain)
 
 ################################################
 # Setup the server.
