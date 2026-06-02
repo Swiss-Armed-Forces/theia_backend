@@ -290,9 +290,13 @@ class Receiver(pydantic.BaseModel):
     pfa: float
     """Probability of false alarm (in [0, 1])"""
     min_elevation: float
-    """Minimum elevation [°]"""
+    """Minimum detectable elevation [rad]"""
     max_elevation: float
-    """Maximum elevation [°]"""
+    """Maximum detectable elevation [rad]"""
+    min_azimuth: float
+    """Minimum detectable azimuth [rad]"""
+    max_azimuth: float
+    """Maximum detectable azimuth [rad]"""
     rotation_time: float
     """Rotation time [s]"""
     bandwidth: float
