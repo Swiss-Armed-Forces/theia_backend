@@ -5,12 +5,12 @@ import scipy.constants as sc
 from scipy.ndimage import binary_erosion
 
 import theia
-from theia.coordinates import calculate_azimuth_angle, calculate_elevation_angle
+import theia.coordinates
 from theia.detection.active import calculate_probability_of_detection
 from theia.distance import line_of_sight_distance
 from theia.grids import LatLonTerrainGrid
-from theia.snr import calculate_snr
-from theia.types import PetDetection, AbstractSensor, Point, Target
+import theia.snr
+from theia.types import PetDetection, PetSensor, Point, Target
 from theia.util import get_clear_sky_attenuation
 
 
@@ -20,10 +20,30 @@ class PetDetector(pydantic.BaseModel):
 
     def calculate_pet_detection(
         self,
-        sensor: AbstractSensor,
+        sensor: PetSensor,
         target: Target,
         rng: np.random.Generator,
     ) -> PetDetection | None:
+        """
+        Calculate a PET detection or return None if the SNR is not good enough,
+        there is no line-of-sight or the target is not within the receiver's
+        field-of-view.
+
+        Parameters
+        ----------
+        sensor: PetSensor
+            Sensor to use for the detection
+        target: Target
+            Target to be detected
+        rng: np.random.Generator
+            Random number generator
+
+        Returns
+        -------
+        PetDetection | None
+            Detection or ``None`` if the SNR is not high enough or there is no
+            line-of-sight
+        """
         los_ok = self.terrain_model.has_line_of_sight(
             sensor.transmitter.point,
             sensor.receiver.point,
@@ -41,7 +61,7 @@ class PetDetector(pydantic.BaseModel):
 
         # We can "deactivate" some terms by setting them to one because the SNR
         # formula is multiplicative.
-        snr_dB = calculate_snr(
+        snr_dB = theia.snr.calculate_snr(
             wavelength=wavelength,
             antenna_gain_transmitter=sensor.transmitter.antenna_gain,
             antenna_gain_receiver=sensor.receiver.antenna_gain(
@@ -68,19 +88,40 @@ class PetDetector(pydantic.BaseModel):
         p = calculate_probability_of_detection(snr_dB, sensor.receiver.pfa)
 
         if rng.uniform(low=0, high=1) <= p:
+            elev = theia.coordinates.calculate_elevation_angle(
+                sensor.receiver.point,
+                target.point,
+            )
+            azi = theia.coordinates.calculate_azimuth_angle(
+                sensor.receiver.point,
+                target.point,
+            )
+
+            if not (
+                (sensor.receiver.min_elevation <= elev <= sensor.receiver.max_elevation)
+                and (sensor.receiver.min_azimuth <= azi <= sensor.receiver.max_azimuth)
+            ):
+                return None
+
+            sigma_elev = sensor.error_model.calculate_elevation_uncertainty(
+                sensor,
+                snr_dB,
+            )
+            sigma_azi = sensor.error_model.calculate_azimuth_uncertainty(
+                sensor,
+                snr_dB,
+            )
+            elev += rng.normal(0, sigma_elev)
+            azi += rng.normal(0, sigma_azi)
             return PetDetection(
                 detection_id=-1,
                 time=datetime.datetime.fromtimestamp(0),
                 sensor=sensor,
                 target=target,
-                elevation_angle=calculate_elevation_angle(
-                    sensor.transmitter.point,
-                    target.point,
-                ),
-                azimuth_angle=calculate_azimuth_angle(
-                    sensor.transmitter.point,
-                    target.point,
-                ),
+                elevation=elev,
+                azimuth=azi,
+                sigma_elevation=sigma_elev,
+                sigma_azimuth=sigma_azi,
             )
         else:
             return None
