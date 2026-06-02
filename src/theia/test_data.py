@@ -1,5 +1,6 @@
 import copy
 import datetime
+import math
 from typing import Literal
 
 import numpy as np
@@ -164,8 +165,10 @@ def get_uetliberg_radar(
             diameter=diameter,
             cpi_pulses=int(np.floor(integration_time * tx_bandwidth * 1e6)),
             pfa=1e-06,
-            min_elevation=-20.0,
-            max_elevation=60.0,
+            min_elevation=math.radians(-90),
+            max_elevation=math.radians(90),
+            min_azimuth=math.radians(-180),
+            max_azimuth=math.radians(180),
             rotation_time=rotation_time,
             bandwidth=rx_bandwidth,
             gain=0,
@@ -407,8 +410,10 @@ def build_fighter_jet_radar(
         diameter=antenna_diameter,
         cpi_pulses=10,
         pfa=1e-6,
-        min_elevation=-90.0,
-        max_elevation=90.0,
+        min_elevation=math.radians(-90.0),
+        max_elevation=math.radians(90.0),
+        min_azimuth=math.radians(-180),
+        max_azimuth=math.radians(180),
         rotation_time=1,
         bandwidth=1 / pulse_width,
         gain=antenna_gain,
@@ -463,8 +468,10 @@ def build_flores_monostatic_radar(
         diameter=antenna_diameter,
         cpi_pulses=10,
         pfa=1e-6,
-        min_elevation=-90.0,
-        max_elevation=90.0,
+        min_elevation=math.radians(-90.0),
+        max_elevation=math.radians(90.0),
+        min_azimuth=math.radians(-180),
+        max_azimuth=math.radians(180),
         rotation_time=rotation_time,
         bandwidth=1 / pulse_width,
         gain=calculate_antenna_gain(antenna_diameter, wavelength),
@@ -512,8 +519,10 @@ def build_pcl_receiver(
         diameter=antenna_diameter,
         cpi_pulses=1,
         pfa=-1.0,  # not used for PCL
-        min_elevation=0.0,  # currently not used
-        max_elevation=np.pi / 2,  # currently not used
+        min_elevation=math.radians(-90.0),
+        max_elevation=math.radians(90.0),
+        min_azimuth=math.radians(-180),
+        max_azimuth=math.radians(180),
         rotation_time=1.0,
         # FM modulating frequency <= 53 kHz, peak deviation 75kHz. Apply Carson's rule.
         # Source:

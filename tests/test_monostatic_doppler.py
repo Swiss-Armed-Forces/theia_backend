@@ -1,3 +1,4 @@
+import math
 import unittest
 
 from theia.config import SIDC_UNKNOWN
@@ -112,8 +113,10 @@ class MonostaticDopplerTest(unittest.TestCase):
                 diameter=2.0,
                 cpi_pulses=1,
                 pfa=1e-6,
-                min_elevation=-20.0,
-                max_elevation=60.0,
+                min_elevation=math.radians(-90.0),
+                max_elevation=math.radians(90.0),
+                min_azimuth=math.radians(-180),
+                max_azimuth=math.radians(180),
                 rotation_time=10,
                 bandwidth=100.0,
             ),

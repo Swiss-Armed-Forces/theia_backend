@@ -1,5 +1,6 @@
 import datetime
 import logging
+import math
 import os
 import numpy as np
 import pandas as pd
@@ -66,8 +67,10 @@ def load_pcl_reference_data(
                 cpi_pulses=0,
                 bandwidth=row["bandwidth"] / 1000.0,  # convert kHz -> MHz
                 pfa=np.nan,
-                min_elevation=np.nan,
-                max_elevation=np.nan,
+                min_elevation=math.radians(-90),
+                max_elevation=math.radians(90),
+                min_azimuth=math.radians(-180),
+                max_azimuth=math.radians(180),
                 rotation_time=np.nan,
                 polarization=Polarization.HORIZONTAL,  # dummy value
                 gain=row["gain"],
