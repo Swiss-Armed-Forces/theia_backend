@@ -1,3 +1,4 @@
+import math
 import unittest
 
 from theia.radar_equation import calculate_maximum_monostatic_range
@@ -52,8 +53,10 @@ class MonostaticMaxRangeTest(unittest.TestCase):
                 diameter=2.0,
                 cpi_pulses=1,
                 pfa=1e-6,
-                min_elevation=-20.0,
-                max_elevation=60.0,
+                min_elevation=math.radians(-90.0),
+                max_elevation=math.radians(90.0),
+                min_azimuth=math.radians(-180),
+                max_azimuth=math.radians(180),
                 rotation_time=10.0,
                 bandwidth=bandwidth,
             ),

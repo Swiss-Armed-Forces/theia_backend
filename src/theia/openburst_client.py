@@ -1,6 +1,7 @@
 import base64
 from io import BytesIO
 import json
+import math
 import re
 from PIL import Image
 from typing import Literal
@@ -144,8 +145,8 @@ class OpenburstClient:
             radar.transmitter.bandwidth,
             radar.receiver.pfa,
             target_cross_section,
-            radar.receiver.min_elevation,
-            radar.receiver.max_elevation,
+            math.degrees(radar.receiver.min_elevation),
+            math.degrees(radar.receiver.max_elevation),
             int(enable_propagation_model),
             int(enable_magl),
         ]
