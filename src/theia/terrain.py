@@ -313,3 +313,13 @@ def has_line_of_sight_ray_marching(
             return False
 
     return True
+
+
+class DummyTerrain(AbstractTerrainModel):
+    has_los: bool
+
+    def elevationAt(self, lat, lon):
+        return 1.0
+
+    def has_line_of_sight(self, p1, p2):
+        return self.has_los
