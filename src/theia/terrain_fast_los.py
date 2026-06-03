@@ -24,7 +24,7 @@ class FastSrtmModel(AbstractTerrainModel):
     srtm_model: SrtmTerrainModel
 
     def elevationAt(self, lat: float, lon: float):
-        self.srtm_model.elevationAt(lat, lon)
+        return self.srtm_model.elevationAt(lat, lon)
 
     def has_line_of_sight(self, p1: Point, p2: Point) -> bool:
         """
@@ -135,22 +135,79 @@ def build_bounding_boxes(
                 lon + half_spacing,
                 alt_below,
             )
-            points = np.stack([p1, p2, p3, p4, p5, p6, p7, p8])
-            row[j, :3] = np.min(points, axis=0)
-            row[j, 3:] = np.max(points, axis=0)
+
+            # We unroll the loop explicitly for performance reasons.
+            row[j, 0] = min(
+                p1[0],
+                p2[0],
+                p3[0],
+                p4[0],
+                p5[0],
+                p6[0],
+                p7[0],
+                p8[0],
+            )
+            row[j, 1] = min(
+                p1[1],
+                p2[1],
+                p3[1],
+                p4[1],
+                p5[1],
+                p6[1],
+                p7[1],
+                p8[1],
+            )
+            row[j, 2] = min(
+                p1[2],
+                p2[2],
+                p3[2],
+                p4[2],
+                p5[2],
+                p6[2],
+                p7[2],
+                p8[2],
+            )
+            row[j, 3] = max(
+                p1[0],
+                p2[0],
+                p3[0],
+                p4[0],
+                p5[0],
+                p6[0],
+                p7[0],
+                p8[0],
+            )
+            row[j, 4] = max(
+                p1[1],
+                p2[1],
+                p3[1],
+                p4[1],
+                p5[1],
+                p6[1],
+                p7[1],
+                p8[1],
+            )
+            row[j, 5] = max(
+                p1[2],
+                p2[2],
+                p3[2],
+                p4[2],
+                p5[2],
+                p6[2],
+                p7[2],
+                p8[2],
+            )
         return row
 
-    results = list(
+    bbox_coords = np.empty((len(lats), len(lons), 6))
+    for i, row in enumerate(
         tqdm(
             Parallel(n_jobs=n_jobs, return_as="generator")(
                 delayed(process_row)(i, lat) for i, lat in enumerate(lats)
             ),
             total=len(lats),
         )
-    )
-
-    bbox_coords = np.empty((len(lats), len(lons), 6))
-    for i, row in enumerate(results):
+    ):
         bbox_coords[i] = row
     return bbox_coords
 
@@ -402,9 +459,9 @@ class HbvTree:
         HbvTree.load : Counterpart for loading a saved tree.
         """
         with ZipFile(filename, "w") as zip_file:
-            with zip_file.open("data.npy", "w") as file:
+            with zip_file.open("data.npy", "w", force_zip64=True) as file:
                 np.save(file, self._data)
-            with zip_file.open("children.npy", "w") as file:
+            with zip_file.open("children.npy", "w", force_zip64=True) as file:
                 np.save(file, self._children)
 
     @staticmethod
@@ -633,7 +690,7 @@ def load_srtm_bboxes(
     lat_stop: float,
     lon_start: float,
     lon_stop: float,
-    subsample_factor: int = 1,
+    subsample_stride: int = 1,
 ) -> np.ndarray:
     """
     Load SRTM data for the given region and stitch it together.
@@ -668,7 +725,7 @@ def load_srtm_bboxes(
         rows.append(np.hstack(row))
     data = np.vstack(rows)
 
-    lats = np.linspace(lat_start, lat_stop, data.shape[0])
+    lats = np.linspace(lat_stop, lat_start, data.shape[0])
     lons = np.linspace(lon_start, lon_stop, data.shape[1])
 
     # Pad the data such that its shape is square with side length a power of 2.
@@ -691,6 +748,10 @@ def load_srtm_bboxes(
     assert np.log2(len(lons)).is_integer()
     assert len(lats) == len(lons)
 
+    data = data[::subsample_stride, ::subsample_stride]
+    lats = lats[::subsample_stride]
+    lons = lons[::subsample_stride]
+
     return lats, lons, data
 
 
@@ -699,12 +760,15 @@ def build_terrain_tree(
     lat_stop: float,
     lon_start: float,
     lon_stop: float,
+    subsample_stride: int = 1,
 ) -> HbvTree:
     lats, lons, data = load_srtm_bboxes(
         lat_start,
         lat_stop,
         lon_start,
         lon_stop,
+        subsample_stride=subsample_stride,
     )
     bbox_coords = build_bounding_boxes(lats, lons, data)
+    np.save("bbox_coords.npy", bbox_coords)
     return HbvTree.from_leaf_bboxes(bbox_coords)
