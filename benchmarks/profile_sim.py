@@ -6,12 +6,18 @@ from tqdm import tqdm
 from theia.simulation.factories.performance_demo import PerformanceDemoFactory
 from theia.simulation.logging import FileLogger
 from theia.terrain import SrtmTerrainModel
+from theia.terrain_fast_los import FastSrtmModel, HbvTree
 
 
 # simulator, buffer = load_single_target_from_Bodensee_simulator(interactive=False)
 rng = np.random.Generator(np.random.PCG64(seed=4054080))
-factory = PerformanceDemoFactory(rng)
-simulator, buffer = factory.build_simulator(False, rng, SrtmTerrainModel())
+terrain = SrtmTerrainModel()
+terrain = FastSrtmModel(
+    tree=HbvTree.load("tree_lat47:48_lon7:8.zip"),
+    srtm_model=terrain,
+)
+factory = PerformanceDemoFactory(rng, terrain)
+simulator, buffer = factory.build_simulator(False, rng, terrain)
 listener = FileLogger("log.json")
 simulator.set_listener(listener)
 
