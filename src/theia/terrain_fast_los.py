@@ -713,19 +713,21 @@ def load_srtm_bboxes(
     lon_stop = np.ceil(lon_stop)
 
     rows = []
-    for lat in range(int(lat_stop) - 1, int(lat_start) - 1, -1):  # ← north→south
+    for lat in range(int(lat_start), int(lat_stop)):  # iterate south→north
         row = []
         for lon in range(int(lon_start), int(lon_stop)):
-            data = theia.terrain.load_hgt_file(lat, lon)[::-1, :]  # row 0 = north edge
+            # invert to have increasing lat, i. e. axis 0 goes south -> north
+            data = theia.terrain.load_hgt_file(lat, lon)[::-1, :]
             if lon != lon_stop - 1:
                 data = data[:, :-1]
             if lat != lat_start:
-                data = data[:-1, :]
+                # drop shared southernmost row (overlaps with previous tile's north edge)
+                data = data[1:, :]
             row.append(data)
         rows.append(np.hstack(row))
     data = np.vstack(rows)
 
-    lats = np.linspace(lat_stop, lat_start, data.shape[0])
+    lats = np.linspace(lat_start, lat_stop, data.shape[0])
     lons = np.linspace(lon_start, lon_stop, data.shape[1])
 
     # Pad the data such that its shape is square with side length a power of 2.
