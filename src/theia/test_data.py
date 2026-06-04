@@ -529,3 +529,27 @@ def build_pcl_receiver(
         # https://en.wikipedia.org/wiki/Carson_bandwidth_rule
         bandwidth=0.256,  # MHz
     )
+
+
+def build_airborne_pet_receiver(
+    id: int,
+    position: Point,
+    min_elevatiom: float = math.radians(-60),
+    max_elevation: float = math.radians(+30),
+    min_azimuth: float = math.radians(-90),
+    max_azimuth: float = math.radians(+90),
+):
+    return Receiver(
+        id=id,
+        point=position,
+        antenna_height=8.0,
+        diameter=2.0,
+        cpi_pulses=1,
+        pfa=1e-6,
+        min_elevation=min_elevatiom,
+        max_elevation=max_elevation,
+        min_azimuth=min_azimuth,
+        max_azimuth=max_azimuth,
+        rotation_time=0,
+        bandwidth=500,
+    )

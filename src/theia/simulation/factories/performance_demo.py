@@ -20,6 +20,8 @@ from theia.simulation.factories.abstract_simulator_factory import (
 )
 from theia.simulation.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
+from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
+from theia.terrain_fast_los import FastSrtmModel
 from theia.test_data import (
     build_fighter_jet_radar,
     build_flores_monostatic_radar,
@@ -37,7 +39,7 @@ from theia.types import (
 
 
 class PerformanceDemoFactory(AbstractSimulatorFactory):
-    def __init__(self, rng: np.random.Generator):
+    def __init__(self, rng: np.random.Generator, terrain_model: AbstractTerrainModel):
         self._rng = rng
         self._trajectory1 = build_single_target_from_Bodensee(target_id=0)
         self._trajectory2 = ConstantSpeedStraightManeuver(
@@ -58,12 +60,13 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
             sidc=SIDC_RED_FIXED_WING,
             rcs=1.0,
         )
+        self._terrain_model = terrain_model
 
     def _get_pcl_detector(self) -> PclDetector:
         return PclDetector()
 
     def _get_pet_detector(self) -> PetDetector:
-        return PetDetector()
+        return PetDetector(terrain_model=self._terrain_model)
 
     def _get_blue_tracker(self) -> AbstractTracker:
         return PseudoTracker(
