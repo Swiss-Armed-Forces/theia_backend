@@ -1,4 +1,4 @@
-from theia.terrain import SrtmTerrainModel
+from theia.terrain import DummyTerrain, SrtmTerrainModel
 from theia.terrain_fast_los import FastSrtmModel
 
 from .types import Point, AbstractSensor
@@ -7,4 +7,4 @@ from .distance import haversine, linspace
 from .coverage import calculate_coverage
 
 
-TerrainModel = SrtmTerrainModel | FastSrtmModel
+TerrainModel = SrtmTerrainModel | FastSrtmModel | DummyTerrain
