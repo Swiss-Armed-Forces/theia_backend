@@ -6,7 +6,9 @@ from unittest.mock import patch
 
 import numpy as np
 
+from theia.terrain import SrtmTerrainModel
 from theia.terrain_fast_los import (
+    FastSrtmModel,
     HbvTree,
     Ray,
     _depth_to_num_nodes,
@@ -14,8 +16,10 @@ from theia.terrain_fast_los import (
     _num_nodes_to_depth,
     build_bounding_boxes,
     build_higher_level,
+    build_terrain_tree,
     load_srtm_bboxes,
 )
+from theia.types import Point
 
 
 def _make_stack(max_depth: int) -> np.ndarray:
@@ -1098,6 +1102,65 @@ class TestLoadSrtmBboxes(unittest.TestCase):
         except AssertionError as exc:
             self.fail(f"load_srtm_bboxes raised AssertionError: {exc}")
 
+    # ------------------------------------------------------------------
+    # Multi-tile ordering and deduplication
+    # ------------------------------------------------------------------
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile_gradient)
+    def test_multi_lat_tile_ordering(self, _mock):
+        """
+        Southernmost tile data (lat=47, value≈47011) must appear at the lowest
+        row indices; northernmost tile data (lat=48, value≈48011) at the last
+        real-data row (index 2400 = 2*1201-1).  data[-1] is in the zero-padded
+        region and must NOT be used for this comparison.
+        """
+        _, _, data = load_srtm_bboxes(47.0, 49.0, 11.0, 12.0)
+        # 2 tiles × 1201 rows, 1 shared boundary → 2401 real rows
+        last_real_row = 2 * 1201 - 2  # = 2400
+        self.assertLess(
+            data[0, 0],
+            data[last_real_row, 0],
+            "Row 0 should contain the southernmost (lower-valued) tile data",
+        )
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile_gradient)
+    def test_multi_lat_tile_no_duplicate_row(self, _mock):
+        """
+        Two adjacent 1201-row tiles share one boundary row.
+        After stitching: 2*1201-1 = 2401 real rows.
+        With the gradient mock (value = lat*1000+lon, never 0), the last real
+        row (index 2400) is non-zero while row 2401 is zero-padded.
+        """
+        _, _, data = load_srtm_bboxes(47.0, 49.0, 11.0, 12.0)
+        last_real_row = 2 * 1201 - 2  # = 2400
+        self.assertGreater(
+            data[last_real_row, 0],
+            0,
+            "Row 2400 should contain real (non-padded) tile data",
+        )
+        self.assertEqual(
+            data[last_real_row + 1, 0],
+            0.0,
+            "Row 2401 should be zero-padded",
+        )
+
+    @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile_gradient)
+    def test_multi_lon_tile_ordering(self, _mock):
+        """
+        Westernmost tile data (lon=11, value≈47011) must appear at the lowest
+        column indices; easternmost tile data (lon=12, value≈47012) at the last
+        real-data column (index 2400 = 2*1201-1).  data[:, -1] is in the
+        zero-padded region and must NOT be used for this comparison.
+        """
+        _, _, data = load_srtm_bboxes(47.0, 48.0, 11.0, 13.0)
+        # 2 tiles × 1201 cols, 1 shared boundary → 2401 real cols
+        last_real_col = 2 * 1201 - 2  # = 2400
+        self.assertLess(
+            data[0, 0],
+            data[0, last_real_col],
+            "Column 0 should contain the westernmost (lower-valued) tile data",
+        )
+
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -1430,6 +1493,19 @@ class TestSaveLoad(unittest.TestCase):
                     self.tree.has_line_of_sight(ray),
                     self.loaded.has_line_of_sight(ray),
                 )
+
+class TerrainTest(unittest.TestCase):
+
+    def test_real_case(self):
+        srtm = SrtmTerrainModel()
+        # tree = HbvTree.load("tree_lat46:47_lon7:8.zip")
+        tree = build_terrain_tree(46, 47, 7, 9)
+        fast = FastSrtmModel(tree=tree, srtm_model=srtm)
+
+        p1 = Point(lat=46.55, lon=8.0, alt=4000)
+        p2 = Point(lat=46.55, lon=8.6, alt=1500)
+        self.assertFalse(fast.has_line_of_sight(p1, p2))
+
 
 
 if __name__ == "__main__":
