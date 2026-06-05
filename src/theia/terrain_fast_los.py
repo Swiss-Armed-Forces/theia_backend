@@ -23,7 +23,7 @@ class FastSrtmModel(AbstractTerrainModel):
 
     tree: HbvTree
     srtm_model: SrtmTerrainModel
-    min_t: float = 0.0
+    t_min: float = 0.0
     """
     Ignore terrain intersections closer than this distance [m] from ``p1``.
     Pass a small positive value (e.g. 1 m) when ``p1`` is placed on the terrain
@@ -63,7 +63,7 @@ class FastSrtmModel(AbstractTerrainModel):
         norm = np.linalg.norm(direction)
         direction = direction / norm
         ray = Ray(p_start=p1_ecef, direction=tuple(direction), t_max=norm)
-        return self.tree.has_line_of_sight(ray, t_min=self.min_t)
+        return self.tree.has_line_of_sight(ray, t_min=self.t_min)
 
 
 def build_bounding_boxes(
@@ -654,6 +654,13 @@ def _los_kernel(
         are skipped (treated as self-intersections).
     stack: np.ndarray
         pre-allocated int64 scratch memory of length >= 3*depth+1
+    
+    Returns
+    -------
+    float
+        The distance ``t`` of the first intersection that fulfills
+        the condition ``t_min <= t_min <= t_max`` or ``np.inf`` if there is no
+        intersection.
     """
     stack[0] = 0
     top = 1
