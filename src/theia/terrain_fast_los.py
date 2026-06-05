@@ -772,5 +772,4 @@ def build_terrain_tree(
         subsample_stride=subsample_stride,
     )
     bbox_coords = build_bounding_boxes(lats, lons, data)
-    np.save("bbox_coords.npy", bbox_coords)
     return HbvTree.from_leaf_bboxes(bbox_coords)
