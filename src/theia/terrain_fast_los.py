@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import itertools
+import math
 import threading
 from typing import Callable
 from zipfile import ZipFile
@@ -22,6 +23,13 @@ class FastSrtmModel(AbstractTerrainModel):
 
     tree: HbvTree
     srtm_model: SrtmTerrainModel
+    min_t: float = 0.0
+    """
+    Ignore terrain intersections closer than this distance [m] from ``p1``.
+    Pass a small positive value (e.g. 1 m) when ``p1`` is placed on the terrain
+    surface to avoid false "blocked" results caused by the ray origin sitting
+    inside a terrain AABB.
+    """
 
     def elevationAt(self, lat: float, lon: float):
         return self.srtm_model.elevationAt(lat, lon)
@@ -31,7 +39,12 @@ class FastSrtmModel(AbstractTerrainModel):
         Checks line of sight between two points accounting for Earth curvature
         and terrain elevation.
 
-        step_m controls sampling resolution along the path.
+        Parameters
+        ----------
+        p1: Point
+            Start point in geodetic coordinates.
+        p2: Point
+            End point in geodetic coordinates.
         """
         p_start = CoordinateTransformations.geodetic_to_cartesian(
             p1.lat,
@@ -50,7 +63,7 @@ class FastSrtmModel(AbstractTerrainModel):
         norm = np.linalg.norm(direction)
         direction = direction / norm
         ray = Ray(p_start=p1_ecef, direction=tuple(direction), t_max=norm)
-        return self.tree.has_line_of_sight(ray)
+        return self.tree.has_line_of_sight(ray, t_min=self.min_t)
 
 
 def build_bounding_boxes(
@@ -516,7 +529,7 @@ class HbvTree:
             np.empty(8, dtype=np.int64),
         )
 
-    def has_line_of_sight(self, ray: Ray) -> bool:
+    def has_line_of_sight(self, ray: Ray, t_min: float = 0.0) -> bool:
         """
         Test whether a ray is unobstructed by any terrain leaf AABB.
 
@@ -524,13 +537,19 @@ class HbvTree:
         ----------
         ray:
             The query ray.  See :class:`Ray` for details.
+        t_min:
+            Ignore terrain intersections closer than this parametric distance
+            (metres, since ``ray.direction`` is a unit vector). Pass a small positive
+            value when the ray origin lies on or inside the terrain surface to
+            skip the self-intersection at the origin.
 
         Returns
         -------
         bool
             ``True``  - the ray does **not** intersect any leaf AABB within
-            ``[0, t_max]``; line of sight is clear.
-            ``False`` - at least one leaf AABB is hit; terrain blocks the ray.
+            ``[t_min, t_max]``; line of sight is clear.
+            ``False`` - at least one leaf AABB is hit at distance >= ``t_min``;
+            terrain blocks the ray.
 
         Notes
         -----
@@ -547,20 +566,20 @@ class HbvTree:
         def _safe_inv(v: float) -> float:
             return float("inf") if v == 0.0 else 1.0 / v
 
-        return bool(
-            _los_kernel(
-                self._data,
-                self._children,
-                float(px),
-                float(py),
-                float(pz),
-                _safe_inv(float(dx)),
-                _safe_inv(float(dy)),
-                _safe_inv(float(dz)),
-                float(ray.t_max),
-                self._get_stack(),
-            )
+        t = _los_kernel(
+            self._data,
+            self._children,
+            float(px),
+            float(py),
+            float(pz),
+            _safe_inv(float(dx)),
+            _safe_inv(float(dy)),
+            _safe_inv(float(dz)),
+            float(ray.t_max),
+            float(t_min),
+            self._get_stack(),
         )
+        return math.isinf(t)
 
 
 # ---------------------------------------------------------------------------
@@ -581,11 +600,19 @@ def _los_kernel(
     idy: float,
     idz: float,
     t_max: float,
+    t_min: float,
     stack: np.ndarray,
-) -> bool:
+) -> float:
     """
-    Iterative DFS.  Returns False as soon as a leaf AABB is intersected
-    (terrain blocks the ray), True if the full tree is traversed with no hit.
+    Iterative DFS.  Returns the parametric distance ``t_enter`` of the first
+    leaf AABB hit whose entry distance satisfies ``t_enter >= t_min``
+    (terrain blocks the ray at that distance).  Returns ``math.inf`` if the
+    full tree is traversed with no such hit (clear LOS).
+
+    The ``t_min`` parameter lets callers skip self-intersections: when the ray
+    origin lies inside a terrain AABB (e.g. a transmitter placed on the terrain
+    surface), the slab test yields ``t_enter = 0``.  Passing ``t_min > 0``
+    ignores that hit and continues searching for a genuinely distant block.
 
     Axis-aligned rays are handled correctly: a zero direction component
     produces ±inf for the corresponding inv_d, which the slab test handles
@@ -622,6 +649,9 @@ def _los_kernel(
         Inverted ray z-direction
     t_max: float
         Maximum distance along the ray
+    t_min: float
+        Minimum intersection distance to consider; hits with t_enter < t_min
+        are skipped (treated as self-intersections).
     stack: np.ndarray
         pre-allocated int64 scratch memory of length >= 3*depth+1
     """
@@ -673,7 +703,11 @@ def _los_kernel(
 
         # ---- leaf check ---------------------------------------------------
         if children[node, 0] == -1:
-            return False  # terrain AABB hit → LOS blocked
+            if t_enter >= t_min:
+                # terrain AABB hit → LOS blocked at distance t_enter
+                return t_enter
+            # too close: skip (self-intersection at origin)
+            continue
 
         # ---- push all four children (unrolled for numba) ------------------
         stack[top] = children[node, 0]
@@ -682,7 +716,8 @@ def _los_kernel(
         stack[top + 3] = children[node, 3]
         top += 4
 
-    return True  # no leaf hit → clear LOS
+    # no qualifying leaf hit → clear LOS
+    return np.inf
 
 
 def load_srtm_bboxes(

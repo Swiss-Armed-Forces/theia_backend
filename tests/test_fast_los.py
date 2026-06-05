@@ -70,9 +70,10 @@ class LosKernelTest(unittest.TestCase):
             idy,
             idz,
             10.0,
+            0.0,
             stack,
         )
-        self.assertEqual(result, False)
+        self.assertFalse(math.isinf(result))
 
         # Expect no hit.
         result = _los_kernel(
@@ -85,9 +86,10 @@ class LosKernelTest(unittest.TestCase):
             idy,
             idz,
             10.0,
+            0.0,
             stack,
         )
-        self.assertEqual(result, True)
+        self.assertTrue(math.isinf(result))
 
     def test_multiple_nodes(self):
         # fmt: off
@@ -134,9 +136,10 @@ class LosKernelTest(unittest.TestCase):
             idy,
             idz,
             10.0,
+            0.0,
             stack,
         )
-        self.assertEqual(result, True)
+        self.assertTrue(math.isinf(result))
 
         # Expect hit.
         px = 0.5
@@ -151,9 +154,10 @@ class LosKernelTest(unittest.TestCase):
             idy,
             idz,
             10.0,
+            0.0,
             stack,
         )
-        self.assertEqual(result, False)
+        self.assertFalse(math.isinf(result))
 
 
 class TestLosKernelSingleLeaf(unittest.TestCase):
@@ -166,24 +170,24 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Ray travels in +X, starts left of box, aimed right → hit
-        result = _los_kernel(data, children, -0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, stack)
-        self.assertFalse(result, "Ray should be blocked by the leaf AABB")
+        result = _los_kernel(data, children, -0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        self.assertFalse(math.isinf(result), "Ray should be blocked by the leaf AABB")
 
     def test_ray_misses_leaf_going_away(self):
         data, children = _single_leaf()
         stack = _make_stack(1)
         # Ray travels in -X, starts left of box, aimed further left → miss
         result = _los_kernel(
-            data, children, -0.5, 0.5, 0.5, -1.0, INF, INF, 10.0, stack
+            data, children, -0.5, 0.5, 0.5, -1.0, INF, INF, 10.0, 0.0, stack
         )
-        self.assertTrue(result, "Ray aimed away from box should have clear LOS")
+        self.assertTrue(math.isinf(result), "Ray aimed away from box should have clear LOS")
 
     def test_ray_misses_leaf_offset_in_y(self):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Ray travels in +X but y=2.0 is outside the [0,1] slab
-        result = _los_kernel(data, children, -0.5, 2.0, 0.5, 1.0, INF, INF, 10.0, stack)
-        self.assertTrue(result, "Ray offset above box in Y should miss")
+        result = _los_kernel(data, children, -0.5, 2.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        self.assertTrue(math.isinf(result), "Ray offset above box in Y should miss")
 
     # ------------------------------------------------------------------
     # Ray origin inside the AABB
@@ -192,9 +196,8 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Origin is inside the box; any direction should still intersect
-        result = _los_kernel(data, children, 0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, stack)
-        self.assertFalse(
-            result, "Ray originating inside the leaf AABB should be blocked"
+        result = _los_kernel(data, children, 0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        self.assertFalse(math.isinf(result), "Ray originating inside the leaf AABB should be blocked"
         )
 
     # ------------------------------------------------------------------
@@ -205,15 +208,15 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         stack = _make_stack(1)
         # Ray origin at x=-5, travelling +X, box is 5 units away.
         # t_max=3 means the ray stops at x=-2, before the box.
-        result = _los_kernel(data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 3.0, stack)
-        self.assertTrue(result, "Ray should not reach the box within t_max")
+        result = _los_kernel(data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 3.0, 0.0, stack)
+        self.assertTrue(math.isinf(result), "Ray should not reach the box within t_max")
 
     def test_t_max_reaches_box(self):
         data, children = _single_leaf()
         stack = _make_stack(1)
         # Same setup but t_max=10 → ray reaches box
-        result = _los_kernel(data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 10.0, stack)
-        self.assertFalse(result, "Ray should reach and be blocked by the box")
+        result = _los_kernel(data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        self.assertFalse(math.isinf(result), "Ray should reach and be blocked by the box")
 
     # ------------------------------------------------------------------
     # Diagonal ray
@@ -224,9 +227,9 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         # 45-degree ray in XY plane aimed at box centre (0.5, 0.5)
         inv_sqrt2 = 1.0 / math.sqrt(0.5)
         result = _los_kernel(
-            data, children, -1.0, -1.0, 0.5, inv_sqrt2, inv_sqrt2, INF, 10.0, stack
+            data, children, -1.0, -1.0, 0.5, inv_sqrt2, inv_sqrt2, INF, 10.0, 0.0, stack
         )
-        self.assertFalse(result, "Diagonal ray aimed at box should be blocked")
+        self.assertFalse(math.isinf(result), "Diagonal ray aimed at box should be blocked")
 
     def test_diagonal_ray_misses(self):
         data, children = _single_leaf()  # box [0,1]^3
@@ -234,9 +237,9 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         # Same diagonal direction but offset so it passes above the box
         inv_sqrt2 = 1.0 / math.sqrt(0.5)
         result = _los_kernel(
-            data, children, -1.0, 2.0, 0.5, inv_sqrt2, inv_sqrt2, INF, 10.0, stack
+            data, children, -1.0, 2.0, 0.5, inv_sqrt2, inv_sqrt2, INF, 10.0, 0.0, stack
         )
-        self.assertTrue(result, "Diagonal ray above box should miss")
+        self.assertTrue(math.isinf(result), "Diagonal ray above box should miss")
 
     # ------------------------------------------------------------------
     # Negative direction components
@@ -245,8 +248,8 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Ray starts to the right of the box, travels in -X direction
-        result = _los_kernel(data, children, 2.0, 0.5, 0.5, -1.0, INF, INF, 10.0, stack)
-        self.assertFalse(result, "Negative-direction ray through box should be blocked")
+        result = _los_kernel(data, children, 2.0, 0.5, 0.5, -1.0, INF, INF, 10.0, 0.0, stack)
+        self.assertFalse(math.isinf(result), "Negative-direction ray through box should be blocked")
 
     # ------------------------------------------------------------------
     # Axis-aligned ray parallel to a slab face but outside (IEEE-754 path)
@@ -255,8 +258,8 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Ray moves purely in X (idy=idz=inf) but y=2.0 is outside [0,1]
-        result = _los_kernel(data, children, -1.0, 2.0, 0.5, 1.0, INF, INF, 10.0, stack)
-        self.assertTrue(result, "Axis-aligned ray outside a slab should produce a miss")
+        result = _los_kernel(data, children, -1.0, 2.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        self.assertTrue(math.isinf(result), "Axis-aligned ray outside a slab should produce a miss")
 
     # ------------------------------------------------------------------
     # Grazing ray (hits exactly on a face)
@@ -266,10 +269,50 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         stack = _make_stack(1)
         # Ray travels in +X at y=0 (exactly on the y=0 face of the box)
         # Conservative behaviour: should still register as a hit
-        result = _los_kernel(data, children, -1.0, 0.0, 0.5, 1.0, INF, INF, 10.0, stack)
-        self.assertFalse(
-            result, "Grazing ray on a face should count as a hit (conservative)"
+        result = _los_kernel(data, children, -1.0, 0.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        self.assertFalse(math.isinf(result), "Grazing ray on a face should count as a hit (conservative)"
         )
+
+    # ------------------------------------------------------------------
+    # t_min — skip self-intersections at the ray origin
+    # ------------------------------------------------------------------
+    def test_origin_inside_aabb_cleared_by_t_min(self):
+        data, children = _single_leaf()  # box [0,1]^3
+        stack = _make_stack(1)
+        # Origin is inside the box, but t_min=0.5 skips the self-intersection
+        # (t_enter=0 < t_min=0.5 → ignored).  No other hit exists → clear LOS.
+        result = _los_kernel(data, children, 0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.5, stack)
+        self.assertTrue(math.isinf(result), "t_min > 0 should skip the self-intersection at origin")
+
+    def test_origin_inside_aabb_still_blocked_at_t_min_zero(self):
+        data, children = _single_leaf()  # box [0,1]^3
+        stack = _make_stack(1)
+        # With t_min=0 the self-intersection at t_enter=0 is NOT skipped.
+        result = _los_kernel(data, children, 0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        self.assertFalse(math.isinf(result), "t_min=0 should still report origin-inside as blocked")
+
+    def test_external_hit_not_skipped_by_small_t_min(self):
+        data, children = _single_leaf()  # box [0,1]^3
+        stack = _make_stack(1)
+        # Ray from x=-5 hits the box at t_enter≈5.  t_min=0.5 is well below
+        # that entry distance so the hit must still be reported.
+        result = _los_kernel(data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.5, stack)
+        self.assertFalse(math.isinf(result), "Hit at t≈5 should not be skipped by t_min=0.5")
+
+    def test_returned_t_value_matches_entry_distance(self):
+        data, children = _single_leaf()  # box [0,1]^3
+        stack = _make_stack(1)
+        # Ray from x=-5 travelling +X.  X slab entry: (0 - (-5)) / 1 = 5.0
+        result = _los_kernel(data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        self.assertAlmostEqual(result, 5.0, places=10, msg="Returned t should equal slab entry distance")
+
+    def test_has_line_of_sight_with_t_min_clears_origin_inside(self):
+        data = np.array([[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]], dtype=np.float64)
+        children = np.array([[-1, -1, -1, -1]], dtype=np.int64)
+        tree = HbvTree(data, children)
+        ray = Ray(p_start=(0.5, 0.5, 0.5), direction=(1.0, 0.0, 0.0), t_max=10.0)
+        self.assertFalse(tree.has_line_of_sight(ray), "Default t_min=0 is blocked")
+        self.assertTrue(tree.has_line_of_sight(ray, t_min=0.5), "t_min=0.5 skips self-intersection")
 
 
 class TestLosKernelTree(unittest.TestCase):
@@ -281,11 +324,11 @@ class TestLosKernelTree(unittest.TestCase):
         # fmt: off
         data = np.array(
             [
-                [-2.0, -2.0, 0.0,  2.0,  2.0, 1.0],  # 0: root
-                [-2.0, -2.0, 0.0,  0.0,  0.0, 1.0],  # 1: SW leaf
-                [ 0.0, -2.0, 0.0,  2.0,  0.0, 1.0],  # 2: SE leaf
-                [-2.0,  0.0, 0.0,  0.0,  2.0, 1.0],  # 3: NW leaf
-                [ 0.0,  0.0, 0.0,  2.0,  2.0, 1.0],  # 4: NE leaf
+                [-2.0, -2.0, 0.0, 2.0, 2.0, 1.0],  # 0: root
+                [-2.0, -2.0, 0.0, 0.0, 0.0, 1.0],  # 1: SW leaf
+                [ 0.0, -2.0, 0.0, 2.0, 0.0, 1.0],  # 2: SE leaf
+                [-2.0,  0.0, 0.0, 0.0, 2.0, 1.0],  # 3: NW leaf
+                [ 0.0,  0.0, 0.0, 2.0, 2.0, 1.0],  # 4: NE leaf
             ],
             dtype=np.float64,
         )
@@ -309,9 +352,8 @@ class TestLosKernelTree(unittest.TestCase):
         data, children = self._build_tree()
         stack = _make_stack(2)
         # Ray starts and stays at z=5 (outside [0,1] z-slab of every node)
-        result = _los_kernel(data, children, -3.0, 0.0, 5.0, 1.0, INF, INF, 10.0, stack)
-        self.assertTrue(
-            result, "Ray missing the root should return clear LOS immediately"
+        result = _los_kernel(data, children, -3.0, 0.0, 5.0, 1.0, INF, INF, 10.0, 0.0, stack)
+        self.assertTrue(math.isinf(result), "Ray missing the root should return clear LOS immediately"
         )
 
     # ------------------------------------------------------------------
@@ -331,10 +373,9 @@ class TestLosKernelTree(unittest.TestCase):
         # ray's Y stays outside all leaf Y-slabs, all children miss.
         # Children Y slabs: [−2,0] and [0,2]. A ray at Y=−3 misses both.
         result = _los_kernel(
-            data, children, -3.0, -3.0, 0.5, 1.0, INF, INF, 10.0, stack
+            data, children, -3.0, -3.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
         )
-        self.assertTrue(
-            result, "Ray inside root but outside all leaf AABBs should be clear"
+        self.assertTrue(math.isinf(result), "Ray inside root but outside all leaf AABBs should be clear"
         )
 
     # ------------------------------------------------------------------
@@ -345,16 +386,16 @@ class TestLosKernelTree(unittest.TestCase):
         stack = _make_stack(2)
         # Ray aimed at SW leaf centre (-1, -1)
         result = _los_kernel(
-            data, children, -3.0, -1.0, 0.5, 1.0, INF, INF, 10.0, stack
+            data, children, -3.0, -1.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
         )
-        self.assertFalse(result, "Ray through SW leaf should be blocked")
+        self.assertFalse(math.isinf(result), "Ray through SW leaf should be blocked")
 
     def test_ray_hits_only_ne_leaf(self):
         data, children = self._build_tree()
         stack = _make_stack(2)
         # Ray aimed at NE leaf centre (1, 1)
-        result = _los_kernel(data, children, -3.0, 1.0, 0.5, 1.0, INF, INF, 10.0, stack)
-        self.assertFalse(result, "Ray through NE leaf should be blocked")
+        result = _los_kernel(data, children, -3.0, 1.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        self.assertFalse(math.isinf(result), "Ray through NE leaf should be blocked")
 
     # ------------------------------------------------------------------
     # t_max stops ray inside root but before leaves
@@ -364,9 +405,8 @@ class TestLosKernelTree(unittest.TestCase):
         stack = _make_stack(2)
         # Root starts at x=-2. Ray origin at x=-10.
         # The root AABB x-slab starts at t=8, so t_max=7 won't even reach it.
-        result = _los_kernel(data, children, -10.0, 0.0, 0.5, 1.0, INF, INF, 7.0, stack)
-        self.assertTrue(
-            result, "Ray stopped by t_max before root should have clear LOS"
+        result = _los_kernel(data, children, -10.0, 0.0, 0.5, 1.0, INF, INF, 7.0, 0.0, stack)
+        self.assertTrue(math.isinf(result), "Ray stopped by t_max before root should have clear LOS"
         )
 
     # ------------------------------------------------------------------
@@ -377,13 +417,13 @@ class TestLosKernelTree(unittest.TestCase):
         # Ray travels along y=0, the boundary between SW/SE and NW/NE leaves.
         # Conservative: the ray grazes both SW and SE leaf faces; either or
         # both may register as a hit (implementation-defined), so we just
-        # verify the call completes without error and returns a bool.
+        # verify the call completes without error and returns a float.
         stack2 = _make_stack(2)
         result = _los_kernel(
-            data, children, -3.0, 0.0, 0.5, 1.0, INF, INF, 10.0, stack2
+            data, children, -3.0, 0.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack2
         )
-        self.assertIsInstance(result, (bool, np.bool_))
-        self.assertFalse(result)
+        self.assertIsInstance(result, float)
+        self.assertFalse(math.isinf(result))
 
 
 class TestLosKernelNaNBehaviour(unittest.TestCase):
@@ -391,7 +431,7 @@ class TestLosKernelNaNBehaviour(unittest.TestCase):
     The docstring explicitly acknowledges NaN (ray origin exactly on a slab
     face) is not guarded against, but guarantees no false negatives — at
     worst one extra subtree is visited.  We test that the function at least
-    terminates and returns a value in {True, False}.
+    terminates and returns a float.
     """
 
     def test_nan_inv_direction_terminates(self):
@@ -401,11 +441,11 @@ class TestLosKernelNaNBehaviour(unittest.TestCase):
         )
         stack = _make_stack(1)
         # Ray origin on the x=0 face of the box → NaN in x slab calculation
-        result = _los_kernel(data, children, 0.0, 0.5, 0.5, 1.0, INF, INF, 10.0, stack)
+        result = _los_kernel(data, children, 0.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
         self.assertIsInstance(
-            result, (bool, np.bool_), "NaN path must still return a bool"
+            result, float, "NaN path must still return a float"
         )
-        self.assertFalse(result)
+        self.assertFalse(math.isinf(result))
 
 
 def _make_grid(
@@ -1418,7 +1458,7 @@ class TestHasLineOfSightEdgeCases(unittest.TestCase):
         ray = Ray([1.0, 1.0, 1.0], [1, 0, 0], t_max=5.0)
         result = self.tree.has_line_of_sight(ray)
         self.assertIsInstance(result, bool)
-        self.assertFalse(result)
+        self.assertFalse(math.isinf(result))
 
     def test_repeated_queries_are_consistent(self):
         """Same ray queried multiple times must return the same result."""
