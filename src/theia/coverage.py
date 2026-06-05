@@ -20,18 +20,34 @@ def calculate_coverage(
     target_alt: float,
     dist_res: float = 30.0,
     d_theta: float = 0.5,
+    n_workers: int = 1,
 ) -> shapely.geometry.polygon.Polygon:
     thetas = np.arange(0.0, 360.0, d_theta)
-    f = functools.partial(
-        line_of_sight_along_ray,
-        start,
-        target_alt=target_alt,
-        d_max=max_dist,
-        dist_res=dist_res,
-        terrain_model=terrain_model,
-    )
-    with Pool(5) as p:
-        visible_points = p.map(f, thetas)
+
+    if n_workers == 1:
+        # Do not parallelize.
+        visible_points = [
+            line_of_sight_along_ray(
+                start,
+                theta,
+                target_alt=target_alt,
+                d_max=max_dist,
+                dist_res=dist_res,
+                terrain_model=terrain_model,
+            )
+            for theta in thetas
+        ]
+    else:
+        f = functools.partial(
+            line_of_sight_along_ray,
+            start,
+            target_alt=target_alt,
+            d_max=max_dist,
+            dist_res=dist_res,
+            terrain_model=terrain_model,
+        )
+        with Pool(n_workers) as p:
+            visible_points = p.map(f, thetas)
 
     if visible_points[-1] != visible_points[0]:
         visible_points.append(visible_points[0])
