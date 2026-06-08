@@ -1,6 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass
+import io
 import itertools
+import json
 import math
 import threading
 from typing import Callable
@@ -12,7 +14,7 @@ import numpy as np
 from pydantic import ConfigDict
 from tqdm import tqdm
 
-from theia.coordinates import CoordinateTransformations
+import theia.coordinates
 import theia.terrain
 from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
 from theia.types import Point
@@ -46,23 +48,27 @@ class FastSrtmModel(AbstractTerrainModel):
         p2: Point
             End point in geodetic coordinates.
         """
-        p_start = CoordinateTransformations.geodetic_to_cartesian(
-            p1.lat,
-            p1.lon,
-            p1.alt,
-        )
-        p1_ecef = np.array(p_start)
-        p2_ecef = np.array(
-            CoordinateTransformations.geodetic_to_cartesian(
-                p2.lat,
-                p2.lon,
-                p2.alt,
+        p_start = self.tree.transformer.ecef_to_enu(
+            theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
+                p1.lat,
+                p1.lon,
+                p1.alt,
             )
         )
-        direction = p2_ecef - p1_ecef
+        p1_enu = np.array(p_start)
+        p2_enu = np.array(
+            self.tree.transformer.ecef_to_enu(
+                theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
+                    p2.lat,
+                    p2.lon,
+                    p2.alt,
+                )
+            )
+        )
+        direction = p2_enu - p1_enu
         norm = np.linalg.norm(direction)
         direction = direction / norm
-        ray = Ray(p_start=p1_ecef, direction=tuple(direction), t_max=norm)
+        ray = Ray(p_start=p1_enu, direction=tuple(direction), t_max=norm)
         return self.tree.has_line_of_sight(ray, t_min=self.t_min)
 
 
@@ -71,12 +77,12 @@ def build_bounding_boxes(
     lons: np.ndarray,
     data: np.ndarray,
     n_jobs: int = -1,
-) -> np.ndarray:
+) -> tuple[np.ndarray, Point]:
     """
     Build the leafs of the terrain HBV tree.
 
     Iterates through the terrain elevation grid in geodetic space and builds
-    an AABB in ECEF space for each grid cell.
+    an AABB in ENU space for each grid cell.
 
     Parameters
     ----------
@@ -93,11 +99,20 @@ def build_bounding_boxes(
     -------
     np.ndarray
         Array of shape (Nlats, Nlons, 6), where the last dimension contains
-        the coordinates of the bounding box for each (lat, lon) cell in ECEF
+        the coordinates of the bounding box for each (lat, lon) cell in ENU
         space.
         The coordinate order is:
         x_min, y_min, z_min, x_max, y_max, z_max
+    Point
+        Origin of the ENU coordinates are defined
     """
+    ref_i = len(lats) // 2
+    ref_j = len(lons) // 2
+    ref_lat = lats[ref_i]
+    ref_lon = lons[ref_j]
+    alt = data[ref_i, ref_j]
+    reference_point = Point(lat=ref_lat, lon=ref_lon, alt=alt)
+    transformer = theia.coordinates.EcefToEnuTransformer(reference_point)
     half_spacing_lat = 0.5 * (lats[1] - lats[0])
     half_spacing_lon = 0.5 * (lons[1] - lons[0])
     assert np.isclose(half_spacing_lat, half_spacing_lon)
@@ -108,108 +123,56 @@ def build_bounding_boxes(
         for j, lon in enumerate(lons):
             alt = data[i, j]
             alt_below = alt - 30
-            p1 = CoordinateTransformations.geodetic_to_cartesian(
+            p1 = theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
                 lat - half_spacing,
                 lon - half_spacing,
                 alt,
             )
-            p2 = CoordinateTransformations.geodetic_to_cartesian(
+            p2 = theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
                 lat + half_spacing,
                 lon - half_spacing,
                 alt,
             )
-            p3 = CoordinateTransformations.geodetic_to_cartesian(
+            p3 = theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
                 lat - half_spacing,
                 lon + half_spacing,
                 alt,
             )
-            p4 = CoordinateTransformations.geodetic_to_cartesian(
+            p4 = theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
                 lat + half_spacing,
                 lon + half_spacing,
                 alt,
             )
-            p5 = CoordinateTransformations.geodetic_to_cartesian(
+            p5 = theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
                 lat - half_spacing,
                 lon - half_spacing,
                 alt_below,
             )
-            p6 = CoordinateTransformations.geodetic_to_cartesian(
+            p6 = theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
                 lat + half_spacing,
                 lon - half_spacing,
                 alt_below,
             )
-            p7 = CoordinateTransformations.geodetic_to_cartesian(
+            p7 = theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
                 lat - half_spacing,
                 lon + half_spacing,
                 alt_below,
             )
-            p8 = CoordinateTransformations.geodetic_to_cartesian(
+            p8 = theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
                 lat + half_spacing,
                 lon + half_spacing,
                 alt_below,
             )
+            points = transformer.ecef_to_enu_multiple([p1, p2, p3, p4, p5, p6, p7, p8])
 
-            # We unroll the loop explicitly for performance reasons.
-            row[j, 0] = min(
-                p1[0],
-                p2[0],
-                p3[0],
-                p4[0],
-                p5[0],
-                p6[0],
-                p7[0],
-                p8[0],
-            )
-            row[j, 1] = min(
-                p1[1],
-                p2[1],
-                p3[1],
-                p4[1],
-                p5[1],
-                p6[1],
-                p7[1],
-                p8[1],
-            )
-            row[j, 2] = min(
-                p1[2],
-                p2[2],
-                p3[2],
-                p4[2],
-                p5[2],
-                p6[2],
-                p7[2],
-                p8[2],
-            )
-            row[j, 3] = max(
-                p1[0],
-                p2[0],
-                p3[0],
-                p4[0],
-                p5[0],
-                p6[0],
-                p7[0],
-                p8[0],
-            )
-            row[j, 4] = max(
-                p1[1],
-                p2[1],
-                p3[1],
-                p4[1],
-                p5[1],
-                p6[1],
-                p7[1],
-                p8[1],
-            )
-            row[j, 5] = max(
-                p1[2],
-                p2[2],
-                p3[2],
-                p4[2],
-                p5[2],
-                p6[2],
-                p7[2],
-                p8[2],
-            )
+            minima = np.min(points, axis=0)
+            maxima = np.max(points, axis=0)
+            row[j, 0] = minima[0]
+            row[j, 1] = minima[1]
+            row[j, 2] = minima[2]
+            row[j, 3] = maxima[0]
+            row[j, 4] = maxima[1]
+            row[j, 5] = maxima[2]
         return row
 
     bbox_coords = np.empty((len(lats), len(lons), 6))
@@ -222,7 +185,7 @@ def build_bounding_boxes(
         )
     ):
         bbox_coords[i] = row
-    return bbox_coords
+    return bbox_coords, reference_point
 
 
 BBoxParams = tuple[float, float, float, float, float, float]
@@ -347,7 +310,7 @@ class HbvTree:
     HbvTree.load             : Load a previously saved tree from disk.
     """
 
-    def __init__(self, data: np.ndarray, children: np.ndarray):
+    def __init__(self, data: np.ndarray, children: np.ndarray, reference_point: Point):
         data = np.ascontiguousarray(data, dtype=np.float64)
         children = np.ascontiguousarray(children, dtype=np.int64)
 
@@ -375,8 +338,13 @@ class HbvTree:
         # Thread-local scratch buffers; allocated lazily on first use per thread.
         self._tls = threading.local()
 
+        self.reference_point = reference_point
+        self.transformer = theia.coordinates.EcefToEnuTransformer(reference_point)
+
     @staticmethod
-    def from_leaf_bboxes(leaf_bbox_coordinates: np.ndarray) -> HbvTree:
+    def from_leaf_bboxes(
+        leaf_bbox_coordinates: np.ndarray, reference_point: Point
+    ) -> HbvTree:
         """
         Build a complete quadtree from a 2-D grid of leaf AABBs.
 
@@ -391,6 +359,8 @@ class HbvTree:
             The first two axes index the geodetic grid; the last axis contains
             ``[xmin, ymin, zmin, xmax, ymax, zmax]`` for each leaf cell.
             ``N`` must be a positive power of two.
+        reference_point: Point
+            Origin of the ENU coordinate frame
 
         Returns
         -------
@@ -452,7 +422,7 @@ class HbvTree:
                     )  # (2i+1, 2j+1)
                     children[parent_index] = (index1, index2, index3, index4)
 
-        return HbvTree(data, children)
+        return HbvTree(data, children, reference_point)
 
     # ------------------------------------------------------------------
     # Persistence
@@ -476,6 +446,8 @@ class HbvTree:
                 np.save(file, self._data)
             with zip_file.open("children.npy", "w", force_zip64=True) as file:
                 np.save(file, self._children)
+            with zip_file.open("reference_point.json", "w", force_zip64=True) as file:
+                file.write(self.reference_point.model_dump_json().encode("utf-8"))
 
     @staticmethod
     def load(filename: str) -> HbvTree:
@@ -497,7 +469,11 @@ class HbvTree:
                 data = np.load(file)
             with zip_file.open("children.npy", "r") as file:
                 children = np.load(file)
-        return HbvTree(data=data, children=children)
+            with zip_file.open("reference_point.json", "r") as file:
+                with io.TextIOWrapper(file, encoding="utf-8") as text_file:
+                    reference_point = Point.model_validate_json(text_file.read())
+
+        return HbvTree(data=data, children=children, reference_point=reference_point)
 
     def _get_stack(self) -> np.ndarray:
         """Return this thread's scratch buffer, allocating it on first access."""
@@ -654,7 +630,7 @@ def _los_kernel(
         are skipped (treated as self-intersections).
     stack: np.ndarray
         pre-allocated int64 scratch memory of length >= 3*depth+1
-    
+
     Returns
     -------
     float
@@ -813,5 +789,5 @@ def build_terrain_tree(
         lon_stop,
         subsample_stride=subsample_stride,
     )
-    bbox_coords = build_bounding_boxes(lats, lons, data)
-    return HbvTree.from_leaf_bboxes(bbox_coords)
+    bbox_coords, reference_point = build_bounding_boxes(lats, lons, data)
+    return HbvTree.from_leaf_bboxes(bbox_coords, reference_point)

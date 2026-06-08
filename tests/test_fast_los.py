@@ -2,7 +2,7 @@ import math
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 
@@ -170,7 +170,9 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Ray travels in +X, starts left of box, aimed right → hit
-        result = _los_kernel(data, children, -0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        result = _los_kernel(
+            data, children, -0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
+        )
         self.assertFalse(math.isinf(result), "Ray should be blocked by the leaf AABB")
 
     def test_ray_misses_leaf_going_away(self):
@@ -180,13 +182,17 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         result = _los_kernel(
             data, children, -0.5, 0.5, 0.5, -1.0, INF, INF, 10.0, 0.0, stack
         )
-        self.assertTrue(math.isinf(result), "Ray aimed away from box should have clear LOS")
+        self.assertTrue(
+            math.isinf(result), "Ray aimed away from box should have clear LOS"
+        )
 
     def test_ray_misses_leaf_offset_in_y(self):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Ray travels in +X but y=2.0 is outside the [0,1] slab
-        result = _los_kernel(data, children, -0.5, 2.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        result = _los_kernel(
+            data, children, -0.5, 2.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
+        )
         self.assertTrue(math.isinf(result), "Ray offset above box in Y should miss")
 
     # ------------------------------------------------------------------
@@ -196,8 +202,11 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Origin is inside the box; any direction should still intersect
-        result = _los_kernel(data, children, 0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
-        self.assertFalse(math.isinf(result), "Ray originating inside the leaf AABB should be blocked"
+        result = _los_kernel(
+            data, children, 0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
+        )
+        self.assertFalse(
+            math.isinf(result), "Ray originating inside the leaf AABB should be blocked"
         )
 
     # ------------------------------------------------------------------
@@ -208,15 +217,21 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         stack = _make_stack(1)
         # Ray origin at x=-5, travelling +X, box is 5 units away.
         # t_max=3 means the ray stops at x=-2, before the box.
-        result = _los_kernel(data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 3.0, 0.0, stack)
+        result = _los_kernel(
+            data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 3.0, 0.0, stack
+        )
         self.assertTrue(math.isinf(result), "Ray should not reach the box within t_max")
 
     def test_t_max_reaches_box(self):
         data, children = _single_leaf()
         stack = _make_stack(1)
         # Same setup but t_max=10 → ray reaches box
-        result = _los_kernel(data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
-        self.assertFalse(math.isinf(result), "Ray should reach and be blocked by the box")
+        result = _los_kernel(
+            data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
+        )
+        self.assertFalse(
+            math.isinf(result), "Ray should reach and be blocked by the box"
+        )
 
     # ------------------------------------------------------------------
     # Diagonal ray
@@ -229,7 +244,9 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         result = _los_kernel(
             data, children, -1.0, -1.0, 0.5, inv_sqrt2, inv_sqrt2, INF, 10.0, 0.0, stack
         )
-        self.assertFalse(math.isinf(result), "Diagonal ray aimed at box should be blocked")
+        self.assertFalse(
+            math.isinf(result), "Diagonal ray aimed at box should be blocked"
+        )
 
     def test_diagonal_ray_misses(self):
         data, children = _single_leaf()  # box [0,1]^3
@@ -248,8 +265,12 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Ray starts to the right of the box, travels in -X direction
-        result = _los_kernel(data, children, 2.0, 0.5, 0.5, -1.0, INF, INF, 10.0, 0.0, stack)
-        self.assertFalse(math.isinf(result), "Negative-direction ray through box should be blocked")
+        result = _los_kernel(
+            data, children, 2.0, 0.5, 0.5, -1.0, INF, INF, 10.0, 0.0, stack
+        )
+        self.assertFalse(
+            math.isinf(result), "Negative-direction ray through box should be blocked"
+        )
 
     # ------------------------------------------------------------------
     # Axis-aligned ray parallel to a slab face but outside (IEEE-754 path)
@@ -258,8 +279,12 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Ray moves purely in X (idy=idz=inf) but y=2.0 is outside [0,1]
-        result = _los_kernel(data, children, -1.0, 2.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
-        self.assertTrue(math.isinf(result), "Axis-aligned ray outside a slab should produce a miss")
+        result = _los_kernel(
+            data, children, -1.0, 2.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
+        )
+        self.assertTrue(
+            math.isinf(result), "Axis-aligned ray outside a slab should produce a miss"
+        )
 
     # ------------------------------------------------------------------
     # Grazing ray (hits exactly on a face)
@@ -269,8 +294,12 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         stack = _make_stack(1)
         # Ray travels in +X at y=0 (exactly on the y=0 face of the box)
         # Conservative behaviour: should still register as a hit
-        result = _los_kernel(data, children, -1.0, 0.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
-        self.assertFalse(math.isinf(result), "Grazing ray on a face should count as a hit (conservative)"
+        result = _los_kernel(
+            data, children, -1.0, 0.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
+        )
+        self.assertFalse(
+            math.isinf(result),
+            "Grazing ray on a face should count as a hit (conservative)",
         )
 
     # ------------------------------------------------------------------
@@ -281,38 +310,56 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
         stack = _make_stack(1)
         # Origin is inside the box, but t_min=0.5 skips the self-intersection
         # (t_enter=0 < t_min=0.5 → ignored).  No other hit exists → clear LOS.
-        result = _los_kernel(data, children, 0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.5, stack)
-        self.assertTrue(math.isinf(result), "t_min > 0 should skip the self-intersection at origin")
+        result = _los_kernel(
+            data, children, 0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.5, stack
+        )
+        self.assertTrue(
+            math.isinf(result), "t_min > 0 should skip the self-intersection at origin"
+        )
 
     def test_origin_inside_aabb_still_blocked_at_t_min_zero(self):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # With t_min=0 the self-intersection at t_enter=0 is NOT skipped.
-        result = _los_kernel(data, children, 0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
-        self.assertFalse(math.isinf(result), "t_min=0 should still report origin-inside as blocked")
+        result = _los_kernel(
+            data, children, 0.5, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
+        )
+        self.assertFalse(
+            math.isinf(result), "t_min=0 should still report origin-inside as blocked"
+        )
 
     def test_external_hit_not_skipped_by_small_t_min(self):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Ray from x=-5 hits the box at t_enter≈5.  t_min=0.5 is well below
         # that entry distance so the hit must still be reported.
-        result = _los_kernel(data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.5, stack)
-        self.assertFalse(math.isinf(result), "Hit at t≈5 should not be skipped by t_min=0.5")
+        result = _los_kernel(
+            data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.5, stack
+        )
+        self.assertFalse(
+            math.isinf(result), "Hit at t≈5 should not be skipped by t_min=0.5"
+        )
 
     def test_returned_t_value_matches_entry_distance(self):
         data, children = _single_leaf()  # box [0,1]^3
         stack = _make_stack(1)
         # Ray from x=-5 travelling +X.  X slab entry: (0 - (-5)) / 1 = 5.0
-        result = _los_kernel(data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
-        self.assertAlmostEqual(result, 5.0, places=10, msg="Returned t should equal slab entry distance")
+        result = _los_kernel(
+            data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
+        )
+        self.assertAlmostEqual(
+            result, 5.0, places=10, msg="Returned t should equal slab entry distance"
+        )
 
     def test_has_line_of_sight_with_t_min_clears_origin_inside(self):
         data = np.array([[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]], dtype=np.float64)
         children = np.array([[-1, -1, -1, -1]], dtype=np.int64)
-        tree = HbvTree(data, children)
+        tree = HbvTree(data, children, Point(lat=0, lon=0, alt=0))
         ray = Ray(p_start=(0.5, 0.5, 0.5), direction=(1.0, 0.0, 0.0), t_max=10.0)
         self.assertFalse(tree.has_line_of_sight(ray), "Default t_min=0 is blocked")
-        self.assertTrue(tree.has_line_of_sight(ray, t_min=0.5), "t_min=0.5 skips self-intersection")
+        self.assertTrue(
+            tree.has_line_of_sight(ray, t_min=0.5), "t_min=0.5 skips self-intersection"
+        )
 
 
 class TestLosKernelTree(unittest.TestCase):
@@ -352,8 +399,12 @@ class TestLosKernelTree(unittest.TestCase):
         data, children = self._build_tree()
         stack = _make_stack(2)
         # Ray starts and stays at z=5 (outside [0,1] z-slab of every node)
-        result = _los_kernel(data, children, -3.0, 0.0, 5.0, 1.0, INF, INF, 10.0, 0.0, stack)
-        self.assertTrue(math.isinf(result), "Ray missing the root should return clear LOS immediately"
+        result = _los_kernel(
+            data, children, -3.0, 0.0, 5.0, 1.0, INF, INF, 10.0, 0.0, stack
+        )
+        self.assertTrue(
+            math.isinf(result),
+            "Ray missing the root should return clear LOS immediately",
         )
 
     # ------------------------------------------------------------------
@@ -375,7 +426,9 @@ class TestLosKernelTree(unittest.TestCase):
         result = _los_kernel(
             data, children, -3.0, -3.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
         )
-        self.assertTrue(math.isinf(result), "Ray inside root but outside all leaf AABBs should be clear"
+        self.assertTrue(
+            math.isinf(result),
+            "Ray inside root but outside all leaf AABBs should be clear",
         )
 
     # ------------------------------------------------------------------
@@ -394,7 +447,9 @@ class TestLosKernelTree(unittest.TestCase):
         data, children = self._build_tree()
         stack = _make_stack(2)
         # Ray aimed at NE leaf centre (1, 1)
-        result = _los_kernel(data, children, -3.0, 1.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
+        result = _los_kernel(
+            data, children, -3.0, 1.0, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
+        )
         self.assertFalse(math.isinf(result), "Ray through NE leaf should be blocked")
 
     # ------------------------------------------------------------------
@@ -405,8 +460,11 @@ class TestLosKernelTree(unittest.TestCase):
         stack = _make_stack(2)
         # Root starts at x=-2. Ray origin at x=-10.
         # The root AABB x-slab starts at t=8, so t_max=7 won't even reach it.
-        result = _los_kernel(data, children, -10.0, 0.0, 0.5, 1.0, INF, INF, 7.0, 0.0, stack)
-        self.assertTrue(math.isinf(result), "Ray stopped by t_max before root should have clear LOS"
+        result = _los_kernel(
+            data, children, -10.0, 0.0, 0.5, 1.0, INF, INF, 7.0, 0.0, stack
+        )
+        self.assertTrue(
+            math.isinf(result), "Ray stopped by t_max before root should have clear LOS"
         )
 
     # ------------------------------------------------------------------
@@ -441,10 +499,10 @@ class TestLosKernelNaNBehaviour(unittest.TestCase):
         )
         stack = _make_stack(1)
         # Ray origin on the x=0 face of the box → NaN in x slab calculation
-        result = _los_kernel(data, children, 0.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack)
-        self.assertIsInstance(
-            result, float, "NaN path must still return a float"
+        result = _los_kernel(
+            data, children, 0.0, 0.5, 0.5, 1.0, INF, INF, 10.0, 0.0, stack
         )
+        self.assertIsInstance(result, float, "NaN path must still return a float")
         self.assertFalse(math.isinf(result))
 
 
@@ -707,6 +765,14 @@ class TestBuildBoundingBoxes(unittest.TestCase):
         """
         return np.array([lon, lat, alt], dtype=float)
 
+    @staticmethod
+    def _fake_ecef_to_enu_multiple(arr):
+        """
+        Trivial stub: ENU = (z, x, y), where (x, y, z) are ECEF coordinates.
+        Simple enough to compute expected min/max by hand.
+        """
+        return np.array(arr)[:, [1, 0, 2]]
+
     # ------------------------------------------------------------------
     # Output shape / dtype
     # ------------------------------------------------------------------
@@ -718,7 +784,7 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ):
-            result = build_bounding_boxes(lats, lons, data)
+            result, _ = build_bounding_boxes(lats, lons, data)
         self.assertEqual(result.shape, (4, 5, 6))
 
     def test_output_dtype_is_float(self):
@@ -728,7 +794,7 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ):
-            result = build_bounding_boxes(lats, lons, data)
+            result, _ = build_bounding_boxes(lats, lons, data)
         self.assertTrue(np.issubdtype(result.dtype, np.floating))
 
     # ------------------------------------------------------------------
@@ -742,7 +808,7 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ):
-            result = build_bounding_boxes(lats, lons, data)
+            result, _ = build_bounding_boxes(lats, lons, data)
         self.assertTrue(np.all(result[..., :3] <= result[..., 3:]))
 
     def test_bbox_values_match_manual_calculation(self):
@@ -771,16 +837,23 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ):
-            result = build_bounding_boxes(lats, lons, data, n_jobs=1)
+            mock_ecef_to_enu = MagicMock()
+            mock_ecef_to_enu.ecef_to_enu_multiple.side_effect = (
+                self._fake_ecef_to_enu_multiple
+            )
+            with patch(
+                "theia.coordinates.EcefToEnuTransformer", return_value=mock_ecef_to_enu
+            ):
+                result, _ = build_bounding_boxes(lats, lons, data, n_jobs=1)
 
         expected = np.array(
             [
                 [
                     [-0.5, -0.5, ALT_BELOW, 0.5, 0.5, ALT],
-                    [0.5, -0.5, ALT_BELOW, 1.5, 0.5, ALT],
+                    [-0.5, 0.5, ALT_BELOW, 0.5, 1.5, ALT],
                 ],
                 [
-                    [-0.5, 0.5, ALT_BELOW, 0.5, 1.5, ALT],
+                    [0.5, -0.5, ALT_BELOW, 1.5, 0.5, ALT],
                     [0.5, 0.5, ALT_BELOW, 1.5, 1.5, ALT],
                 ],
             ]
@@ -801,7 +874,14 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ):
-            result = build_bounding_boxes(lats, lons, data, n_jobs=1)
+            mock_ecef_to_enu = MagicMock()
+            mock_ecef_to_enu.ecef_to_enu_multiple.side_effect = (
+                self._fake_ecef_to_enu_multiple
+            )
+            with patch(
+                "theia.coordinates.EcefToEnuTransformer", return_value=mock_ecef_to_enu
+            ):
+                result, _ = build_bounding_boxes(lats, lons, data, n_jobs=1)
 
         z_min = result[:, :, 2]
         np.testing.assert_allclose(z_min, alt - 30.0)
@@ -820,7 +900,14 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ):
-            result = build_bounding_boxes(lats, lons, data, n_jobs=1)
+            mock_ecef_to_enu = MagicMock()
+            mock_ecef_to_enu.ecef_to_enu_multiple.side_effect = (
+                self._fake_ecef_to_enu_multiple
+            )
+            with patch(
+                "theia.coordinates.EcefToEnuTransformer", return_value=mock_ecef_to_enu
+            ):
+                result, _ = build_bounding_boxes(lats, lons, data, n_jobs=1)
 
         z_min = result[:, :, 2]
         self.assertTrue(np.allclose(z_min, alt - 30.0))
@@ -865,7 +952,8 @@ class TestBuildBoundingBoxes(unittest.TestCase):
         ) as mock_fn:
             build_bounding_boxes(lats, lons, data, n_jobs=1)
 
-        expected_calls = 8 * nlats * nlons
+        # + 1: Transforming the origin of the ENU system
+        expected_calls = 8 * nlats * nlons + 1
         self.assertEqual(mock_fn.call_count, expected_calls)
 
     # ------------------------------------------------------------------
@@ -884,7 +972,14 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ):
-            result = build_bounding_boxes(lats, lons, data, n_jobs=1)
+            mock_ecef_to_enu = MagicMock()
+            mock_ecef_to_enu.ecef_to_enu_multiple.side_effect = (
+                self._fake_ecef_to_enu_multiple
+            )
+            with patch(
+                "theia.coordinates.EcefToEnuTransformer", return_value=mock_ecef_to_enu
+            ):
+                result, _ = build_bounding_boxes(lats, lons, data, n_jobs=1)
 
         # z_max (index 5) equals the surface elevation for each cell
         np.testing.assert_allclose(result[..., 5], data)
@@ -908,7 +1003,14 @@ class TestBuildBoundingBoxes(unittest.TestCase):
             "theia.coordinates.CoordinateTransformations.geodetic_to_cartesian",
             side_effect=self._identity_geodetic_to_cartesian,
         ) as mock_fn:
-            build_bounding_boxes(lats, lons, data, n_jobs=1)
+            mock_ecef_to_enu = MagicMock()
+            mock_ecef_to_enu.ecef_to_enu_multiple.side_effect = (
+                self._fake_ecef_to_enu_multiple
+            )
+            with patch(
+                "theia.coordinates.EcefToEnuTransformer", return_value=mock_ecef_to_enu
+            ):
+                build_bounding_boxes(lats, lons, data, n_jobs=1)
 
         # Extract calls for cell (0,0): first 8 calls
         first_8 = mock_fn.call_args_list[:8]
@@ -1224,7 +1326,7 @@ def _simple_2x2_tree() -> HbvTree:
         (0,1)=[0,1,0,1,2,1]  (1,1)=[1,1,0,2,2,1]
         (0,0)=[0,0,0,1,1,1]  (1,0)=[1,0,0,2,1,1]
     """
-    return HbvTree.from_leaf_bboxes(_unit_leaf_grid(2))
+    return HbvTree.from_leaf_bboxes(_unit_leaf_grid(2), Point(lat=0, lon=0, alt=0))
 
 
 # ===========================================================================
@@ -1299,30 +1401,30 @@ class TestRay(unittest.TestCase):
 class TestFromLeafBboxes(unittest.TestCase):
     def test_non_power_of_two_raises(self):
         with self.assertRaises(ValueError):
-            HbvTree.from_leaf_bboxes(np.zeros((3, 3, 6)))
+            HbvTree.from_leaf_bboxes(np.zeros((3, 3, 6)), Point(lat=0, lon=0, alt=0))
 
     def test_zero_size_raises(self):
         with self.assertRaises(ValueError):
-            HbvTree.from_leaf_bboxes(np.zeros((0, 0, 6)))
+            HbvTree.from_leaf_bboxes(np.zeros((0, 0, 6)), Point(lat=0, lon=0, alt=0))
 
     def test_2x2_node_count(self):
         # 2×2 leaves → depth 2 → 5 nodes
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2), Point(lat=0, lon=0, alt=0))
         self.assertEqual(tree._data.shape, (5, 6))
         self.assertEqual(tree._children.shape, (5, 4))
 
     def test_4x4_node_count(self):
         # 4×4 leaves → depth 3 → 21 nodes
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4), Point(lat=0, lon=0, alt=0))
         self.assertEqual(tree._data.shape[0], 21)
 
     def test_8x8_node_count(self):
         # 8×8 leaves → depth 4 → 85 nodes
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(8))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(8), Point(lat=0, lon=0, alt=0))
         self.assertEqual(tree._data.shape[0], 85)
 
     def test_root_aabb_2x2(self):
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2), Point(lat=0, lon=0, alt=0))
         root = tree._data[0]
         # Leaves span x∈[0,2], y∈[0,2], z∈[0,1]
         self.assertAlmostEqual(root[0], 0.0)  # xmin
@@ -1333,7 +1435,7 @@ class TestFromLeafBboxes(unittest.TestCase):
         self.assertAlmostEqual(root[5], 1.0)  # zmax
 
     def test_root_aabb_4x4(self):
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4), Point(lat=0, lon=0, alt=0))
         root = tree._data[0]
         self.assertAlmostEqual(root[0], 0.0)
         self.assertAlmostEqual(root[3], 4.0)
@@ -1341,19 +1443,19 @@ class TestFromLeafBboxes(unittest.TestCase):
 
     def test_leaves_have_no_children(self):
         """All child indices of leaf nodes must be -1."""
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2), Point(lat=0, lon=0, alt=0))
         # For a depth-2 tree the leaves are nodes 1–4
         for node_idx in range(1, 5):
             with self.subTest(node=node_idx):
                 self.assertTrue(np.all(tree._children[node_idx] == -1))
 
     def test_root_has_four_children(self):
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(2), Point(lat=0, lon=0, alt=0))
         self.assertTrue(np.all(tree._children[0] == [1, 2, 3, 4]))
 
     def test_parent_aabb_contains_children_aabbs(self):
         """Every internal node AABB must contain each of its children's AABBs."""
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4), Point(lat=0, lon=0, alt=0))
         data = tree._data
         children = tree._children
         for node_idx in range(len(data)):
@@ -1462,7 +1564,7 @@ class TestHasLineOfSightEdgeCases(unittest.TestCase):
 
     def test_repeated_queries_are_consistent(self):
         """Same ray queried multiple times must return the same result."""
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4), Point(lat=0, lon=0, alt=0))
         blocked_ray = Ray([2.0, 2.0, 5.0], [0, 0, -1], t_max=10.0)
         clear_ray = Ray([2.0, 2.0, 5.0], [0, 0, 1], t_max=3.0)
         for _ in range(10):
@@ -1474,22 +1576,22 @@ class TestHasLineOfSightDeepTrees(unittest.TestCase):
     """Line-of-sight queries on deeper (4×4 and 8×8) trees."""
 
     def test_4x4_clear(self):
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4), Point(lat=0, lon=0, alt=0))
         ray = Ray([2.0, 2.0, 5.0], [0, 0, 1], t_max=3.0)
         self.assertTrue(tree.has_line_of_sight(ray))
 
     def test_4x4_blocked(self):
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4), Point(lat=0, lon=0, alt=0))
         ray = Ray([2.0, 2.0, 5.0], [0, 0, -1], t_max=10.0)
         self.assertFalse(tree.has_line_of_sight(ray))
 
     def test_8x8_clear(self):
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(8))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(8), Point(lat=0, lon=0, alt=0))
         ray = Ray([4.0, 4.0, 5.0], [0, 0, 1], t_max=3.0)
         self.assertTrue(tree.has_line_of_sight(ray))
 
     def test_8x8_blocked(self):
-        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(8))
+        tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(8), Point(lat=0, lon=0, alt=0))
         ray = Ray([4.0, 4.0, 5.0], [0, 0, -1], t_max=10.0)
         self.assertFalse(tree.has_line_of_sight(ray))
 
@@ -1501,7 +1603,7 @@ class TestHasLineOfSightDeepTrees(unittest.TestCase):
 
 class TestSaveLoad(unittest.TestCase):
     def setUp(self):
-        self.tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4))
+        self.tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4), Point(lat=0, lon=0, alt=0))
         tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
         tmp.close()
         self.path = tmp.name
@@ -1534,18 +1636,19 @@ class TestSaveLoad(unittest.TestCase):
                     self.loaded.has_line_of_sight(ray),
                 )
 
+
 class TerrainTest(unittest.TestCase):
 
     def test_real_case(self):
         srtm = SrtmTerrainModel()
-        # tree = HbvTree.load("tree_lat46:47_lon7:8.zip")
-        tree = build_terrain_tree(46, 47, 7, 9)
+        tree = HbvTree.load("tree_lat46:47_lon7:9_subsamplestride2.zip")
+        # tree = build_terrain_tree(46, 47, 7, 9)
+        # tree.save("tree_lat46:47_lon7:9.zip")
         fast = FastSrtmModel(tree=tree, srtm_model=srtm)
 
         p1 = Point(lat=46.55, lon=8.0, alt=4000)
         p2 = Point(lat=46.55, lon=8.6, alt=1500)
         self.assertFalse(fast.has_line_of_sight(p1, p2))
-
 
 
 if __name__ == "__main__":
