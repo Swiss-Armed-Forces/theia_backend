@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from theia.coordinates import CoordinateTransformations
+from theia.coordinates import CoordinateTransformations, EcefToEnuTransformer
 from theia.types import Point, Velocity
 
 CONSISTENCY_DELTA = 1e-12
@@ -15,9 +15,13 @@ class CoordinateTransformationTest(unittest.TestCase):
             lat = rng.uniform(-90, 90)
             lon = rng.uniform(-180, 180)
             alt = rng.uniform(0, 10_000)
-    
+
             x, y, z = CoordinateTransformations.geodetic_to_cartesian(lat, lon, alt)
-            lat_new, lon_new, alt_new = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
+            lat_new, lon_new, alt_new = CoordinateTransformations.cartesian_to_geodetic(
+                x,
+                y,
+                z,
+            )
 
             self.assertAlmostEqual(lat, lat_new, delta=1e-10)
             self.assertAlmostEqual(lon, lon_new, delta=CONSISTENCY_DELTA)
@@ -202,10 +206,8 @@ class CoordinateTransformationTest(unittest.TestCase):
             reference_point_xyz[1] + 1,
             reference_point_xyz[2],
         )
-        calculated = CoordinateTransformations.enu_to_ecef(
-            reference_point,
-            (east, north, up),
-        )
+        transformer = EcefToEnuTransformer(reference_point)
+        calculated = transformer.enu_to_ecef((east, north, up))
         self.assertEqual(expected_ecef, calculated)
 
         # ENU (0, 1, 0)
@@ -222,10 +224,8 @@ class CoordinateTransformationTest(unittest.TestCase):
             reference_point_xyz[1],
             reference_point_xyz[2] + 1,
         )
-        calculated = CoordinateTransformations.enu_to_ecef(
-            reference_point,
-            (east, north, up),
-        )
+        transformer = EcefToEnuTransformer(reference_point)
+        calculated = transformer.enu_to_ecef((east, north, up))
         self.assertEqual(expected_ecef, calculated)
 
         # ENU (0, 0, 1)
@@ -242,10 +242,8 @@ class CoordinateTransformationTest(unittest.TestCase):
             reference_point_xyz[1],
             reference_point_xyz[2],
         )
-        calculated = CoordinateTransformations.enu_to_ecef(
-            reference_point,
-            (east, north, up),
-        )
+        transformer = EcefToEnuTransformer(reference_point)
+        calculated = transformer.enu_to_ecef((east, north, up))
         self.assertEqual(expected_ecef, calculated)
 
     def test_enu_to_ecef_lon90_equator(self):
@@ -263,10 +261,8 @@ class CoordinateTransformationTest(unittest.TestCase):
             reference_point_xyz[1],
             reference_point_xyz[2],
         )
-        calculated = CoordinateTransformations.enu_to_ecef(
-            reference_point,
-            (east, north, up),
-        )
+        transformer = EcefToEnuTransformer(reference_point)
+        calculated = transformer.enu_to_ecef((east, north, up))
         self.assertEqual(expected_ecef, calculated)
 
         # ENU (0, 1, 0)
@@ -283,10 +279,8 @@ class CoordinateTransformationTest(unittest.TestCase):
             reference_point_xyz[1],
             reference_point_xyz[2] + 1,
         )
-        calculated = CoordinateTransformations.enu_to_ecef(
-            reference_point,
-            (east, north, up),
-        )
+        transformer = EcefToEnuTransformer(reference_point)
+        calculated = transformer.enu_to_ecef((east, north, up))
         self.assertEqual(expected_ecef, calculated)
 
         # ENU (0, 0, 1)
@@ -303,10 +297,8 @@ class CoordinateTransformationTest(unittest.TestCase):
             reference_point_xyz[1] + 1,
             reference_point_xyz[2],
         )
-        calculated = CoordinateTransformations.enu_to_ecef(
-            reference_point,
-            (east, north, up),
-        )
+        transformer = EcefToEnuTransformer(reference_point)
+        calculated = transformer.enu_to_ecef((east, north, up))
         # Here, absolute differences fail due to numerical precision issues.
         self.assertTrue(
             np.isclose(calculated, expected_ecef, atol=CONSISTENCY_DELTA).all()
@@ -327,14 +319,10 @@ class CoordinateTransformationTest(unittest.TestCase):
                 rng.uniform(-10_000.0, 10_000.0),
                 rng.uniform(-10_000.0, 10_000.0),
             )
-            point_ecef = CoordinateTransformations.enu_to_ecef(
-                reference_point,
-                point_enu,
-            )
-            point_enu_transformed = CoordinateTransformations.ecef_to_enu(
-                reference_point,
-                point_ecef,
-            )
+            transformer = EcefToEnuTransformer(reference_point)
+            point_ecef = transformer.enu_to_ecef(point_enu)
+            transformer = EcefToEnuTransformer(reference_point)
+            point_enu_transformed = transformer.ecef_to_enu(point_ecef)
             # Here, absolute differences fail due to numerical precision issues.
             self.assertTrue(
                 np.isclose(
@@ -360,14 +348,9 @@ class CoordinateTransformationTest(unittest.TestCase):
             point_ecef = CoordinateTransformations.geodetic_to_cartesian(
                 *point.as_tuple()
             )
-            point_enu = CoordinateTransformations.ecef_to_enu(
-                reference_point,
-                point_ecef,
-            )
-            point_ecef_transformed = CoordinateTransformations.enu_to_ecef(
-                reference_point,
-                point_enu,
-            )
+            transformer = EcefToEnuTransformer(reference_point)
+            point_enu = transformer.ecef_to_enu(point_ecef)
+            point_ecef_transformed = transformer.enu_to_ecef(point_enu)
             # Here, absolute differences fail due to numerical precision issues.
             self.assertTrue(
                 np.isclose(

@@ -3,6 +3,7 @@ import numpy as np
 
 from theia.coordinates import (
     CoordinateTransformations,
+    EcefToEnuTransformer,
     calculate_azimuth_angle,
     calculate_elevation_angle,
 )
@@ -49,9 +50,8 @@ class MonostaticMeasurementTransformations:
         tuple[float, float, float]
             Observed point in Cartesian ECEF coordinates [m]
         """
-
-        return CoordinateTransformations.enu_to_ecef(
-            observer_point,
+        transformer = EcefToEnuTransformer(observer_point)
+        return transformer.enu_to_ecef(
             MonostaticMeasurementTransformations.elevation_azimuth_range_to_enu(
                 elevation,
                 azimuth,
@@ -80,10 +80,8 @@ class MonostaticMeasurementTransformations:
             elevation angle [rad], azimuth angle [rad] and range
             (i. e. line-of-sight distance to the observer) [m]
         """
-        east, north, up = CoordinateTransformations.ecef_to_enu(
-            observer_point,
-            p,
-        )
+        transformer = EcefToEnuTransformer(observer_point)
+        east, north, up = transformer.ecef_to_enu(p)
 
         return MonostaticMeasurementTransformations.enu_to_elevation_azimuth_range(
             east,
@@ -99,6 +97,6 @@ class MonostaticMeasurementTransformations:
         range_m = np.sqrt(east**2 + north**2 + up**2)
         horizontal_range = np.sqrt(east**2 + north**2)
         elevation = np.arctan2(up, horizontal_range)
-        azimuth = np.arctan2(east, north)% (2 * np.pi)
+        azimuth = np.arctan2(east, north) % (2 * np.pi)
 
         return elevation, azimuth, range_m

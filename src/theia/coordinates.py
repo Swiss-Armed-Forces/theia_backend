@@ -76,18 +76,37 @@ class CoordinateTransformations:
             vz=v_cartesian[2],
         )
 
-    @staticmethod
+
+class EcefToEnuTransformer:
+    def __init__(self, reference_point: Point):
+        """
+        Parameters
+        ----------
+        reference_point: Point
+            Reference point in geodetic coordinates at which the
+            ENU-frame is defined. Typically the observer (radar) position.
+        """
+        self._R = _ecef_to_enu_rotation_matrix(
+            reference_point.lat,
+            reference_point.lon,
+        )
+        self._RT = np.array(self._R.T)
+        reference_point_xyz = np.array(
+            CoordinateTransformations.geodetic_to_cartesian(
+                *reference_point.as_tuple(),
+            )
+        )
+        self._center = np.array(reference_point_xyz)
+
     def ecef_to_enu(
-        reference_point: Point, p_ecef: tuple[float, float, float]
+        self,
+        p_ecef: tuple[float, float, float],
     ) -> tuple[float, float, float]:
         """
         Convert Cartesian coordinates from earth-centered-earth-fixed to east-north-up.
 
         Parameters
         ----------
-        reference_point: Point
-            Reference point in geodetic coordinates at which the
-            ENU-frame is defined. Typically the observer (radar) position.
         p_ecef: tuple[float, float, float]
             Point in Cartesian ECEF coordinates to be transformed to ENU
             coordinates. Typically the observed (target) position.
@@ -102,32 +121,46 @@ class CoordinateTransformations:
         Formula according to Wikipedia:
         https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
         """
-        R_ecef_to_enu = _ecef_to_enu_rotation_matrix(
-            reference_point.lat,
-            reference_point.lon,
-        )
-
-        reference_point_xyz = np.array(
-            CoordinateTransformations.geodetic_to_cartesian(
-                *reference_point.as_tuple(),
-            )
-        )
         p_ecef = np.array(p_ecef)
-        p_enu = R_ecef_to_enu @ (p_ecef - reference_point_xyz)
+        p_enu = self._R @ (p_ecef - self._center)
         return (float(p_enu[0]), float(p_enu[1]), float(p_enu[2]))
 
-    @staticmethod
+    def ecef_to_enu_multiple(
+        self,
+        points_ecef: list[tuple[float, float, float]],
+    ) -> np.ndarray:
+        """
+        Convert Cartesian coordinates from earth-centered-earth-fixed to east-north-up.
+
+        Parameters
+        ----------
+        p_ecef: tuple[float, float, float]
+            Point in Cartesian ECEF coordinates to be transformed to ENU
+            coordinates. Typically the observed (target) position.
+
+        Returns
+        -------
+        tuple[float, float, float]
+            Cartesian ENU coordinates corresponding to p_ecef
+
+        Notes
+        -----
+        Formula according to Wikipedia:
+        https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
+        """
+        points = np.array(points_ecef)
+        p_enu = (points - self._center) @ self._RT
+        return p_enu
+
     def enu_to_ecef(
-        reference_point: Point, p_enu: tuple[float, float, float]
+        self,
+        p_enu: tuple[float, float, float],
     ) -> tuple[float, float, float]:
         """
         Convert Cartesian coordinates from east-north-up to earth-centered-earth-fixed.
 
         Parameters
         ----------
-        reference_point: Point
-            Reference point in geodetic coordinates at which the
-            ENU-frame is defined. Typically the observer (radar) position.
         p_enu: tuple[float, float, float]
             Point in Cartesian ENU coordinates to be transformed to ECEF
             coordinates. Typically the observed (target) position.
@@ -142,17 +175,9 @@ class CoordinateTransformations:
         Formula according to Wikipedia:
         https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ENU_to_ECEF
         """
-        R_ecef_to_enu = _ecef_to_enu_rotation_matrix(
-            reference_point.lat,
-            reference_point.lon,
-        )
-        R_enu_to_ecef = R_ecef_to_enu.T
+        R_enu_to_ecef = self._RT
 
-        reference_point_xyz = np.array(
-            CoordinateTransformations.geodetic_to_cartesian(
-                *reference_point.as_tuple(),
-            )
-        )
+        reference_point_xyz = np.array(self._center)
         p_enu = np.array(p_enu)
         p_ecef = R_enu_to_ecef @ p_enu + reference_point_xyz
         return (float(p_ecef[0]), float(p_ecef[1]), float(p_ecef[2]))
@@ -215,7 +240,8 @@ def calculate_azimuth_angle(p_observer: Point, p_target: Point) -> float:
     tgt_ecef = np.array(
         CoordinateTransformations.geodetic_to_cartesian(*p_target.as_tuple())
     )
-    east, north, up = CoordinateTransformations.ecef_to_enu(p_observer, tgt_ecef)
+    transformer = EcefToEnuTransformer(p_observer)
+    east, north, up = transformer.ecef_to_enu(tgt_ecef)
     return np.arctan2(east, north) % (2 * np.pi)
 
 
