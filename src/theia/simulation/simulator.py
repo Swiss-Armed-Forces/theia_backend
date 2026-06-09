@@ -13,6 +13,7 @@ from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.terrain import AbstractTerrainModel
 from theia.types import (
     AbstractTracker,
+    IdProvider,
     MonostaticRadarDetection,
     Controller,
     MonostaticSensor,
@@ -59,6 +60,7 @@ class Simulator:
         listener: AbstractSimulationListener,
         terrain_model: AbstractTerrainModel,
         simulate_clutter: bool = True,
+        id_provider: IdProvider = IdProvider(),
     ):
         """
         Parameters
@@ -123,6 +125,7 @@ class Simulator:
         """Time of latest detection for each sensor ID."""
         self._pet_sensor_ids: dict[tuple[int, int], int] = {}
         """IDs of PET sensors. Keys are (rx ID, tx ID) tuples."""
+        self._id_provider = id_provider
 
         self.set_listener(listener)
 
@@ -459,11 +462,13 @@ class Simulator:
             blue_active_radar_detections,
             blue_pcl_detections,
             blue_pet_detections,
+            self._id_provider,
         )
         self._red_tracker.add_detections(
             red_active_radar_detections,
             red_pcl_detections,
             red_pet_detections,
+            self._id_provider,
         )
 
         # Log.

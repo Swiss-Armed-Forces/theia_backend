@@ -24,6 +24,7 @@ from theia.detection.ecef_sampler import EcefDetectionSampler
 from theia.types import (
     CLUTTER_TARGET,
     AbstractTracker,
+    IdProvider,
     MonostaticRadarDetection,
     PclDetection,
     PetDetection,
@@ -240,6 +241,7 @@ class PseudoTracker(AbstractTracker):
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
         pet_detections: list[PetDetection],
+        id_provider: IdProvider, # needed to get unused track IDs
     ):
         target_detections = self._preprocess_detections(
             monostatic_detections,
@@ -258,10 +260,11 @@ class PseudoTracker(AbstractTracker):
 
             # Actually initialise or update the track.
             if detection is not None:
+                track_id = id_provider.increment(Entity.TRACK)
                 tracker = self._trackers.setdefault(
                     detections.target_id,
                     SingleTargetEcefTracker(
-                        detections.target_id,
+                        track_id,
                         self._t0,
                         self._prior,
                         sidc=detections.target_sidc,
