@@ -109,6 +109,24 @@ class LatLonTerrainGrid(pydantic.BaseModel):
     terrain_model: AbstractTerrainModel
 
     def __init__(self, *a, **kw):
+        """
+        Parameters
+        ----------
+        lat_start: float
+            Start latitude [°]
+        lat_stop: float
+            Stop latitude [°]
+        lat_res: float
+            Latitude resolution [°]
+        lon_start: float
+            Start longitude [°]
+        lon_stop: float
+            Stop longitude [°]
+        lon_res: float
+            Longitude resolution [°]
+        terrain_model: AbstractTerrainModel
+            Terrain model
+        """
         super().__init__(*a, **kw)
 
         # Correct stop values to match the resolution.
