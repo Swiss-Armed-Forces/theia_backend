@@ -26,6 +26,7 @@ from theia.stonesoup_interface import MonostaticDetectionFactory
 from theia.types import (
     CLUTTER_TARGET,
     AbstractTracker,
+    IdProvider,
     MonostaticRadarDetection,
     PclDetection,
     PetDetection,
@@ -38,6 +39,7 @@ class DummyTracker(AbstractTracker):
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
         pet_detections: list[PetDetection],
+        id_provider: IdProvider,  # needed to get unused track IDs
     ):
         pass
 

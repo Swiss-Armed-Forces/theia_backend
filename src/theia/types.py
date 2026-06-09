@@ -1149,13 +1149,44 @@ class Track(pydantic.BaseModel):
         arbitrary_types_allowed = True
 
 
-class AbstractTracker(abc.ABC):
+class Entity(enum.Enum):
+    TRACK = 0
+    EVENT = 1
+
+
+class IdProvider:
+    """
+    Serves as the primary identity provider and ensures consistency.
+    """
+
+    def __init__(self):
+        self._free_ids: dict[Entity, int] = {
+            Entity.TRACK: 0,
+            Entity.EVENT: 0,
+        }
+
+    def increment(self, entity: Entity) -> int:
+        """
+        Return the next unused ID for the given entity and increment it.
+
+        Returns
+        -------
+        int
+            The next free ID for the entity type
+        """
+        free_id = self._free_ids[entity]
+        self._free_ids[entity] += 1
+        return free_id
+
+
+class AbstractTracker(abc.ABC, Trigger):
     @abc.abstractmethod
     def add_detections(
         self,
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
         pet_detections: list[PetDetection],
+        id_provider: IdProvider,  # needed to get unused track IDs
     ):
         """Add detections of a single iteration to this tracker."""
         raise NotImplementedError()
