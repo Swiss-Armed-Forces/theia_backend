@@ -26,6 +26,32 @@ class CoordinateTransformationTest(unittest.TestCase):
             self.assertAlmostEqual(lat, lat_new, delta=1e-10)
             self.assertAlmostEqual(lon, lon_new, delta=CONSISTENCY_DELTA)
             self.assertAlmostEqual(alt, alt_new, delta=1e-5)
+        
+    def test_geodetic_to_cartesian_against_matlab_reference(self):
+        """
+        Validate ecef_to_enu against Octave's ecef2enu reference output.
+
+        Octave call:
+            pkg load mapping
+            output_precision(10)
+            lat = 48.8566;
+            lon =  2.3522;
+            alt = 35.0;
+
+            [x, y, z] = geodetic2ecef(referenceEllipsoid('wgs84'), lat, lon, alt)
+        Octave output:
+            x = 4200937.804
+            y = 172560.7214
+            z = 4780107.699
+        """
+        # Local ENU origin (satellite position in geodetic coordinates)
+        point = Point(lat=48.8566, lon=2.3522, alt=35.0)
+        x, y, z = CoordinateTransformations.geodetic_to_cartesian(*point.as_tuple())
+
+        # Octave reference values.
+        self.assertAlmostEqual(x, 4200937.804, delta=0.001)
+        self.assertAlmostEqual(y, 172560.7214, delta=0.001)
+        self.assertAlmostEqual(z, 4780107.699, delta=0.001)
 
     def test_velocity_transformation_consistency_geodetic_cartesian_geodetic(self):
         rng = np.random.Generator(np.random.PCG64(seed=4987897849))
@@ -357,6 +383,172 @@ class CoordinateTransformationTest(unittest.TestCase):
                     point_ecef_transformed, point_ecef, atol=CONSISTENCY_DELTA
                 ).all()
             )
+
+    def test_ecef_to_enu_prime_meridian_equator(self):
+        """
+        At lat=0, lon=0 the reference point lies on the +X axis.
+        Unit ECEF displacements must map to the expected ENU basis vectors:
+          +X → Up (0, 0, 1)
+          +Y → East (1, 0, 0)
+          +Z → North (0, 1, 0)
+        """
+        reference_point = Point(lat=0.0, lon=0.0, alt=0.0)
+        cx, cy, cz = CoordinateTransformations.geodetic_to_cartesian(
+            *reference_point.as_tuple()
+        )
+        transformer = EcefToEnuTransformer(reference_point)
+
+        east, north, up = transformer.ecef_to_enu((cx + 1, cy, cz))
+        self.assertAlmostEqual(east, 0.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(north, 0.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(up, 1.0, delta=CONSISTENCY_DELTA)
+
+        east, north, up = transformer.ecef_to_enu((cx, cy + 1, cz))
+        self.assertAlmostEqual(east, 1.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(north, 0.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(up, 0.0, delta=CONSISTENCY_DELTA)
+
+        east, north, up = transformer.ecef_to_enu((cx, cy, cz + 1))
+        self.assertAlmostEqual(east, 0.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(north, 1.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(up, 0.0, delta=CONSISTENCY_DELTA)
+
+    def test_ecef_to_enu_lon90_equator(self):
+        """
+        At lat=0, lon=90 the reference point lies on the +Y axis.
+        Unit ECEF displacements must map to the expected ENU basis vectors:
+          -X → East (1, 0, 0)
+          +Y → Up (0, 0, 1)
+          +Z → North (0, 1, 0)
+        """
+        reference_point = Point(lat=0.0, lon=90.0, alt=0.0)
+        cx, cy, cz = CoordinateTransformations.geodetic_to_cartesian(
+            *reference_point.as_tuple()
+        )
+        transformer = EcefToEnuTransformer(reference_point)
+
+        east, north, up = transformer.ecef_to_enu((cx - 1, cy, cz))
+        self.assertAlmostEqual(east, 1.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(north, 0.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(up, 0.0, delta=CONSISTENCY_DELTA)
+
+        east, north, up = transformer.ecef_to_enu((cx, cy + 1, cz))
+        self.assertAlmostEqual(east, 0.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(north, 0.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(up, 1.0, delta=CONSISTENCY_DELTA)
+
+        east, north, up = transformer.ecef_to_enu((cx, cy, cz + 1))
+        self.assertAlmostEqual(east, 0.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(north, 1.0, delta=CONSISTENCY_DELTA)
+        self.assertAlmostEqual(up, 0.0, delta=CONSISTENCY_DELTA)
+
+    def test_ecef_to_enu_reference_point_is_origin(self):
+        """The reference point itself must transform to ENU (0, 0, 0)."""
+        rng = np.random.Generator(np.random.PCG64(seed=111))
+        for _ in range(20):
+            reference_point = Point(
+                lat=rng.uniform(-90.0, 90.0),
+                lon=rng.uniform(-180.0, 180.0),
+                alt=rng.uniform(0.0, 10_000.0),
+            )
+            ref_ecef = CoordinateTransformations.geodetic_to_cartesian(
+                *reference_point.as_tuple()
+            )
+            transformer = EcefToEnuTransformer(reference_point)
+            east, north, up = transformer.ecef_to_enu(ref_ecef)
+            self.assertAlmostEqual(east, 0.0, delta=CONSISTENCY_DELTA)
+            self.assertAlmostEqual(north, 0.0, delta=CONSISTENCY_DELTA)
+            self.assertAlmostEqual(up, 0.0, delta=CONSISTENCY_DELTA)
+
+    def test_ecef_to_enu_physical_directions(self):
+        """
+        For a mid-latitude reference point, verify that:
+        - a target at slightly higher latitude gives positive North, ~zero East
+        - a target at slightly higher longitude gives positive East, ~zero North
+        - a target at higher altitude gives positive Up, ~zero East and North
+        """
+        reference = Point(lat=45.0, lon=10.0, alt=100.0)
+        transformer = EcefToEnuTransformer(reference)
+
+        target_north_ecef = CoordinateTransformations.geodetic_to_cartesian(
+            *Point(lat=45.001, lon=10.0, alt=100.0).as_tuple()
+        )
+        east, north, up = transformer.ecef_to_enu(target_north_ecef)
+        self.assertGreater(north, 0.0)
+        self.assertAlmostEqual(east, 0.0, delta=1e-3)
+
+        target_east_ecef = CoordinateTransformations.geodetic_to_cartesian(
+            *Point(lat=45.0, lon=10.001, alt=100.0).as_tuple()
+        )
+        east, north, up = transformer.ecef_to_enu(target_east_ecef)
+        self.assertGreater(east, 0.0)
+        self.assertAlmostEqual(north, 0.0, delta=1e-3)
+
+        target_up_ecef = CoordinateTransformations.geodetic_to_cartesian(
+            *Point(lat=45.0, lon=10.0, alt=200.0).as_tuple()
+        )
+        east, north, up = transformer.ecef_to_enu(target_up_ecef)
+        self.assertGreater(up, 0.0)
+        self.assertAlmostEqual(east, 0.0, delta=1e-3)
+        self.assertAlmostEqual(north, 0.0, delta=1e-3)
+
+    def test_ecef_to_enu_against_matlab_reference(self):
+        """
+        Validate ecef_to_enu against Octave's ecef2enu reference output.
+
+        Reference values taken verbatim from the Matlab ecef2enu documentation
+        example (wgs84Ellipsoid with length unit 'kilometer').  All values are
+        converted to metres for this test.
+
+        Octave call:
+            pkg load mapping
+            output_precision(10)
+            wgs84 = wgs84Ellipsoid('kilometer');
+            [xEast, yNorth, zUp] = ecef2enu(5507.5289, 4556.2241, 6012.8208, 45.9132, 36.7484, 1877.7532, wgs84)
+        Octave output:
+            xEast = 355.6012615
+            yNorth = -923.0831559
+            zUp = 1041.016424
+        """
+        # Local ENU origin (satellite position in geodetic coordinates)
+        reference_point = Point(lat=45.9132, lon=36.7484, alt=1877753.2)
+
+        # ECEF position of orbital debris [m]
+        debris_ecef = (5507528.9, 4556224.1, 6012820.8)
+
+        transformer = EcefToEnuTransformer(reference_point)
+        east, north, up = transformer.ecef_to_enu(debris_ecef)
+
+        # Octave reference values converted to metres.
+        self.assertAlmostEqual(east, 355601.2615, delta=0.001)
+        self.assertAlmostEqual(north, -923083.1559, delta=0.001)
+        self.assertAlmostEqual(up, 1041016.424, delta=0.001)
+
+    def test_ecef_to_enu_multiple_matches_single(self):
+        """ecef_to_enu_multiple must return identical results to ecef_to_enu for each point."""
+        rng = np.random.Generator(np.random.PCG64(seed=42))
+        reference_point = Point(
+            lat=rng.uniform(-90.0, 90.0),
+            lon=rng.uniform(-180.0, 180.0),
+            alt=rng.uniform(0.0, 10_000.0),
+        )
+        transformer = EcefToEnuTransformer(reference_point)
+
+        points_ecef = [
+            CoordinateTransformations.geodetic_to_cartesian(
+                rng.uniform(-90.0, 90.0),
+                rng.uniform(-180.0, 180.0),
+                rng.uniform(0.0, 10_000.0),
+            )
+            for _ in range(20)
+        ]
+
+        results_single = np.array([transformer.ecef_to_enu(p) for p in points_ecef])
+        results_multiple = transformer.ecef_to_enu_multiple(points_ecef)
+
+        self.assertTrue(
+            np.isclose(results_single, results_multiple, atol=CONSISTENCY_DELTA).all()
+        )
 
 
 if __name__ == "__main__":
