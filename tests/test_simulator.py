@@ -19,7 +19,7 @@ from theia.simulation.controllers.waypoint_target_controller import (
 )
 from theia.simulation.logging import FileLogger, InMemoryLogger
 from theia.simulation.simulator import Simulator, TimeCriterion
-from theia.simulation.tracking import DummyTracker
+from theia.simulation.trackers.tracking import DummyTracker
 from theia.terrain import SrtmTerrainModel
 from theia.test_data import get_uetliberg_radar
 from theia.types import ConstantRcsModel

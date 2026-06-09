@@ -11,7 +11,7 @@ from theia.simulation.controllers.pcl_sensor_controller import PclSensorControll
 from theia.simulation.controllers.waypoint_target_controller import (
     WaypointTargetController,
 )
-from theia.simulation.pseudo_tracker import PseudoTracker
+from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import (
     AbstractSimulationListener,
     Simulator,

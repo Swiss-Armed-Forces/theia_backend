@@ -16,7 +16,7 @@ from theia.simulation.factories.abstract_simulator_factory import (
     AbstractSimulatorFactory,
 )
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
-from theia.simulation.tracking import MonostaticPseudoTracker
+from theia.simulation.trackers.tracking import MonostaticPseudoTracker
 from theia.test_data import get_uetliberg_radar
 from theia.types import AbstractTracker, ConstantRcsModel, Controller
 
