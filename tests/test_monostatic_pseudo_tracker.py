@@ -5,7 +5,7 @@ import unittest
 from theia.coordinates import CoordinateTransformations
 from theia.data_loading import load_trajectory_file
 from theia.measurement import MonostaticMeasurementTransformations
-from theia.simulation.tracking import MonostaticPseudoTracker
+from theia.simulation.trackers.tracking import MonostaticPseudoTracker
 from theia.test_data import get_uetliberg_radar
 from theia.types import MonostaticRadarDetection
 

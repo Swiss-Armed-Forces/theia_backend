@@ -14,7 +14,7 @@ from theia.simulation.controllers.waypoint_target_controller import (
 from theia.simulation.factories.abstract_simulator_factory import (
     AbstractSimulatorFactory,
 )
-from theia.simulation.pseudo_tracker import PseudoTracker
+from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
 from theia.test_data import load_pcl_example
 from theia.types import AbstractTracker, Controller

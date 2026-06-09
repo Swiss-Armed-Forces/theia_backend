@@ -1,7 +1,7 @@
 import cProfile
 
 from theia.simulation.logging import LogLoader
-from theia.simulation.tracking import MonostaticSingleSensorTracker
+from theia.simulation.trackers.tracking import MonostaticSingleSensorTracker
 
 # Load data.
 loader = LogLoader("log_opensky.json")
