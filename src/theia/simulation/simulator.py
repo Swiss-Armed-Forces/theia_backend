@@ -12,7 +12,9 @@ from theia.detection.pet import PetDetector
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.terrain import AbstractTerrainModel
 from theia.types import (
+    AbstractEventListener,
     AbstractTracker,
+    Event,
     IdProvider,
     MonostaticRadarDetection,
     Controller,
@@ -26,6 +28,7 @@ from theia.types import (
     SituationalPicture,
     Snapshot,
     Target,
+    Trigger,
 )
 
 
@@ -43,7 +46,7 @@ class TimeCriterion(TerminationCriterion):
         return snapshot.time >= self._end_time
 
 
-class Simulator:
+class Simulator(Trigger, AbstractEventListener):
     def __init__(
         self,
         pcl_detector: PclDetector,
@@ -96,6 +99,7 @@ class Simulator:
         simulate_clutter: bool, default True
             Whether to simulate clutter detections
         """
+        super().__init__()
         self._pcl_detector = pcl_detector
         self._pet_detector = pet_detector
         self._blue_controller = blue_controller
@@ -127,7 +131,20 @@ class Simulator:
         """IDs of PET sensors. Keys are (rx ID, tx ID) tuples."""
         self._id_provider = id_provider
 
+        # Allow external reaction to simulation events.
+        # Useful e. g. to expose simulation state to an API.
         self.set_listener(listener)
+
+        # Broadcast events to controllers.
+        self.register_event_listener(self._blue_controller)
+        self.register_event_listener(self._red_controller)
+
+        # Listen to events triggered by the controllers.
+        self._blue_controller.register_event_listener(self)
+        self._red_controller.register_event_listener(self)
+        # Listen to events triggered by the trackers.
+        self._blue_tracker.register_event_listener(self)
+        self._red_tracker.register_event_listener(self)
 
     def _next_free_sensor_id(self) -> int:
         return (
@@ -501,6 +518,9 @@ class Simulator:
 
     def get_speedup(self) -> float:
         return self._dt.seconds / max(1e-6, self._minimum_seconds_per_step)
+
+    def on_event(self, event: Event):
+        self._broadcast_event(event)
 
 
 def run_simulation_until_completion(simulator: Simulator):

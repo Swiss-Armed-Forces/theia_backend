@@ -7,6 +7,7 @@ from scipy.interpolate import CubicSpline
 from theia.coordinates import CoordinateTransformations
 from theia.types import (
     Controller,
+    Event,
     MonostaticSensor,
     PclSensor,
     Point,
@@ -152,3 +153,6 @@ class WaypointTargetController(Controller):
             trajectory.cross_section_model,
             sensor,
         )
+
+    def on_event(self, event: Event):
+        pass

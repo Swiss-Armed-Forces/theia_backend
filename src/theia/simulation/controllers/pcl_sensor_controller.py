@@ -5,6 +5,7 @@ from theia.types import (
     ConstantRcsModel,
     Controller,
     AbstractSensor,
+    Event,
     MonostaticSensor,
     PclSensor,
     Receiver,
@@ -86,3 +87,6 @@ class PclSensorController(Controller):
         dt: datetime.timedelta,
     ) -> list[Receiver]:
         return []
+
+    def on_event(self, event: Event):
+        pass

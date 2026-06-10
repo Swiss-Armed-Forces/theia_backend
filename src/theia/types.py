@@ -1,5 +1,6 @@
 from __future__ import annotations
 import abc
+from dataclasses import dataclass
 import datetime
 import enum
 from typing import Optional, Self
@@ -1069,7 +1070,57 @@ class SituationalPicture(pydantic.BaseModel):
     enemy_targets: list[Track]
 
 
-class Controller(abc.ABC):
+class AbstractEventListener(abc.ABC):
+    @abc.abstractmethod
+    def on_event(Event):
+        raise NotImplementedError()
+
+
+@dataclass
+class Event:
+    id: int
+    """Unique event ID"""
+    time: datetime.datetime
+    """Time at which the event happens"""
+
+
+@dataclass
+class TrackInitEvent(Event):
+    """Fired when a new track is initialized."""
+
+    target_id: int
+    """ID of the target for whom a track is initiated"""
+    track_id: int
+    """ID of the track"""
+
+
+@dataclass
+class TimerEvent(Event):
+    """Fired when a timer expires."""
+
+    timer_id: int
+    """ID of the timer."""
+
+
+class Trigger:
+    """
+    Fires events and informs registered listeners.
+
+    This class does not fire any events itself, but is meant to be extended.
+    """
+
+    def __init__(self):
+        self._listeners: list[AbstractEventListener] = []
+
+    def register_event_listener(self, listener: AbstractEventListener):
+        self._listeners.append(listener)
+
+    def _broadcast_event(self, event: Event):
+        for listener in self._listeners:
+            listener.on_event(event)
+
+
+class Controller(AbstractEventListener, Trigger):
     @abc.abstractmethod
     def get_monostatic_radars(
         self,
