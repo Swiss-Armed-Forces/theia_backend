@@ -24,11 +24,14 @@ from theia.detection.ecef_sampler import EcefDetectionSampler
 from theia.types import (
     CLUTTER_TARGET,
     AbstractTracker,
+    Entity,
     IdProvider,
     MonostaticRadarDetection,
     PclDetection,
     PetDetection,
     Point,
+    TrackInitEvent,
+    Trigger,
 )
 
 
@@ -121,7 +124,7 @@ class TargetDetections(pydantic.BaseModel):
     pet_detections: list[PetDetection] = []
 
 
-class PseudoTracker(AbstractTracker):
+class PseudoTracker(AbstractTracker, Trigger):
     r"""
     A pseudo-tracker for quick iteration.
 
@@ -160,6 +163,7 @@ class PseudoTracker(AbstractTracker):
             )
             Position to serve as prior
         """
+        super().__init__()
         self._trackers: dict[int, SingleTargetEcefTracker] = {}
         """Tracker per target ID"""
         self._iterations_without_update: dict[int, int] = {}
@@ -241,7 +245,7 @@ class PseudoTracker(AbstractTracker):
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
         pet_detections: list[PetDetection],
-        id_provider: IdProvider, # needed to get unused track IDs
+        id_provider: IdProvider,  # needed to get unused track IDs
     ):
         target_detections = self._preprocess_detections(
             monostatic_detections,
@@ -273,6 +277,16 @@ class PseudoTracker(AbstractTracker):
                 tracker.add_detection(detection)
                 self._iterations_without_update[detections.target_id] = 0
                 updated_targets.add(detections.target_id)
+
+                if len(tracker._track.states) == 1:
+                    self._broadcast_event(
+                        TrackInitEvent(
+                            id=id_provider.increment(Entity.EVENT),
+                            time=detection.timestamp,
+                            target_id=detections.target_id,
+                            track_id=track_id,
+                        )
+                    )
 
         # Remove targets that haven't been updated in a while.
         # The list() is important: It allows to modify the states dict during iteration.

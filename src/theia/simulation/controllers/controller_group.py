@@ -2,6 +2,7 @@ import datetime
 import itertools
 from theia.types import (
     Controller,
+    Event,
     MonostaticSensor,
     PclSensor,
     Receiver,
@@ -11,6 +12,7 @@ from theia.types import (
 
 class ControllerGroup(Controller):
     def __init__(self, controllers: list[Controller]):
+        super().__init__()
         self._controllers = controllers
 
     def get_monostatic_radars(
@@ -52,3 +54,7 @@ class ControllerGroup(Controller):
             return []
         else:
             return list(itertools.chain.from_iterable(all_receivers))
+
+    def on_event(self, event: Event):
+        for controller in self._controllers:
+            controller.on_event(event)

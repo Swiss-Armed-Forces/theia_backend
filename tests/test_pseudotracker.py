@@ -19,10 +19,20 @@ from theia.simulation.simulator import (
 )
 from theia.terrain import SrtmTerrainModel
 from theia.test_data import load_pcl_example
-from theia.types import ConstantRcsModel, SituationalPicture
+from theia.types import (
+    AbstractEventListener,
+    ConstantRcsModel,
+    Event,
+    SituationalPicture,
+    TrackInitEvent,
+)
 
 
-class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
+class PseudoTrackerTest(
+    unittest.TestCase,
+    AbstractSimulationListener,
+    AbstractEventListener,
+):
     def test_pcl_only_track_init(self):
         sensors, trajectories, grid = load_pcl_example(rotation_time=1.0)
         self._trajectory = trajectories[0]
@@ -82,9 +92,14 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
             simulate_clutter=False,
             terrain_model=terrain,
         )
+        simulator.register_event_listener(self)
+
+        self._track_init_event_fired = False
 
         while simulator.advance():
             pass
+
+        self.assertTrue(self._track_init_event_fired)
 
     def register_simulator(self, simulator):
         self._first_detection = True
@@ -125,6 +140,10 @@ class PseudoTrackerTest(unittest.TestCase, AbstractSimulationListener):
 
     def on_end(self):
         pass
+
+    def on_event(self, event: Event):
+        if isinstance(event, TrackInitEvent):
+            self._track_init_event_fired = True
 
 
 if __name__ == "__main__":

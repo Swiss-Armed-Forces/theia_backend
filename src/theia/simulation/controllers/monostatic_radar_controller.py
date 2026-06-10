@@ -3,6 +3,7 @@ from theia.config import SIDC_BLUE_RADAR, SIDC_RED_RADAR
 from theia.types import (
     ConstantRcsModel,
     Controller,
+    Event,
     MonostaticSensor,
     PclSensor,
     Receiver,
@@ -35,6 +36,7 @@ class MonostaticRadarController(Controller):
         name: str
             Human-readable name of the sensor
         """
+        super().__init__()
         self._radar = radar
         self._target_id = target_id
         self._name = name
@@ -80,3 +82,6 @@ class MonostaticRadarController(Controller):
         dt: datetime.timedelta,
     ) -> list[Receiver]:
         return []
+
+    def on_event(self, event: Event):
+        pass
