@@ -7,6 +7,7 @@ from theia.types import (
     PclSensor,
     Receiver,
     SituationalPicture,
+    Target,
 )
 
 
@@ -35,7 +36,7 @@ class ControllerGroup(Controller):
 
     def get_targets(
         self, situational_picture: SituationalPicture, dt: datetime.timedelta
-    ) -> list[Receiver]:
+    ) -> list[Target]:
         all_targets = [
             c.get_targets(situational_picture, dt) for c in self._controllers
         ]
