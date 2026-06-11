@@ -1,6 +1,7 @@
 import datetime
 from theia.config import SIDC_BLUE_RADAR, SIDC_RED_RADAR
 from theia.types import (
+    AbstractEffector,
     ConstantRcsModel,
     Controller,
     Event,
@@ -81,6 +82,13 @@ class MonostaticRadarController(Controller):
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
     ) -> list[Receiver]:
+        return []
+
+    def get_effectors(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[AbstractEffector]:
         return []
 
     def on_event(self, event: Event):
