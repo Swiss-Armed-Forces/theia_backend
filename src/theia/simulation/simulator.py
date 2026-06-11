@@ -1,11 +1,13 @@
 from __future__ import annotations
 import abc
 import cProfile
+from copy import deepcopy
 import datetime
 import itertools
 import time
 
 import numpy as np
+from theia.config import UNKNOWN_ID, UNKNOWN_TIME
 from theia.detection.active import calculate_monostatic_detection
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
@@ -14,6 +16,7 @@ from theia.terrain import AbstractTerrainModel
 from theia.types import (
     AbstractEventListener,
     AbstractTracker,
+    Entity,
     Event,
     IdProvider,
     MonostaticRadarDetection,
@@ -521,6 +524,11 @@ class Simulator(Trigger, AbstractEventListener):
         return self._dt.seconds / max(1e-6, self._minimum_seconds_per_step)
 
     def on_event(self, event: Event):
+        # Fill in missing information.
+        if event.id == UNKNOWN_ID:
+            event.id = self._id_provider.increment(Entity.EVENT)
+        if event.time == UNKNOWN_TIME:
+            event.time = deepcopy(self._t)
         self._broadcast_event(event)
 
 

@@ -2,6 +2,7 @@ import datetime
 
 from theia.config import SIDC_BLUE_RECEIVER, SIDC_GREEN_TRANSMITTER, SIDC_RED_RECEIVER
 from theia.types import (
+    AbstractEffector,
     ConstantRcsModel,
     Controller,
     AbstractSensor,
@@ -86,6 +87,13 @@ class PclSensorController(Controller):
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
     ) -> list[Receiver]:
+        return []
+
+    def get_effectors(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[AbstractEffector]:
         return []
 
     def on_event(self, event: Event):

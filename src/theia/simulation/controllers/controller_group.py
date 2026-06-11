@@ -1,6 +1,7 @@
 import datetime
 import itertools
 from theia.types import (
+    AbstractEffector,
     Controller,
     Event,
     MonostaticSensor,
@@ -55,6 +56,19 @@ class ControllerGroup(Controller):
             return []
         else:
             return list(itertools.chain.from_iterable(all_receivers))
+
+    def get_effectors(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[AbstractEffector]:
+        all_effectors = [
+            c.get_effectors(situational_picture, dt) for c in self._controllers
+        ]
+        if len(all_effectors) == 0:
+            return []
+        else:
+            return list(itertools.chain.from_iterable(all_effectors))
 
     def on_event(self, event: Event):
         for controller in self._controllers:

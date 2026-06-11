@@ -11,7 +11,7 @@ from scipy.interpolate import CubicSpline, make_interp_spline, BSpline
 import scipy.constants as sc
 import shapely
 
-from theia.config import SIDC_UNKNOWN
+from theia.config import SIDC_UNKNOWN, UNKNOWN_ID, UNKNOWN_TIME
 from theia.util import from_dB
 
 
@@ -1120,6 +1120,38 @@ class Trigger:
             listener.on_event(event)
 
 
+@dataclass
+class AbstractEffector(Trigger):
+    id: int
+    """Effector ID"""
+    name: str
+    """Human-readable name for this effector"""
+    point: Point
+    """Position of the effector."""
+    combat_range: float
+    """Up to which distance a target can be fought [m]"""
+    n_attacks_left: int
+    """Number of attacks the effector has left"""
+
+    def __post_init__(self):
+        super().__init__()
+
+    @abc.abstractmethod
+    def fire(self, target: Target):
+        raise NotImplementedError()
+
+
+@dataclass
+class DirectFireEvent(Event):
+    shooter: AbstractEffector
+    target: Target
+
+
+@dataclass
+class IndirectFireEvent(DirectFireEvent):
+    projectile: AbstractEffector
+
+
 class Controller(AbstractEventListener, Trigger):
     @abc.abstractmethod
     def get_monostatic_radars(
@@ -1151,6 +1183,14 @@ class Controller(AbstractEventListener, Trigger):
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
     ) -> list[Receiver]:
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def get_effectors(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[AbstractEffector]:
         raise NotImplementedError()
 
 
@@ -1203,6 +1243,7 @@ class Track(pydantic.BaseModel):
 class Entity(enum.Enum):
     TRACK = 0
     EVENT = 1
+    EFFECTOR = 2
 
 
 class IdProvider:
@@ -1214,6 +1255,7 @@ class IdProvider:
         self._free_ids: dict[Entity, int] = {
             Entity.TRACK: 0,
             Entity.EVENT: 0,
+            Entity.EFFECTOR: 0,
         }
 
     def increment(self, entity: Entity) -> int:

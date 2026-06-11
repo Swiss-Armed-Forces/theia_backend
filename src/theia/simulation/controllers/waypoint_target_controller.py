@@ -6,6 +6,7 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 from theia.coordinates import CoordinateTransformations
 from theia.types import (
+    AbstractEffector,
     Controller,
     Event,
     MonostaticSensor,
@@ -153,6 +154,13 @@ class WaypointTargetController(Controller):
             trajectory.cross_section_model,
             sensor,
         )
+
+    def get_effectors(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[AbstractEffector]:
+        return []
 
     def on_event(self, event: Event):
         pass
