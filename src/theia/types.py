@@ -94,7 +94,7 @@ class Velocity(pydantic.BaseModel):
         return np.sqrt(self.vx**2 + self.vy**2 + self.vz**2)
 
     def as_tuple(self) -> tuple[float, float, float]:
-        return [self.vx, self.vy, self.vz]
+        return (self.vx, self.vy, self.vz)
 
 
 class AttenuationModel(pydantic.BaseModel):
@@ -1072,7 +1072,7 @@ class SituationalPicture(pydantic.BaseModel):
 
 class AbstractEventListener(abc.ABC):
     @abc.abstractmethod
-    def on_event(Event):
+    def on_event(self, event: Event):
         raise NotImplementedError()
 
 

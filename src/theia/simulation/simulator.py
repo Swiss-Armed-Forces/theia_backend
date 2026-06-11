@@ -107,6 +107,7 @@ class Simulator(Trigger, AbstractEventListener):
         self._blue_tracker = blue_tracker
         self._red_tracker = red_tracker
         self._t = start_time
+        """Current time of the simulation"""
         self._dt = time_step
         self._minimum_seconds_per_step: float = float(min_time_per_step.seconds)
         """Minimum amount of time to spend on an iteration."""
