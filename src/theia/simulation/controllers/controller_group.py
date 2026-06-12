@@ -1,8 +1,8 @@
 import datetime
 import itertools
 from theia.types import (
-    AbstractEffector,
     Controller,
+    DirectShot,
     Event,
     MonostaticSensor,
     PclSensor,
@@ -57,18 +57,16 @@ class ControllerGroup(Controller):
         else:
             return list(itertools.chain.from_iterable(all_receivers))
 
-    def get_effectors(
+    def get_shots(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[AbstractEffector]:
-        all_effectors = [
-            c.get_effectors(situational_picture, dt) for c in self._controllers
-        ]
-        if len(all_effectors) == 0:
+    ) -> list[DirectShot]:
+        all_shots = [c.get_shots(situational_picture, dt) for c in self._controllers]
+        if len(all_shots) == 0:
             return []
         else:
-            return list(itertools.chain.from_iterable(all_effectors))
+            return list(itertools.chain.from_iterable(all_shots))
 
     def on_event(self, event: Event):
         for controller in self._controllers:

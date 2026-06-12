@@ -1,9 +1,9 @@
 import datetime
 from theia.config import SIDC
 from theia.types import (
-    AbstractEffector,
     ConstantRcsModel,
     Controller,
+    DirectShot,
     Event,
     MonostaticSensor,
     PclSensor,
@@ -84,11 +84,11 @@ class MonostaticRadarController(Controller):
     ) -> list[Receiver]:
         return []
 
-    def get_effectors(
+    def get_shots(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[AbstractEffector]:
+    ) -> list[DirectShot]:
         return []
 
     def on_event(self, event: Event):

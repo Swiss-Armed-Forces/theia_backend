@@ -6,8 +6,8 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 from theia.coordinates import CoordinateTransformations
 from theia.types import (
-    AbstractEffector,
     Controller,
+    DirectShot,
     Event,
     MonostaticSensor,
     PclSensor,
@@ -157,11 +157,11 @@ class WaypointTargetController(Controller):
             sensor,
         )
 
-    def get_effectors(
+    def get_shots(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[AbstractEffector]:
+    ) -> list[DirectShot]:
         return []
 
     def on_event(self, event: Event):

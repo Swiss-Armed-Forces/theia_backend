@@ -1144,7 +1144,7 @@ class AbstractEffector:
 @dataclass
 class DirectShot(Event):
     shooter: AbstractEffector
-    target: Target
+    track: Track
 
 
 @dataclass
@@ -1189,11 +1189,12 @@ class Controller(AbstractEventListener, Trigger):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def get_effectors(
+    def get_shots(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[AbstractEffector]:
+    ) -> list[DirectShot]:
+        """Let the controller perform direct shots and handle indirect shots internally."""
         raise NotImplementedError()
 
 

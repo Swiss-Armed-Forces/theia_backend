@@ -2,6 +2,7 @@ from __future__ import annotations
 import abc
 import cProfile
 from copy import deepcopy
+from dataclasses import dataclass
 import datetime
 import itertools
 import time
@@ -12,8 +13,10 @@ from theia.detection.active import calculate_monostatic_detection
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.radar_equation import calculate_maximum_monostatic_range
+from theia.simulation.damage_model import AbstractDamageModel
 from theia.terrain import AbstractTerrainModel
 from theia.types import (
+    AbstractEffector,
     AbstractEventListener,
     AbstractTracker,
     Entity,
@@ -31,8 +34,14 @@ from theia.types import (
     SituationalPicture,
     Snapshot,
     Target,
+    TrackInitEvent,
     Trigger,
 )
+
+
+@dataclass
+class KillEvent(Event):
+    target_id: int
 
 
 class TerminationCriterion(abc.ABC):
@@ -65,6 +74,7 @@ class Simulator(Trigger, AbstractEventListener):
         rng: np.random.Generator,
         listener: AbstractSimulationListener,
         terrain_model: AbstractTerrainModel,
+        damage_model: AbstractDamageModel,
         simulate_clutter: bool = True,
         id_provider: IdProvider = IdProvider(),
     ):
@@ -119,13 +129,16 @@ class Simulator(Trigger, AbstractEventListener):
         self._listener = listener
         self._simulate_clutter = simulate_clutter
         self._terrain_model = terrain_model
+        self._damage_model = damage_model
 
         self._blue_monostatic_radars: list[MonostaticSensor] = []
         self._blue_pcl_sensors: list[PclSensor] = []
         self._blue_targets: list[Target] = []
+        self._blue_effectors: list[AbstractEffector] = []
         self._red_monostatic_radars: list[MonostaticSensor] = []
         self._red_pcl_sensors: list[PclSensor] = []
         self._red_targets: list[Target] = []
+        self._red_effectors: list[AbstractEffector] = []
         self._blue_pet_receivers: list[Receiver] = []
         self._red_pet_receivers: list[Receiver] = []
         self._detection_id = 0
@@ -134,6 +147,9 @@ class Simulator(Trigger, AbstractEventListener):
         self._pet_sensor_ids: dict[tuple[int, int], int] = {}
         """IDs of PET sensors. Keys are (rx ID, tx ID) tuples."""
         self._id_provider = id_provider
+
+        # We need the mapping track ID -> target ID to calculate damage.
+        self._track_target_map: dict[int, int] = {}
 
         # Allow external reaction to simulation events.
         # Useful e. g. to expose simulation state to an API.
@@ -371,6 +387,47 @@ class Simulator(Trigger, AbstractEventListener):
 
         return detections
 
+    def _execute_attacks(self, is_blue: bool):
+        """
+        Notes
+        -----
+        **Challenge**
+
+        The Controllers have only information about tracks.
+        Therefore, they fire at tracks, not the actual target position.
+        However, damage should be applied to the actual target.
+
+        **Current implementation**
+
+        Currently, it is simply assumed that the track position is "close enough"
+        to the true target position to be shot at.
+        Interpretation: The effector does not need the situational picture
+        for aiming, but has its own way of assessing the target position.
+        The uncertainty of aiming etc. is modelled implicitly in the damage model.
+
+        **Potential problems and mitigations**
+
+        - Fake tracks
+          A fake track should be linked to the CLUTTER_TARGET (i. e. target id -1),
+          which cannot die. Then, ammo consumption is still accounted for.
+          No unwanted consequences.
+        - True target is outside the effector's range, but the track shows it inside.
+          Assuming a reasonable tracker, this is only a fringe effect.
+          The model is not precise enough to represent a spatial resolution of
+          precision, which means this issue does not make the model worse overall.
+        """
+        shots = self._blue_shots if is_blue else self._red_shots
+        for shot in shots:
+            if self._damage_model.is_lethal(shot):
+                target_id = self._track_target_map[shot.track.id]
+                self._broadcast_event(
+                    KillEvent(
+                        id=self._id_provider.increment(Entity.EVENT),
+                        time=self._t,
+                        target_id=target_id,
+                    )
+                )
+
     def advance(self) -> bool:
         """
         Advance the simulation by a single iteration.
@@ -406,6 +463,10 @@ class Simulator(Trigger, AbstractEventListener):
             blue_situational_picture,
             self._dt,
         )
+        self._blue_shots = self._blue_controller.get_shots(
+            blue_situational_picture,
+            self._dt,
+        )
         self._red_monostatic_radars = self._red_controller.get_monostatic_radars(
             red_situational_picture,
             self._dt,
@@ -415,6 +476,10 @@ class Simulator(Trigger, AbstractEventListener):
             self._dt,
         )
         self._red_targets = self._red_controller.get_targets(
+            red_situational_picture,
+            self._dt,
+        )
+        self._red_shots = self._red_controller.get_shots(
             red_situational_picture,
             self._dt,
         )
@@ -465,6 +530,10 @@ class Simulator(Trigger, AbstractEventListener):
 
         # Update the time stamp.
         self._t += self._dt
+
+        # Fight.
+        self._execute_attacks(is_blue=True)
+        self._execute_attacks(is_blue=False)
 
         # Detect RED targets.
         blue_active_radar_detections = self._calculate_monostatic_detections(
@@ -529,7 +598,13 @@ class Simulator(Trigger, AbstractEventListener):
             event.id = self._id_provider.increment(Entity.EVENT)
         if event.time == UNKNOWN_TIME:
             event.time = deepcopy(self._t)
+
+        # Broadcast.
         self._broadcast_event(event)
+
+        # Remember how tracks map to targets.
+        if isinstance(event, TrackInitEvent):
+            self._track_target_map[event.track_id] = event.target_id
 
 
 def run_simulation_until_completion(simulator: Simulator):
