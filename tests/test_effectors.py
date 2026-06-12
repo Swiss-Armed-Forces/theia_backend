@@ -5,11 +5,9 @@ from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.terrain import SrtmTerrainModel
 from theia.types import (
-    AbstractEventListener,
     ConstantRcsModel,
-    DirectFireEvent,
-    Event,
-    IndirectFireEvent,
+    DirectShot,
+    IndirectShot,
     Point,
     Target,
     Velocity,
@@ -42,9 +40,7 @@ p_no_los = Point(
 )
 
 
-class DirectEffectorTest(unittest.TestCase, AbstractEventListener):
-    def setUp(self):
-        self._events: list[DirectFireEvent] = []
+class DirectEffectorTest(unittest.TestCase):
 
     def test_too_far_away(self):
         effector = DirectFireEffector(
@@ -134,7 +130,7 @@ class DirectEffectorTest(unittest.TestCase, AbstractEventListener):
         with self.assertRaises(ValueError):
             effector.fire(target)
 
-    def test_event(self):
+    def test_result(self):
         effector = DirectFireEffector(
             id=0,
             point=p_uetliberg,
@@ -151,24 +147,17 @@ class DirectEffectorTest(unittest.TestCase, AbstractEventListener):
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
         )
-        effector.register_event_listener(self)
 
-        self.assertEqual(self._events, [])
-        effector.fire(target)
-        self.assertEqual(len(self._events), 1)
-        event = self._events[0]
+        event = effector.fire(target)
+        self.assertIsInstance(event, DirectShot)
         self.assertEqual(event.target, target)
         self.assertEqual(event.shooter, effector)
         self.assertEqual(event.id, UNKNOWN_ID)
         self.assertEqual(event.time, UNKNOWN_TIME)
 
-    def on_event(self, event: Event):
-        self._events.append(event)
 
-
-class IndirectEffectorTest(unittest.TestCase, AbstractEventListener):
+class IndirectEffectorTest(unittest.TestCase):
     def setUp(self):
-        self._events: list[IndirectFireEvent] = []
         self._projectile = DirectFireEffector(
             id=0,
             point=p_uetliberg,
@@ -282,20 +271,14 @@ class IndirectEffectorTest(unittest.TestCase, AbstractEventListener):
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
         )
-        effector.register_event_listener(self)
 
-        self.assertEqual(self._events, [])
-        effector.fire(target)
-        self.assertEqual(len(self._events), 1)
-        event = self._events[0]
+        event = effector.fire(target)
+        self.assertIsInstance(event, IndirectShot)
         self.assertEqual(event.target, target)
         self.assertEqual(event.shooter, effector)
         self.assertEqual(event.id, UNKNOWN_ID)
         self.assertEqual(event.time, UNKNOWN_TIME)
         self.assertEqual(event.projectile, self._projectile)
-
-    def on_event(self, event: Event):
-        self._events.append(event)
 
 
 if __name__ == "__main__":

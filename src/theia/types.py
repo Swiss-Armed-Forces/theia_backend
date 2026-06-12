@@ -1121,7 +1121,7 @@ class Trigger:
 
 
 @dataclass
-class AbstractEffector(Trigger):
+class AbstractEffector:
     id: int
     """Effector ID"""
     name: str
@@ -1137,19 +1137,22 @@ class AbstractEffector(Trigger):
         super().__init__()
 
     @abc.abstractmethod
-    def fire(self, target: Target):
+    def fire(self, target: Target) -> Shot:
         raise NotImplementedError()
 
 
 @dataclass
-class DirectFireEvent(Event):
+class DirectShot(Event):
     shooter: AbstractEffector
     target: Target
 
 
 @dataclass
-class IndirectFireEvent(DirectFireEvent):
+class IndirectShot(DirectShot):
     projectile: AbstractEffector
+
+
+Shot = DirectShot | IndirectShot
 
 
 class Controller(AbstractEventListener, Trigger):
