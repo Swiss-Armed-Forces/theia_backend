@@ -1236,6 +1236,7 @@ class Track(pydantic.BaseModel):
         self._f = make_interp_spline(self._times, self._y, k=1)
 
     def __call__(self, time: datetime.datetime) -> np.ndarray:
+        """Return the 6-dimensional estimated state at the given time"""
         t = time.timestamp()
         t = min(t, self._times[-1] + self.inactive_time.seconds)
         return self._f(t)
