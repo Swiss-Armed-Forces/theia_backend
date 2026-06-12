@@ -1,9 +1,8 @@
-import abc
 import datetime
 
 import numpy as np
 
-from theia.config import SIDC_RED_FIXED_WING
+from theia.config import SIDC
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.simulation.controllers.controller_group import ControllerGroup
@@ -61,7 +60,7 @@ class UetlibergPclSimulatorFactory(AbstractSimulatorFactory):
     def _get_red_controller(self) -> Controller:
         return ControllerGroup(
             [
-                WaypointTargetController.from_trajectory(t, SIDC_RED_FIXED_WING)
+                WaypointTargetController.from_trajectory(t, SIDC.RED_FIXED_WING)
                 for t in self._trajectories
             ]
         )

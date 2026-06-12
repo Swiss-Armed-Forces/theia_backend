@@ -2,7 +2,7 @@ import datetime
 
 import numpy as np
 
-from theia.config import SIDC_RED_FIXED_WING
+from theia.config import SIDC
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
@@ -20,8 +20,7 @@ from theia.simulation.factories.abstract_simulator_factory import (
 )
 from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
-from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
-from theia.terrain_fast_los import FastSrtmModel
+from theia.terrain import AbstractTerrainModel
 from theia.test_data import (
     build_fighter_jet_radar,
     build_flores_monostatic_radar,
@@ -57,7 +56,7 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
                 alt=1000,
             ),
             target_id=1,
-            sidc=SIDC_RED_FIXED_WING,
+            sidc=SIDC.RED_FIXED_WING,
             rcs=1.0,
         )
         self._terrain_model = terrain_model
@@ -200,14 +199,14 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
         red_sensor = build_fighter_jet_radar(0, 0, 0)
         c1 = WaypointTargetController.from_trajectory(
             trajectory=self._trajectory1,
-            sidc=SIDC_RED_FIXED_WING,
+            sidc=SIDC.RED_FIXED_WING,
             name="Reconnaissance plane",
             sensor=red_sensor,
         )
 
         c2 = WaypointTargetController.from_trajectory(
             trajectory=self._trajectory2,
-            sidc=SIDC_RED_FIXED_WING,
+            sidc=SIDC.RED_FIXED_WING,
             name="Transit",
             sensor=None,
         )
