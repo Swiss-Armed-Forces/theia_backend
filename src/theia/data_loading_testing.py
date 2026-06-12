@@ -5,7 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from theia.config import SIDC_UNKNOWN
+from theia.config import SIDC
 from theia.coordinates import (
     CoordinateTransformations,
 )
@@ -13,13 +13,11 @@ from theia.data_loading import load_openburst_trajectory_file
 from theia.types import (
     AttenuationModel,
     ConstantRcsModel,
-    MonostaticRadarMeasurementModel,
     PclDetection,
     PclMeasurementModel,
     PclSensor,
     Point,
     Polarization,
-    AbstractSensor,
     Receiver,
     Target,
     Trajectory,
@@ -213,7 +211,7 @@ def load_pcl_reference_data(
                     target=Target(
                         id=int(row["targ_id"]),
                         is_stationary=False,
-                        sidc=SIDC_UNKNOWN,
+                        sidc=SIDC.UNKNOWN,
                         point=target_position,
                         cross_section_model=ConstantRcsModel(rcs=rcs),
                         velocity=velocity,

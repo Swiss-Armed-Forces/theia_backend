@@ -11,7 +11,7 @@ from scipy.interpolate import CubicSpline, make_interp_spline, BSpline
 import scipy.constants as sc
 import shapely
 
-from theia.config import SIDC_UNKNOWN, UNKNOWN_ID, UNKNOWN_TIME
+from theia.config import SIDC
 from theia.util import from_dB
 
 
@@ -707,7 +707,7 @@ CLUTTER_TARGET = Target(
     id=-2,
     is_stationary=True,
     name="Clutter target",
-    sidc=SIDC_UNKNOWN,
+    sidc=SIDC.UNKNOWN,
     point=Point(lat=0, lon=0, alt=0),
     cross_section_model=ConstantRcsModel(rcs=0),
     velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),

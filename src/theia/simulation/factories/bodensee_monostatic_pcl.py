@@ -2,7 +2,7 @@ import datetime
 
 import numpy as np
 
-from theia.config import SIDC_RED_FIXED_WING
+from theia.config import SIDC
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.data_loading import load_bakom_ukw_transmitters
 from theia.detection.pcl import PclDetector
@@ -151,7 +151,7 @@ class BodenseeMonostaticPclFactory(AbstractSimulatorFactory):
             [
                 WaypointTargetController.from_trajectory(
                     t,
-                    SIDC_RED_FIXED_WING,
+                    SIDC.RED_FIXED_WING,
                     sensor=build_fighter_jet_radar(1, 1, 1),
                 )
                 for t in self._trajectories

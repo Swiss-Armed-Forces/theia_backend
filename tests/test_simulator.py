@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 from tqdm import tqdm
 
-from theia.config import SIDC_RED_FIXED_WING
+from theia.config import SIDC
 from theia.data_loading import load_trajectory_file
 from theia.data_loading_testing import load_pcl_reference_data
 from theia.detection.pcl import PclDetector
@@ -40,7 +40,7 @@ class SimulatorTest(unittest.TestCase):
         )
         scripted_target_controller = ControllerGroup(
             [
-                WaypointTargetController.from_trajectory(t, SIDC_RED_FIXED_WING)
+                WaypointTargetController.from_trajectory(t, SIDC.RED_FIXED_WING)
                 for t in trajectories
             ]
         )
@@ -87,7 +87,7 @@ class SimulatorTest(unittest.TestCase):
 
         scripted_target_controller = ControllerGroup(
             [
-                WaypointTargetController.from_trajectory(t, SIDC_RED_FIXED_WING)
+                WaypointTargetController.from_trajectory(t, SIDC.RED_FIXED_WING)
                 for t in trajectories
             ]
         )

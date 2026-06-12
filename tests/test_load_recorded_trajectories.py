@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 
-from theia.config import SIDC_RED_FIXED_WING
+from theia.config import SIDC
 from theia.coordinates import CoordinateTransformations
 from theia.data_loading import load_trajectory_file
 from theia.types import ConstantRcsModel, Point, Trajectory, Velocity
@@ -34,7 +34,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
 
         expected = Trajectory(
             target_id=0,
-            target_sidc=SIDC_RED_FIXED_WING,
+            target_sidc=SIDC.RED_FIXED_WING,
             times=[
                 datetime.datetime(
                     year=2022, month=6, day=27, hour=4, minute=2, second=23
@@ -79,7 +79,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
 
         expected = Trajectory(
             target_id=0,
-            target_sidc=SIDC_RED_FIXED_WING,
+            target_sidc=SIDC.RED_FIXED_WING,
             times=[
                 datetime.datetime(
                     year=2022,
@@ -131,7 +131,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
 
         expected = Trajectory(
             target_id=1,
-            target_sidc=SIDC_RED_FIXED_WING,
+            target_sidc=SIDC.RED_FIXED_WING,
             times=[
                 datetime.datetime(
                     year=2022,

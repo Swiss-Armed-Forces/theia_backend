@@ -1,6 +1,6 @@
 import unittest
 
-from theia.config import SIDC_UNKNOWN, UNKNOWN_ID, UNKNOWN_TIME
+from theia.config import SIDC, UNKNOWN_ID, UNKNOWN_TIME
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.terrain import SrtmTerrainModel
@@ -58,7 +58,7 @@ class DirectEffectorTest(unittest.TestCase, AbstractEventListener):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC_UNKNOWN,
+            sidc=SIDC.UNKNOWN,
             point=p_bern,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -79,7 +79,7 @@ class DirectEffectorTest(unittest.TestCase, AbstractEventListener):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC_UNKNOWN,
+            sidc=SIDC.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -100,7 +100,7 @@ class DirectEffectorTest(unittest.TestCase, AbstractEventListener):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC_UNKNOWN,
+            sidc=SIDC.UNKNOWN,
             point=p_no_los,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -121,7 +121,7 @@ class DirectEffectorTest(unittest.TestCase, AbstractEventListener):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC_UNKNOWN,
+            sidc=SIDC.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -146,7 +146,7 @@ class DirectEffectorTest(unittest.TestCase, AbstractEventListener):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC_UNKNOWN,
+            sidc=SIDC.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -190,7 +190,7 @@ class IndirectEffectorTest(unittest.TestCase, AbstractEventListener):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC_UNKNOWN,
+            sidc=SIDC.UNKNOWN,
             point=p_bern,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -211,7 +211,7 @@ class IndirectEffectorTest(unittest.TestCase, AbstractEventListener):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC_UNKNOWN,
+            sidc=SIDC.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -232,7 +232,7 @@ class IndirectEffectorTest(unittest.TestCase, AbstractEventListener):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC_UNKNOWN,
+            sidc=SIDC.UNKNOWN,
             point=p_no_los,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -252,7 +252,7 @@ class IndirectEffectorTest(unittest.TestCase, AbstractEventListener):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC_UNKNOWN,
+            sidc=SIDC.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -277,7 +277,7 @@ class IndirectEffectorTest(unittest.TestCase, AbstractEventListener):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC_UNKNOWN,
+            sidc=SIDC.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),

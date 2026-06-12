@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from theia.config import SIDC_RED_FIXED_WING
+from theia.config import SIDC
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.simulation.controllers.controller_group import ControllerGroup
@@ -39,7 +39,7 @@ class PseudoTrackerTest(
 
         scripted_target_controller = ControllerGroup(
             [
-                WaypointTargetController.from_trajectory(t, SIDC_RED_FIXED_WING)
+                WaypointTargetController.from_trajectory(t, SIDC.RED_FIXED_WING)
                 for t in trajectories
             ]
         )

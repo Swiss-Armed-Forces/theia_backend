@@ -2,7 +2,7 @@ import datetime
 
 import numpy as np
 
-from theia.config import SIDC_RED_FIXED_WING
+from theia.config import SIDC
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
@@ -73,7 +73,7 @@ class BodenseeMonostaticFactory(AbstractSimulatorFactory):
         red_sensor = build_fighter_jet_radar(0, 0, 0)
         return WaypointTargetController.from_trajectory(
             trajectory=self._trajectory,
-            sidc=SIDC_RED_FIXED_WING,
+            sidc=SIDC.RED_FIXED_WING,
             name="Reconnaissance plane",
             sensor=red_sensor,
         )
