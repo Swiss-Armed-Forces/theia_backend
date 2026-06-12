@@ -66,7 +66,9 @@ class WaypointTargetController(Controller):
             axis=0,
         )
         self._f = CubicSpline(times, positions_xyz, extrapolate=False)
+        """Trajectory in ECEF space as a function of POSIX timestamp"""
         self._v = self._f.derivative()
+        """Velocity in ECEF space as a function of POSIX timestamp"""
         self._sensor = radar
 
     def get_monostatic_radars(
