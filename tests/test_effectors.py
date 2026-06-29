@@ -1,16 +1,23 @@
+import datetime
 import unittest
 
+import numpy as np
+
 from theia.config import SIDC, UNKNOWN_ID, UNKNOWN_TIME
-from theia.coordinates import POSITIONS_OF_INTEREST
-from theia.effectors import DirectFireEffector, IndirectFireEffector
+from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
+from theia.effectors import (
+    DirectFireEffector,
+    IndirectFireEffector,
+    NoLosException,
+    OutOfAttacksException,
+    OutOfRangeException,
+)
 from theia.terrain import SrtmTerrainModel
 from theia.types import (
-    ConstantRcsModel,
     DirectShot,
     IndirectShot,
     Point,
-    Target,
-    Velocity,
+    Track,
 )
 
 srtm = SrtmTerrainModel()
@@ -21,19 +28,20 @@ p_uetliberg = Point(
     alt=POSITIONS_OF_INTEREST["Uetliberg"]["alt"],
 )
 
-p_bern = Point(
+p_bern = CoordinateTransformations.geodetic_to_cartesian(
     lat=46.948056,
     lon=7.4475,
     alt=1000.0,
 )
 
-p_close = Point(
+
+p_close = CoordinateTransformations.geodetic_to_cartesian(
     lat=47.37348,
     lon=8.53707,
     alt=1000.0,
 )
 
-p_no_los = Point(
+p_no_los = CoordinateTransformations.geodetic_to_cartesian(
     lat=47.22726,
     lon=8.66719,
     alt=srtm.elevationAt(47.22726, 8.66719),
@@ -51,17 +59,19 @@ class DirectEffectorTest(unittest.TestCase):
             name="",
             terrain=srtm,
         )
-        target = Target(
-            id=0,
-            is_stationary=False,
+        track = Track(
+            id="0",
             sidc=SIDC.UNKNOWN,
-            point=p_bern,
-            cross_section_model=ConstantRcsModel(rcs=1.0),
-            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+            states=[
+                (
+                    datetime.datetime.fromtimestamp(0),
+                    np.array([*p_bern, 0.0, 0.0, 0.0]),
+                ),
+            ],
         )
 
-        with self.assertRaises(ValueError):
-            effector.fire(target)
+        with self.assertRaises(OutOfRangeException):
+            effector.fire(track)
 
     def test_no_attacks_left(self):
         effector = DirectFireEffector(
@@ -72,17 +82,19 @@ class DirectEffectorTest(unittest.TestCase):
             name="",
             terrain=srtm,
         )
-        target = Target(
-            id=0,
-            is_stationary=False,
+        track = Track(
+            id="0",
             sidc=SIDC.UNKNOWN,
-            point=p_close,
-            cross_section_model=ConstantRcsModel(rcs=1.0),
-            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+            states=[
+                (
+                    datetime.datetime.fromtimestamp(0),
+                    np.array([*p_close, 0.0, 0.0, 0.0]),
+                ),
+            ],
         )
 
-        with self.assertRaises(ValueError):
-            effector.fire(target)
+        with self.assertRaises(OutOfAttacksException):
+            effector.fire(track)
 
     def test_no_los(self):
         effector = DirectFireEffector(
@@ -93,17 +105,19 @@ class DirectEffectorTest(unittest.TestCase):
             name="",
             terrain=srtm,
         )
-        target = Target(
-            id=0,
-            is_stationary=False,
+        track = Track(
+            id="0",
             sidc=SIDC.UNKNOWN,
-            point=p_no_los,
-            cross_section_model=ConstantRcsModel(rcs=1.0),
-            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+            states=[
+                (
+                    datetime.datetime.fromtimestamp(0),
+                    np.array([*p_no_los, 0.0, 0.0, 0.0]),
+                ),
+            ],
         )
 
-        with self.assertRaises(ValueError):
-            effector.fire(target)
+        with self.assertRaises(NoLosException):
+            effector.fire(track)
 
     def test_use_ammo(self):
         effector = DirectFireEffector(
@@ -114,21 +128,23 @@ class DirectEffectorTest(unittest.TestCase):
             name="",
             terrain=srtm,
         )
-        target = Target(
-            id=0,
-            is_stationary=False,
+        track = Track(
+            id="0",
             sidc=SIDC.UNKNOWN,
-            point=p_close,
-            cross_section_model=ConstantRcsModel(rcs=1.0),
-            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+            states=[
+                (
+                    datetime.datetime.fromtimestamp(0),
+                    np.array([*p_close, 0.0, 0.0, 0.0]),
+                ),
+            ],
         )
 
         self.assertEqual(effector.n_attacks_left, 1)
-        effector.fire(target)
+        effector.fire(track)
         self.assertEqual(effector.n_attacks_left, 0)
 
-        with self.assertRaises(ValueError):
-            effector.fire(target)
+        with self.assertRaises(OutOfAttacksException):
+            effector.fire(track)
 
     def test_result(self):
         effector = DirectFireEffector(
@@ -139,18 +155,20 @@ class DirectEffectorTest(unittest.TestCase):
             name="",
             terrain=srtm,
         )
-        target = Target(
-            id=0,
-            is_stationary=False,
+        track = Track(
+            id="0",
             sidc=SIDC.UNKNOWN,
-            point=p_close,
-            cross_section_model=ConstantRcsModel(rcs=1.0),
-            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+            states=[
+                (
+                    datetime.datetime.fromtimestamp(0),
+                    np.array([*p_close, 0.0, 0.0, 0.0]),
+                ),
+            ],
         )
 
-        event = effector.fire(target)
+        event = effector.fire(track)
         self.assertIsInstance(event, DirectShot)
-        self.assertEqual(event.target, target)
+        self.assertEqual(event.track, track)
         self.assertEqual(event.shooter, effector)
         self.assertEqual(event.id, UNKNOWN_ID)
         self.assertEqual(event.time, UNKNOWN_TIME)
@@ -176,17 +194,19 @@ class IndirectEffectorTest(unittest.TestCase):
             name="",
             projectile=self._projectile,
         )
-        target = Target(
-            id=0,
-            is_stationary=False,
+        track = Track(
+            id="0",
             sidc=SIDC.UNKNOWN,
-            point=p_bern,
-            cross_section_model=ConstantRcsModel(rcs=1.0),
-            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+            states=[
+                (
+                    datetime.datetime.fromtimestamp(0),
+                    np.array([*p_bern, 0.0, 0.0, 0.0]),
+                ),
+            ],
         )
 
-        with self.assertRaises(ValueError):
-            effector.fire(target)
+        with self.assertRaises(OutOfRangeException):
+            effector.fire(track)
 
     def test_no_attacks_left(self):
         effector = IndirectFireEffector(
@@ -197,17 +217,19 @@ class IndirectEffectorTest(unittest.TestCase):
             name="",
             projectile=self._projectile,
         )
-        target = Target(
-            id=0,
-            is_stationary=False,
+        track = Track(
+            id="0",
             sidc=SIDC.UNKNOWN,
-            point=p_close,
-            cross_section_model=ConstantRcsModel(rcs=1.0),
-            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+            states=[
+                (
+                    datetime.datetime.fromtimestamp(0),
+                    np.array([*p_close, 0.0, 0.0, 0.0]),
+                ),
+            ],
         )
 
-        with self.assertRaises(ValueError):
-            effector.fire(target)
+        with self.assertRaises(OutOfAttacksException):
+            effector.fire(track)
 
     def test_los_irrelevant(self):
         effector = IndirectFireEffector(
@@ -218,16 +240,18 @@ class IndirectEffectorTest(unittest.TestCase):
             name="",
             projectile=self._projectile,
         )
-        target = Target(
-            id=0,
-            is_stationary=False,
+        track = Track(
+            id="0",
             sidc=SIDC.UNKNOWN,
-            point=p_no_los,
-            cross_section_model=ConstantRcsModel(rcs=1.0),
-            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+            states=[
+                (
+                    datetime.datetime.fromtimestamp(0),
+                    np.array([*p_no_los, 0.0, 0.0, 0.0]),
+                ),
+            ],
         )
 
-        effector.fire(target)
+        effector.fire(track)
 
     def test_use_ammo(self):
         effector = IndirectFireEffector(
@@ -238,21 +262,23 @@ class IndirectEffectorTest(unittest.TestCase):
             name="",
             projectile=self._projectile,
         )
-        target = Target(
-            id=0,
-            is_stationary=False,
+        track = Track(
+            id="0",
             sidc=SIDC.UNKNOWN,
-            point=p_close,
-            cross_section_model=ConstantRcsModel(rcs=1.0),
-            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+            states=[
+                (
+                    datetime.datetime.fromtimestamp(0),
+                    np.array([*p_close, 0.0, 0.0, 0.0]),
+                ),
+            ],
         )
 
         self.assertEqual(effector.n_attacks_left, 1)
-        effector.fire(target)
+        effector.fire(track)
         self.assertEqual(effector.n_attacks_left, 0)
 
-        with self.assertRaises(ValueError):
-            effector.fire(target)
+        with self.assertRaises(OutOfAttacksException):
+            effector.fire(track)
 
     def test_event(self):
         effector = IndirectFireEffector(
@@ -263,18 +289,20 @@ class IndirectEffectorTest(unittest.TestCase):
             name="",
             projectile=self._projectile,
         )
-        target = Target(
-            id=0,
-            is_stationary=False,
+        track = Track(
+            id="0",
             sidc=SIDC.UNKNOWN,
-            point=p_close,
-            cross_section_model=ConstantRcsModel(rcs=1.0),
-            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+            states=[
+                (
+                    datetime.datetime.fromtimestamp(0),
+                    np.array([*p_close, 0.0, 0.0, 0.0]),
+                ),
+            ],
         )
 
-        event = effector.fire(target)
+        event = effector.fire(track)
         self.assertIsInstance(event, IndirectShot)
-        self.assertEqual(event.target, target)
+        self.assertEqual(event.track, track)
         self.assertEqual(event.shooter, effector)
         self.assertEqual(event.id, UNKNOWN_ID)
         self.assertEqual(event.time, UNKNOWN_TIME)
