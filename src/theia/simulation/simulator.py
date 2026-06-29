@@ -415,6 +415,10 @@ class Simulator(Trigger, AbstractEventListener):
           Assuming a reasonable tracker, this is only a fringe effect.
           The model is not precise enough to represent a spatial resolution of
           precision, which means this issue does not make the model worse overall.
+        - Wrong association: Multiple targets are assigned to the same track or
+          detections from the same target are assigned to multiple tracks.
+          The former is unclear yet, the latter is not important for the damage
+          resolution since the Track is shot.
         """
         shots = self._blue_shots if is_blue else self._red_shots
         for shot in shots:

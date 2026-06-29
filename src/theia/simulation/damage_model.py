@@ -13,7 +13,7 @@ class AbstractDamageModel(abc.ABC):
 
 
 @dataclass
-class RandomDamageModel(AbstractDamageModel):
+class UniformDamageModel(AbstractDamageModel):
     p_kill: float
     rng: np.random.Generator
 

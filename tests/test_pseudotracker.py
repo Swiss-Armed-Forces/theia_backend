@@ -11,6 +11,7 @@ from theia.simulation.controllers.pcl_sensor_controller import PclSensorControll
 from theia.simulation.controllers.waypoint_target_controller import (
     WaypointTargetController,
 )
+from theia.simulation.damage_model import UniformDamageModel
 from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import (
     AbstractSimulationListener,
@@ -91,6 +92,7 @@ class PseudoTrackerTest(
             listener=self,
             simulate_clutter=False,
             terrain_model=terrain,
+            damage_model=UniformDamageModel(1.0, rng),
         )
         simulator.register_event_listener(self)
 

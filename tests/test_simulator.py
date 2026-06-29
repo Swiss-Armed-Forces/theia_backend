@@ -17,6 +17,7 @@ from theia.simulation.controllers.monostatic_radar_controller import (
 from theia.simulation.controllers.waypoint_target_controller import (
     WaypointTargetController,
 )
+from theia.simulation.damage_model import UniformDamageModel
 from theia.simulation.logging import FileLogger, InMemoryLogger
 from theia.simulation.simulator import Simulator, TimeCriterion
 from theia.simulation.trackers.tracking import DummyTracker
@@ -53,6 +54,8 @@ class SimulatorTest(unittest.TestCase):
 
         terrain = SrtmTerrainModel()
 
+        rng = np.random.Generator(np.random.PCG64(seed=4054080))
+
         simulator = Simulator(
             pcl_detector=PclDetector(),
             pet_detector=PetDetector(terrain_model=terrain),
@@ -69,9 +72,10 @@ class SimulatorTest(unittest.TestCase):
             time_step=datetime.timedelta(seconds=1),
             min_time_per_step=datetime.timedelta(seconds=0),
             termination_criterion=TimeCriterion(stop_time),
-            rng=np.random.Generator(np.random.PCG64(seed=4054080)),
+            rng=rng,
             listener=logger,
             terrain_model=terrain,
+            damage_model=UniformDamageModel(1.0, rng),
         )
         # Simulate until the end.
         while simulator.advance():
@@ -102,6 +106,8 @@ class SimulatorTest(unittest.TestCase):
 
         terrain = SrtmTerrainModel()
 
+        rng = np.random.Generator(np.random.PCG64(seed=4054080))
+
         simulator = Simulator(
             pcl_detector=PclDetector(),
             pet_detector=PetDetector(terrain_model=terrain),
@@ -118,9 +124,10 @@ class SimulatorTest(unittest.TestCase):
             time_step=time_step,
             min_time_per_step=datetime.timedelta(seconds=0),
             termination_criterion=TimeCriterion(stop_time),
-            rng=np.random.Generator(np.random.PCG64(seed=4054080)),
+            rng=rng,
             listener=logger,
             terrain_model=terrain,
+            damage_model=UniformDamageModel(1.0, rng),
         )
         n_iterations = int(
             np.ceil((stop_time - start_time).seconds / time_step.seconds)
