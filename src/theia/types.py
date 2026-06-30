@@ -1145,9 +1145,9 @@ class AbstractEffector:
         super().__init__()
 
     @abc.abstractmethod
-    def fire(self, track: Track) -> Shot:
+    def fire(self, target: Target) -> Shot:
         """
-        Fire at the observed track at the time of the latest observation.
+        Fire at the target.
         """
         raise NotImplementedError()
 
@@ -1155,7 +1155,7 @@ class AbstractEffector:
 @dataclass
 class DirectShot(Event):
     shooter: AbstractEffector
-    track: Track
+    target: Target
 
 
 @dataclass
