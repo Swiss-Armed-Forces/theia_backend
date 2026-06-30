@@ -1200,12 +1200,12 @@ class Controller(AbstractEventListener, Trigger):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def get_shots(
+    def get_firing_effectors(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[DirectShot]:
-        """Let the controller perform direct shots and handle indirect shots internally."""
+    ) -> list[tuple[AbstractEffector, Point]]:
+        """Let the controller perform shots."""
         raise NotImplementedError()
 
 
