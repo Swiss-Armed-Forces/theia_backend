@@ -5,6 +5,7 @@ import numpy as np
 
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
+from theia.simulation.damage_model import AbstractDamageModel
 from theia.simulation.logging import SituationalPictureBuffer
 from theia.simulation.simulator import Simulator, TerminationCriterion
 from theia.terrain import AbstractTerrainModel
@@ -53,6 +54,7 @@ class AbstractSimulatorFactory(abc.ABC):
         interactive: bool,
         rng: np.random.Generator,
         terrain_model: AbstractTerrainModel,
+        damage_model: AbstractDamageModel,
     ) -> tuple[Simulator, SituationalPictureBuffer]:
         buffer = SituationalPictureBuffer()
         simulator = Simulator(
@@ -70,5 +72,6 @@ class AbstractSimulatorFactory(abc.ABC):
             listener=buffer,
             simulate_clutter=False,
             terrain_model=terrain_model,
+            damage_model=damage_model,
         )
         return simulator, buffer

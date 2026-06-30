@@ -16,7 +16,7 @@ from theia.simulation.factories.abstract_simulator_factory import (
     AbstractSimulatorFactory,
 )
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
-from theia.simulation.trackers.tracking import MonostaticPseudoTracker
+from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.test_data import get_uetliberg_radar
 from theia.types import AbstractTracker, ConstantRcsModel, Controller
 
@@ -41,10 +41,10 @@ class UetlibergOpenskySimulatorFactory(AbstractSimulatorFactory):
         return PetDetector()
 
     def _get_blue_tracker(self) -> AbstractTracker:
-        return MonostaticPseudoTracker(removal_patience=30)
+        return PseudoTracker(removal_patience=30)
 
     def _get_red_tracker(self) -> AbstractTracker:
-        return MonostaticPseudoTracker(removal_patience=30)
+        return PseudoTracker(removal_patience=30)
 
     def _get_blue_controller(self) -> Controller:
         return MonostaticRadarController(
