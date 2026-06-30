@@ -1223,6 +1223,7 @@ class Track(pydantic.BaseModel):
     id: str
     sidc: str
     states: list[tuple[datetime.datetime, list[float]]]
+    """Observations of the state space (6D Cartesian ECEF coordinates and velocities)"""
     inactive_time: datetime.timedelta = datetime.timedelta(seconds=30)
 
     _times: list[float] = pydantic.PrivateAttr()
