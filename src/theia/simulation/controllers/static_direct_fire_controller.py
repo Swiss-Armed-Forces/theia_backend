@@ -1,17 +1,19 @@
+from dataclasses import dataclass
 import datetime
 from typing import Optional
 
-import pydantic
 
 from theia.config import SIDC
+from theia.coordinates import CoordinateTransformations
 from theia.effectors import DirectFireEffector
 from theia.types import (
+    AbstractEffector,
     ConstantRcsModel,
     Controller,
-    DirectShot,
     Event,
     MonostaticSensor,
     PclSensor,
+    Point,
     Receiver,
     SituationalPicture,
     Target,
@@ -19,11 +21,21 @@ from theia.types import (
 )
 
 
-class StaticDirectFireController(Controller, pydantic.BaseModel):
+@dataclass
+class StaticDirectFireController(Controller):
     """
     Controller representing a static (i. e. non-moving) direct fire effector.
 
     A real-world example for such an effector is the Centurion C-RAM.
+
+    This controller attacks only the assigned track.
+
+    Notes
+    -----
+    No checks are performed whether the effector has attacks left (enough ammo etc.)
+    are whether the track is within range. These checks are to be performed by
+    the effector during the fire call (no duplicate logic). It is possible that
+    the suggested attack is not possible.
     """
 
     target_id: int
@@ -31,8 +43,9 @@ class StaticDirectFireController(Controller, pydantic.BaseModel):
     rcs: float
     """Radar cross section [m^2]"""
     effector: DirectFireEffector
-    assigned_track_id: Optional[int] = None
-    """Track ID of the track to be fought"""
+    assigned_track_id: Optional[str] = None
+    """Track ID of the track to be fought."""
+    target_name: str = ""
 
     def on_event(self, event: Event):
         pass
@@ -60,7 +73,7 @@ class StaticDirectFireController(Controller, pydantic.BaseModel):
             Target(
                 id=self.target_id,
                 is_stationary=True,
-                name=(f"{self.effector.name} (Target)"),
+                name=self.target_name,
                 sidc=self.sidc,
                 point=self.effector.point,
                 cross_section_model=ConstantRcsModel(rcs=self.rcs),
@@ -75,11 +88,11 @@ class StaticDirectFireController(Controller, pydantic.BaseModel):
     ) -> list[Receiver]:
         raise NotImplementedError
 
-    def get_shots(
+    def get_firing_effectors(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[DirectShot]:
+    ) -> list[tuple[AbstractEffector, Point]]:
         if self.assigned_track_id is None:
             return []
         track = next(
@@ -94,11 +107,7 @@ class StaticDirectFireController(Controller, pydantic.BaseModel):
         if track is None:
             return []
 
-        return [
-            DirectShot(
-                id=-1,
-                time=situational_picture.time + dt,
-                shooter=self.effector,
-                track=track,
-            )
-        ]
+        x, y, z, vx, vy, vz = track._y[-1, :]
+        lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
+
+        return [(self.effector, Point(lat=lat, lon=lon, alt=alt))]
