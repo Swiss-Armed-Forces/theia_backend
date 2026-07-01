@@ -13,7 +13,12 @@ from theia.detection.active import calculate_monostatic_detection
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.distance import line_of_sight_distance
-from theia.effectors import DirectFireEffector, IndirectFireEffector
+from theia.effectors import (
+    DirectFireEffector,
+    IndirectFireEffector,
+    OutOfAttacksException,
+    OutOfRangeException,
+)
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.damage_model import AbstractDamageModel
 from theia.terrain import AbstractTerrainModel
@@ -25,6 +30,7 @@ from theia.types import (
     Entity,
     Event,
     IdProvider,
+    KillEvent,
     MonostaticRadarDetection,
     Controller,
     MonostaticSensor,
@@ -40,11 +46,6 @@ from theia.types import (
     TrackInitEvent,
     Trigger,
 )
-
-
-@dataclass
-class KillEvent(Event):
-    target_id: int
 
 
 class TerminationCriterion(abc.ABC):
@@ -79,7 +80,7 @@ class Simulator(Trigger, AbstractEventListener):
         terrain_model: AbstractTerrainModel,
         damage_model: AbstractDamageModel,
         simulate_clutter: bool = True,
-        id_provider: IdProvider = IdProvider(),
+        id_provider: IdProvider | None = None,
         shot_association_tolerance: float = 1000.0,
     ):
         """
@@ -152,7 +153,7 @@ class Simulator(Trigger, AbstractEventListener):
         """Time of latest detection for each sensor ID."""
         self._pet_sensor_ids: dict[tuple[int, int], int] = {}
         """IDs of PET sensors. Keys are (rx ID, tx ID) tuples."""
-        self._id_provider = id_provider
+        self._id_provider = id_provider if id_provider is not None else IdProvider()
         self._shot_association_tolerance = shot_association_tolerance
 
         # We need the mapping track ID -> target ID to calculate damage.
@@ -403,6 +404,9 @@ class Simulator(Trigger, AbstractEventListener):
         )
         targets = self._red_targets if is_blue else self._blue_targets
 
+        if len(targets) == 0:
+            return
+
         for effector, point in firing_effectors:
             # Identify the target closest to the shot.
             distances = [
@@ -429,21 +433,22 @@ class Simulator(Trigger, AbstractEventListener):
 
             # Process the shot.
             if isinstance(effector, DirectFireEffector):
-                shot = DirectShot(
-                    id=self._id_provider.increment(Entity.DIRECT_SHOT),
-                    time=self._t,
-                    shooter=effector,
-                    target=target,
-                )
+                try:
+                    # The effector's behaviour is correct when exceptions are raised.
+                    # No need to react here.
+                    shot = effector.fire(target)
+                except OutOfRangeException:
+                    continue
+                except OutOfAttacksException:
+                    continue
 
                 if self._damage_model.is_lethal(shot):
-                    self._broadcast_event(
-                        KillEvent(
-                            id=self._id_provider.increment(Entity.EVENT),
-                            time=self._t,
-                            target_id=target.id,
-                        )
+                    event = KillEvent(
+                        id=self._id_provider.increment(Entity.EVENT),
+                        time=self._t,
+                        target_id=target.id,
                     )
+                    self._broadcast_event(event)
             elif isinstance(effector, IndirectFireEffector):
                 # TODO
                 pass
@@ -472,6 +477,21 @@ class Simulator(Trigger, AbstractEventListener):
         self._listener.on_situational_picture(blue_situational_picture, True)
         self._listener.on_situational_picture(red_situational_picture, False)
 
+        # Fight before updating the world.
+        # Otherwise, the shots always miss because the situational picture refers
+        # to the time step before the update.
+        self._blue_firing_effectors = self._blue_controller.get_firing_effectors(
+            blue_situational_picture,
+            self._dt,
+        )
+        self._red_firing_effectors = self._red_controller.get_firing_effectors(
+            red_situational_picture,
+            self._dt,
+        )
+
+        self._execute_attacks(is_blue=True)
+        self._execute_attacks(is_blue=False)
+
         # Update world according to behaviour informed by situational picture.
         self._blue_monostatic_radars = self._blue_controller.get_monostatic_radars(
             blue_situational_picture,
@@ -485,10 +505,6 @@ class Simulator(Trigger, AbstractEventListener):
             blue_situational_picture,
             self._dt,
         )
-        self._blue_firing_effectors = self._blue_controller.get_firing_effectors(
-            blue_situational_picture,
-            self._dt,
-        )
         self._red_monostatic_radars = self._red_controller.get_monostatic_radars(
             red_situational_picture,
             self._dt,
@@ -498,10 +514,6 @@ class Simulator(Trigger, AbstractEventListener):
             self._dt,
         )
         self._red_targets = self._red_controller.get_targets(
-            red_situational_picture,
-            self._dt,
-        )
-        self._red_firing_effectors = self._red_controller.get_firing_effectors(
             red_situational_picture,
             self._dt,
         )
@@ -552,10 +564,6 @@ class Simulator(Trigger, AbstractEventListener):
 
         # Update the time stamp.
         self._t += self._dt
-
-        # Fight.
-        self._execute_attacks(is_blue=True)
-        self._execute_attacks(is_blue=False)
 
         # Detect RED targets.
         blue_active_radar_detections = self._calculate_monostatic_detections(

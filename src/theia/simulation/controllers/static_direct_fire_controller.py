@@ -86,7 +86,7 @@ class StaticDirectFireController(Controller):
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
     ) -> list[Receiver]:
-        raise NotImplementedError
+        return []
 
     def get_firing_effectors(
         self,
@@ -107,7 +107,7 @@ class StaticDirectFireController(Controller):
         if track is None:
             return []
 
-        x, y, z, vx, vy, vz = track._y[-1, :]
+        x, vx, y, vy, z, vz = track(situational_picture.time)
         lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
 
         return [(self.effector, Point(lat=lat, lon=lon, alt=alt))]

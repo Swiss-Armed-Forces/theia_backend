@@ -153,9 +153,12 @@ class SimulatorEffectorsTest(unittest.TestCase, AbstractEventListener):
         damage_model = UniformDamageModel(1.0, rng)  # Every shot kills.
         factory = SingleTargetSingleEffectorFactory(rng, terrain, False)
         simulator, buffer = factory.build_simulator(False, rng, terrain, damage_model)
+        simulator.register_event_listener(self)
 
         while simulator.advance():
             pass
+
+        self.assertTrue(self._already_killed)
 
 
     def test_with_uncertainty(self):
@@ -164,9 +167,12 @@ class SimulatorEffectorsTest(unittest.TestCase, AbstractEventListener):
         damage_model = UniformDamageModel(1.0, rng)  # Every shot kills.
         factory = SingleTargetSingleEffectorFactory(rng, terrain, True)
         simulator, buffer = factory.build_simulator(False, rng, terrain, damage_model)
+        simulator.register_event_listener(self)
 
         while simulator.advance():
             pass
+
+        self.assertTrue(self._already_killed)
 
 
     def on_event(self, event: Event):
@@ -176,7 +182,7 @@ class SimulatorEffectorsTest(unittest.TestCase, AbstractEventListener):
 
         # Make sure that the correct target is killed.
         self.assertEqual(event.target_id, 1)
-        self.assertEqual(event.id, 0)
+        self.assertEqual(event.id, 1)
         self.assertEqual(event.time, datetime.datetime.fromtimestamp(25))
 
         # Make sure that the kill event occurs only once.
