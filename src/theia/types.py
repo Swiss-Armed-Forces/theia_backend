@@ -1261,6 +1261,8 @@ class Entity(enum.Enum):
     TRACK = 0
     EVENT = 1
     EFFECTOR = 2
+    DIRECT_SHOT = 3
+    INDIRECT_SHOT = 4
 
 
 class IdProvider:

@@ -12,6 +12,8 @@ from theia.config import UNKNOWN_ID, UNKNOWN_TIME
 from theia.detection.active import calculate_monostatic_detection
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
+from theia.distance import line_of_sight_distance
+from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.damage_model import AbstractDamageModel
 from theia.terrain import AbstractTerrainModel
@@ -19,6 +21,7 @@ from theia.types import (
     AbstractEffector,
     AbstractEventListener,
     AbstractTracker,
+    DirectShot,
     Entity,
     Event,
     IdProvider,
@@ -77,6 +80,7 @@ class Simulator(Trigger, AbstractEventListener):
         damage_model: AbstractDamageModel,
         simulate_clutter: bool = True,
         id_provider: IdProvider = IdProvider(),
+        shot_association_tolerance: float = 1000.0,
     ):
         """
         Parameters
@@ -111,6 +115,8 @@ class Simulator(Trigger, AbstractEventListener):
             Called when intermediate results are available
         simulate_clutter: bool, default True
             Whether to simulate clutter detections
+        shot_association_tolerance: float, default 1000.0
+            Tolerance [m] for matching track positions to actual targets for direct shots
         """
         super().__init__()
         self._pcl_detector = pcl_detector
@@ -147,6 +153,7 @@ class Simulator(Trigger, AbstractEventListener):
         self._pet_sensor_ids: dict[tuple[int, int], int] = {}
         """IDs of PET sensors. Keys are (rx ID, tx ID) tuples."""
         self._id_provider = id_provider
+        self._shot_association_tolerance = shot_association_tolerance
 
         # We need the mapping track ID -> target ID to calculate damage.
         self._track_target_map: dict[int, int] = {}
@@ -389,48 +396,59 @@ class Simulator(Trigger, AbstractEventListener):
 
     def _execute_attacks(self, is_blue: bool):
         """
-        Notes
-        -----
-        **Challenge**
-
-        The Controllers have only information about tracks.
-        Therefore, they fire at tracks, not the actual target position.
-        However, damage should be applied to the actual target.
-
-        **Current implementation**
-
-        Currently, it is simply assumed that the track position is "close enough"
-        to the true target position to be shot at.
-        Interpretation: The effector does not need the situational picture
-        for aiming, but has its own way of assessing the target position.
-        The uncertainty of aiming etc. is modelled implicitly in the damage model.
-
-        **Potential problems and mitigations**
-
-        - Fake tracks
-          A fake track should be linked to the CLUTTER_TARGET (i. e. target id -1),
-          which cannot die. Then, ammo consumption is still accounted for.
-          No unwanted consequences.
-        - True target is outside the effector's range, but the track shows it inside.
-          Assuming a reasonable tracker, this is only a fringe effect.
-          The model is not precise enough to represent a spatial resolution of
-          precision, which means this issue does not make the model worse overall.
-        - Wrong association: Multiple targets are assigned to the same track or
-          detections from the same target are assigned to multiple tracks.
-          The former is unclear yet, the latter is not important for the damage
-          resolution since the Track is shot.
+        Execute direct and indirect shots.
         """
-        shots = self._blue_shots if is_blue else self._red_shots
-        for shot in shots:
-            if self._damage_model.is_lethal(shot):
-                target_id = self._track_target_map[shot.track.id]
-                self._broadcast_event(
-                    KillEvent(
-                        id=self._id_provider.increment(Entity.EVENT),
-                        time=self._t,
-                        target_id=target_id,
-                    )
+        firing_effectors = (
+            self._blue_firing_effectors if is_blue else self._red_firing_effectors
+        )
+        targets = self._red_targets if is_blue else self._blue_targets
+
+        for effector, point in firing_effectors:
+            # Identify the target closest to the shot.
+            distances = [
+                line_of_sight_distance(
+                    point.lat,
+                    point.lon,
+                    point.alt,
+                    t.lat,
+                    t.lon,
+                    t.alt,
                 )
+                for t in targets
+            ]
+            min_index, min_dist = min(
+                enumerate(distances),
+                key=lambda pair: pair[1],
+            )
+            if min_dist > self._shot_association_tolerance:
+                # The difference between the track and the ground truth is too large.
+                # The shot is assumed to miss.
+                continue
+
+            target = targets[min_index]
+
+            # Process the shot.
+            if isinstance(effector, DirectFireEffector):
+                shot = DirectShot(
+                    id=self._id_provider.increment(Entity.DIRECT_SHOT),
+                    time=self._t,
+                    shooter=effector,
+                    target=target,
+                )
+
+                if self._damage_model.is_lethal(shot):
+                    self._broadcast_event(
+                        KillEvent(
+                            id=self._id_provider.increment(Entity.EVENT),
+                            time=self._t,
+                            target_id=target.id,
+                        )
+                    )
+            elif isinstance(effector, IndirectFireEffector):
+                # TODO
+                pass
+            else:
+                raise RuntimeError("This part should never be reached!")
 
     def advance(self) -> bool:
         """
@@ -467,7 +485,7 @@ class Simulator(Trigger, AbstractEventListener):
             blue_situational_picture,
             self._dt,
         )
-        self._blue_shots = self._blue_controller.get_shots(
+        self._blue_firing_effectors = self._blue_controller.get_firing_effectors(
             blue_situational_picture,
             self._dt,
         )
@@ -483,7 +501,7 @@ class Simulator(Trigger, AbstractEventListener):
             red_situational_picture,
             self._dt,
         )
-        self._red_shots = self._red_controller.get_shots(
+        self._red_firing_effectors = self._red_controller.get_firing_effectors(
             red_situational_picture,
             self._dt,
         )
