@@ -68,7 +68,7 @@ class AbstractSimulatorFactory(abc.ABC):
             time_step=self._get_timestep(),
             min_time_per_step=datetime.timedelta(seconds=1 if interactive else 0),
             termination_criterion=self._get_termination_criterion(),
-            rng=np.random.Generator(np.random.PCG64(seed=4054080)),
+            rng=rng,
             listener=buffer,
             simulate_clutter=False,
             terrain_model=terrain_model,

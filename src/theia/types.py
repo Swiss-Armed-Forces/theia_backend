@@ -1084,15 +1084,13 @@ class TheiaException(Exception):
     pass
 
 
-@dataclass
-class Event(TheiaException):
+class Event(pydantic.BaseModel):
     id: int
     """Unique event ID"""
     time: datetime.datetime
     """Time at which the event happens"""
 
 
-@dataclass
 class TrackInitEvent(Event):
     """Fired when a new track is initialized."""
 
@@ -1101,8 +1099,17 @@ class TrackInitEvent(Event):
     track_id: int
     """ID of the track"""
 
+    def __str__(self) -> str:
+        return f"Track (ID {self.track_id}) initialized for target {self.target_id}"
 
-@dataclass
+
+class KillEvent(Event):
+    target_id: int
+
+    def __str__(self) -> str:
+        return f"Target {self.target_id} 💀"
+
+
 class TimerEvent(Event):
     """Fired when a timer expires."""
 
@@ -1152,13 +1159,11 @@ class AbstractEffector:
         raise NotImplementedError()
 
 
-@dataclass
 class DirectShot(Event):
     shooter: AbstractEffector
     target: Target
 
 
-@dataclass
 class IndirectShot(DirectShot):
     projectile: AbstractEffector
 
@@ -1223,7 +1228,12 @@ class Track(pydantic.BaseModel):
     id: str
     sidc: str
     states: list[tuple[datetime.datetime, list[float]]]
-    """Observations of the state space (6D Cartesian ECEF coordinates and velocities)"""
+    """
+    Observations of the state space (6D Cartesian ECEF coordinates and velocities).
+
+    Coordinate order:
+    x, vx, y, vy, z, vz
+    """
     inactive_time: datetime.timedelta = datetime.timedelta(seconds=30)
 
     _times: list[float] = pydantic.PrivateAttr()
@@ -1248,7 +1258,12 @@ class Track(pydantic.BaseModel):
         self._f = make_interp_spline(self._times, self._y, k=1)
 
     def __call__(self, time: datetime.datetime) -> np.ndarray:
-        """Return the 6-dimensional estimated state in ECEF space at the given time"""
+        """
+        Return the 6-dimensional estimated state in ECEF space at the given time
+
+        Coordinate order:
+        x, vx, y, vy, z, vz
+        """
         t = time.timestamp()
         t = min(t, self._times[-1] + self.inactive_time.seconds)
         return self._f(t)
@@ -1275,6 +1290,8 @@ class IdProvider:
             Entity.TRACK: 0,
             Entity.EVENT: 0,
             Entity.EFFECTOR: 0,
+            Entity.DIRECT_SHOT: 0,
+            Entity.INDIRECT_SHOT: 0,
         }
 
     def increment(self, entity: Entity) -> int:

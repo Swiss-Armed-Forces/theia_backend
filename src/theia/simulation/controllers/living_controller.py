@@ -1,5 +1,4 @@
-from theia.simulation.simulator import KillEvent
-from theia.types import Controller, Event, TheiaException
+from theia.types import Controller, Event, KillEvent, TheiaException
 
 
 class AlreadyDeadException(TheiaException):

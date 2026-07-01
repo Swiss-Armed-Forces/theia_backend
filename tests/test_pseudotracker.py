@@ -147,6 +147,10 @@ class PseudoTrackerTest(
         if isinstance(event, TrackInitEvent):
             self._track_init_event_fired = True
 
+    def on_events(self, events: list[Event]):
+        """Needed because this class is an AbstractSimulationListener."""
+        raise NotImplementedError
+
 
 if __name__ == "__main__":
     unittest.main()

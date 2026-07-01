@@ -5,9 +5,15 @@ import numpy as np
 from theia.config import SIDC
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
+from theia.effectors import DirectFireEffector
 from theia.maneuvers import ConstantSpeedStraightManeuver
+from theia.simulation.controllers.controller_group import ControllerGroup
+from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
+)
+from theia.simulation.controllers.static_direct_fire_controller import (
+    StaticDirectFireController,
 )
 from theia.simulation.controllers.waypoint_target_controller import (
     WaypointTargetController,
@@ -23,9 +29,15 @@ from theia.types import AbstractTracker, ConstantRcsModel, Controller, Point
 
 
 class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
-    def __init__(self, rng: np.random.Generator, terrain_model: AbstractTerrainModel, include_uncertainty: bool):
+    def __init__(
+        self,
+        rng: np.random.Generator,
+        terrain_model: AbstractTerrainModel,
+        include_uncertainty: bool,
+    ):
         self._rng = rng
         self._terrain = terrain_model
+        self._t0 = datetime.datetime.fromtimestamp(0)
 
         ANGULAR_UNCERTAINTY = np.deg2rad(1.0) if include_uncertainty else 0.0
         RANGE_UNCERTAINTY = 100.0 if include_uncertainty else 0.0
@@ -46,7 +58,7 @@ class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
         self._times, self._points = ConstantSpeedStraightManeuver(
             stop_point=p_stop, speed=300.0
         ).get_waypoints(
-            datetime.datetime.fromtimestamp(0),
+            self._t0,
             p_start,
         )
 
@@ -74,25 +86,44 @@ class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
         )
 
     def _get_blue_controller(self) -> Controller:
-        return MonostaticRadarController(
+        radar_controller = MonostaticRadarController(
             target_id=self._target_id_radar,
             radar=self._radar,
             is_blue=True,
             rcs_model=ConstantRcsModel(rcs=1.0),
         )
+        effector_controller = StaticDirectFireController(
+            target_id=20,
+            sidc=SIDC.BLUE_AIR_DEFENCE,
+            rcs=1.0,
+            effector=DirectFireEffector(
+                id=0,
+                name="my effector",
+                point=self._radar.receiver.point,
+                combat_range=5_000,
+                n_attacks_left=1,
+                terrain=self._terrain,
+            ),
+            assigned_track_id="0",
+        )
+
+        return ControllerGroup([radar_controller, effector_controller])
 
     def _get_red_controller(self) -> Controller:
-        return WaypointTargetController(
-            name="RED plane",
-            sidc=SIDC.RED_FIXED_WING,
+        return LivingController(
+            child=WaypointTargetController(
+                name="RED plane",
+                sidc=SIDC.RED_FIXED_WING,
+                target_id=self._target_id_plane,
+                times=self._times,
+                waypoints=self._points,
+                rcs_model=ConstantRcsModel(rcs=1.0),
+            ),
             target_id=self._target_id_plane,
-            times=self._times,
-            waypoints=self._points,
-            rcs_model=ConstantRcsModel(rcs=1.0),
         )
 
     def _get_start_time(self) -> datetime.datetime:
-        return self._times[0]
+        return self._t0
 
     def _get_timestep(self) -> datetime.timedelta:
         return datetime.timedelta(seconds=1)
