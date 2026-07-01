@@ -52,6 +52,7 @@ class WaypointTargetController(Controller):
             The position of the radar is updated to the target's current position,
             so the "point" property of the transmitter and receiver are ignored
         """
+        super().__init__()
         assert len(times) == len(waypoints)
         self._name = name
         self._sidc = sidc
