@@ -2,7 +2,6 @@ from __future__ import annotations
 import abc
 import cProfile
 from copy import deepcopy
-from dataclasses import dataclass
 import datetime
 import itertools
 import time
@@ -26,7 +25,6 @@ from theia.types import (
     AbstractEffector,
     AbstractEventListener,
     AbstractTracker,
-    DirectShot,
     Entity,
     Event,
     IdProvider,
@@ -43,7 +41,6 @@ from theia.types import (
     SituationalPicture,
     Snapshot,
     Target,
-    TrackInitEvent,
     Trigger,
 )
 
@@ -138,6 +135,7 @@ class Simulator(Trigger, AbstractEventListener):
         self._terrain_model = terrain_model
         self._damage_model = damage_model
 
+        self._events: list[Event] = []
         self._blue_monostatic_radars: list[MonostaticSensor] = []
         self._blue_pcl_sensors: list[PclSensor] = []
         self._blue_targets: list[Target] = []
@@ -155,9 +153,6 @@ class Simulator(Trigger, AbstractEventListener):
         """IDs of PET sensors. Keys are (rx ID, tx ID) tuples."""
         self._id_provider = id_provider if id_provider is not None else IdProvider()
         self._shot_association_tolerance = shot_association_tolerance
-
-        # We need the mapping track ID -> target ID to calculate damage.
-        self._track_target_map: dict[int, int] = {}
 
         # Allow external reaction to simulation events.
         # Useful e. g. to expose simulation state to an API.
@@ -448,6 +443,7 @@ class Simulator(Trigger, AbstractEventListener):
                         time=self._t,
                         target_id=target.id,
                     )
+                    self._events.append(event)
                     self._broadcast_event(event)
             elif isinstance(effector, IndirectFireEffector):
                 # TODO
@@ -469,6 +465,9 @@ class Simulator(Trigger, AbstractEventListener):
         if self._termination_criterion.is_terminated(self.take_snapshot()):
             self._listener.on_end()
             return False
+
+        # Reset events.
+        self._events = []
 
         # Build situational picture.
         blue_situational_picture = self.get_situational_picture_blue()
@@ -605,6 +604,7 @@ class Simulator(Trigger, AbstractEventListener):
             red_pet_detections,
             is_blue=False,
         )
+        self._listener.on_events(self._events)
 
         stop_time = time.time()
 
@@ -632,9 +632,8 @@ class Simulator(Trigger, AbstractEventListener):
         # Broadcast.
         self._broadcast_event(event)
 
-        # Remember how tracks map to targets.
-        if isinstance(event, TrackInitEvent):
-            self._track_target_map[event.track_id] = event.target_id
+        # Log.
+        self._events.append(event)
 
 
 def run_simulation_until_completion(simulator: Simulator):

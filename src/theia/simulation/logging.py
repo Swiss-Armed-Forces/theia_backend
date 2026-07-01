@@ -10,6 +10,7 @@ from theia.coordinates import CoordinateTransformations
 from theia.simulation.simulator import AbstractSimulationListener, Simulator
 from theia.types import (
     ConstantRcsModel,
+    Event,
     MonostaticRadarDetection,
     MonostaticSensor,
     PclDetection,
@@ -46,6 +47,10 @@ class NoLogger(AbstractSimulationListener):
     def on_end(self):
         pass
 
+    def on_events(self, events: list[Event]):
+        pass
+
+
 
 class FileLogger(AbstractSimulationListener):
     def __init__(self, path: str, override: bool = True):
@@ -54,6 +59,7 @@ class FileLogger(AbstractSimulationListener):
         self.snapshots = []
         self.situational_pictures = []
         self.detections = []
+        self.events: list[Event] = []
 
     def register_simulator(self, simulator: Simulator):
         pass
@@ -90,6 +96,9 @@ class FileLogger(AbstractSimulationListener):
                 "pet_detections": [d.model_dump(mode="json") for d in pet_detections],
             }
         )
+    
+    def on_events(self, events: list[Event]):
+        self.events.extend(events)
 
     def on_end(self):
         with open(self._path, "a" if not self._override else "w") as file:
@@ -98,6 +107,7 @@ class FileLogger(AbstractSimulationListener):
                     # "situational_pictures": self.situational_pictures,
                     "snapshots": self.snapshots,
                     "detections": self.detections,
+                    "events": [e.model_dump(mode="json") for e in self.events],
                 },
                 file,
             )
@@ -130,6 +140,9 @@ class PrintLogger(AbstractSimulationListener):
         print(f"PET detections {'BLUE' if is_blue else 'RED'}:")
         print(pet_detections)
 
+    def on_events(self, events: list[Event]):
+        print(events)
+
     def on_end(self):
         pass
 
@@ -145,6 +158,7 @@ class InMemoryLogger(AbstractSimulationListener):
         self.pcl_detections_red: list[PclDetection] = []
         self.pet_detections_red: list[PetDetection] = []
         self.snapshots: list[Snapshot] = []
+        self.events: list[Event] = []
 
     def register_simulator(self, simulator: Simulator):
         self.simulator = simulator
@@ -184,6 +198,9 @@ class InMemoryLogger(AbstractSimulationListener):
                 self.pet_detections_blue.append(det)
             else:
                 self.pet_detections_red.append(det)
+
+    def on_events(self, events: list[Event]):
+        self.events.extend(events)
 
     def on_end(self):
         pass
@@ -383,11 +400,13 @@ class FilterSimulationListener(AbstractSimulationListener):
         forward_snapshots: bool,
         forward_situational_pictures: bool,
         forward_detections: bool,
+        forward_events: bool,
     ):
         self._listener = listener
         self._forward_snapshots = forward_snapshots
         self._forward_detections = forward_detections
         self._forward_situational_pictures = forward_situational_pictures
+        self._forward_events = forward_events
 
     def register_simulator(self, simulator: Simulator):
         pass
@@ -415,6 +434,10 @@ class FilterSimulationListener(AbstractSimulationListener):
                 is_blue,
             )
 
+    def on_events(self, events: list[Event]):
+        if self._forward_events:
+            self._listener.on_events(events)
+
     def on_end(self):
         self._listener.on_end()
 
@@ -441,6 +464,7 @@ class SituationalPictureBuffer(AbstractSimulationListener):
             friendly_targets=[],
             enemy_targets=[],
         )
+        self._events: list[Event] = []
         self._has_completed = False
 
     def register_simulator(self, simulator: Simulator):
@@ -474,6 +498,9 @@ class SituationalPictureBuffer(AbstractSimulationListener):
         is_blue: bool,
     ):
         pass
+
+    def on_events(self, events: list[Event]):
+        self._events.extend(events)
 
     def on_end(self):
         self._has_completed = True
@@ -530,3 +557,6 @@ class SituationalPictureBuffer(AbstractSimulationListener):
 
     def has_comleted(self) -> bool:
         return self._has_completed
+
+    def get_events(self) -> list[Event]:
+        return self._events
