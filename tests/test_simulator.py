@@ -18,12 +18,15 @@ from theia.simulation.controllers.waypoint_target_controller import (
     WaypointTargetController,
 )
 from theia.simulation.damage_model import UniformDamageModel
+from theia.simulation.factories.single_target_single_effector import (
+    SingleTargetSingleEffectorFactory,
+)
 from theia.simulation.logging import FileLogger, InMemoryLogger
-from theia.simulation.simulator import Simulator, TimeCriterion
+from theia.simulation.simulator import KillEvent, Simulator, TimeCriterion
 from theia.simulation.trackers.tracking import DummyTracker
 from theia.terrain import SrtmTerrainModel
 from theia.test_data import get_uetliberg_radar
-from theia.types import ConstantRcsModel
+from theia.types import AbstractEventListener, ConstantRcsModel, Event
 
 FREQUENCY = 3_000  # Hz
 POWER = 500_000  # W
@@ -138,6 +141,47 @@ class SimulatorTest(unittest.TestCase):
             is_success = simulator.advance()
             self.assertTrue(is_success)
         self.assertFalse(simulator.advance())
+
+
+class SimulatorEffectorsTest(unittest.TestCase, AbstractEventListener):
+    def setUp(self):
+        self._already_killed = False
+
+    def test_no_uncertainty(self):
+        rng = np.random.Generator(np.random.PCG64(seed=4054080))
+        terrain = SrtmTerrainModel()
+        damage_model = UniformDamageModel(1.0, rng)  # Every shot kills.
+        factory = SingleTargetSingleEffectorFactory(rng, terrain, False)
+        simulator, buffer = factory.build_simulator(False, rng, terrain, damage_model)
+
+        while simulator.advance():
+            pass
+
+
+    def test_with_uncertainty(self):
+        rng = np.random.Generator(np.random.PCG64(seed=4054080))
+        terrain = SrtmTerrainModel()
+        damage_model = UniformDamageModel(1.0, rng)  # Every shot kills.
+        factory = SingleTargetSingleEffectorFactory(rng, terrain, True)
+        simulator, buffer = factory.build_simulator(False, rng, terrain, damage_model)
+
+        while simulator.advance():
+            pass
+
+
+    def on_event(self, event: Event):
+        # Ignore all but kill events.
+        if not isinstance(event, KillEvent):
+            return
+
+        # Make sure that the correct target is killed.
+        self.assertEqual(event.target_id, 1)
+        self.assertEqual(event.id, 0)
+        self.assertEqual(event.time, datetime.datetime.fromtimestamp(25))
+
+        # Make sure that the kill event occurs only once.
+        self.assertFalse(self._already_killed)
+        self._already_killed = True
 
 
 if __name__ == "__main__":
