@@ -40,6 +40,7 @@ p_close2 = CoordinateTransformations.geodetic_to_cartesian(
 )
 
 t0 = datetime.datetime.fromtimestamp(0)
+t1 = datetime.datetime.fromtimestamp(1)
 
 
 def get_effector() -> DirectFireEffector:
@@ -70,8 +71,12 @@ def get_situational_picture_in_range() -> SituationalPicture:
         states=[
             (
                 t0,
-                np.array([p_close[0], p_close[1], p_close[2], 0.0, 0.0, 0.0]),
-            )
+                np.array([p_close[0], 0.0, p_close[1], 0.0, p_close[2], 0.0]),
+            ),
+            (
+                t1,
+                np.array([p_close[0], 0.0, p_close[1], 0.0, p_close[2], 0.0]),
+            ),
         ],
     )
     # Used to check whether the controller just takes the first track or actually searches.
@@ -81,8 +86,12 @@ def get_situational_picture_in_range() -> SituationalPicture:
         states=[
             (
                 t0,
-                np.array([p_close2[0], p_close2[1], p_close2[2], 0.0, 0.0, 0.0]),
-            )
+                np.array([p_close2[0], 0.0, p_close2[1], 0.0, p_close2[2], 0.0]),
+            ),
+            (
+                t1,
+                np.array([p_close2[0], 0.0, p_close2[1], 0.0, p_close2[2], 0.0]),
+            ),
         ],
     )
     return SituationalPicture(

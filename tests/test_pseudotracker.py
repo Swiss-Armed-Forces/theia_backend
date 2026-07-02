@@ -149,7 +149,7 @@ class PseudoTrackerTest(
 
     def on_events(self, events: list[Event]):
         """Needed because this class is an AbstractSimulationListener."""
-        raise NotImplementedError
+        pass
 
 
 if __name__ == "__main__":
