@@ -11,6 +11,7 @@ from theia.simulation.simulator import AbstractSimulationListener, Simulator
 from theia.types import (
     ConstantRcsModel,
     Event,
+    KillEvent,
     MonostaticRadarDetection,
     MonostaticSensor,
     PclDetection,
@@ -49,7 +50,6 @@ class NoLogger(AbstractSimulationListener):
 
     def on_events(self, events: list[Event]):
         pass
-
 
 
 class FileLogger(AbstractSimulationListener):
@@ -96,7 +96,7 @@ class FileLogger(AbstractSimulationListener):
                 "pet_detections": [d.model_dump(mode="json") for d in pet_detections],
             }
         )
-    
+
     def on_events(self, events: list[Event]):
         self.events.extend(events)
 
@@ -235,7 +235,6 @@ class LogLoader:
     def red_pcl_sensors(self) -> list[PclSensor]:
         return list(self._red_pcl_sensors.values())
 
-
     @property
     def blue_monostatic_radar_detections(self) -> list[MonostaticRadarDetection]:
         return self._blue_monostatic_radar_detections
@@ -263,7 +262,11 @@ class LogLoader:
         monostatic_sensors: dict[int, MonostaticSensor] = {}
         pcl_sensors: dict[int, PclSensor] = {}
         for snapshot in self._snapshots:
-            sensors = snapshot.blue_monostatic_radars if is_blue else snapshot.red_monostatic_radars
+            sensors = (
+                snapshot.blue_monostatic_radars
+                if is_blue
+                else snapshot.red_monostatic_radars
+            )
             for sensor in sensors:
                 monostatic_sensors[sensor.id] = sensor
             sensors = snapshot.blue_pcl_sensors if is_blue else snapshot.red_pcl_sensors
@@ -325,8 +328,7 @@ class LogLoader:
             )
         )
         monostatic_detections = [
-            MonostaticRadarDetection.model_validate(d)
-            for d in monostatic_detections
+            MonostaticRadarDetection.model_validate(d) for d in monostatic_detections
         ]
         if is_blue:
             self._blue_monostatic_radar_detections = monostatic_detections
@@ -343,9 +345,7 @@ class LogLoader:
                 ]
             )
         )
-        pcl_detections = [
-            PclDetection.model_validate(d) for d in pcl_detections
-        ]
+        pcl_detections = [PclDetection.model_validate(d) for d in pcl_detections]
 
         if is_blue:
             self._blue_pcl_detections = pcl_detections
@@ -466,6 +466,11 @@ class SituationalPictureBuffer(AbstractSimulationListener):
         )
         self._events: list[Event] = []
         self._has_completed = False
+        self._death_times: dict[int, datetime.datetime] = {}
+        """
+        Time of death for target IDs.
+        If a target ID has no entry, the corresponding target is still alive.
+        """
 
     def register_simulator(self, simulator: Simulator):
         self._simulator = simulator
@@ -500,6 +505,9 @@ class SituationalPictureBuffer(AbstractSimulationListener):
         pass
 
     def on_events(self, events: list[Event]):
+        kill_events = [e for e in events if isinstance(e, KillEvent)]
+        for e in kill_events:
+            self._death_times[e.target_id] = e.time
         self._events.extend(events)
 
     def on_end(self):
@@ -523,6 +531,9 @@ class SituationalPictureBuffer(AbstractSimulationListener):
             if len(target_history) < 2:
                 continue
             for time, target in target_history:
+                if target.id in self._death_times:
+                    # Do not return dead targets.
+                    break
                 times.append(time)
                 lats.append(target.lat)
                 lons.append(target.lon)
@@ -530,20 +541,21 @@ class SituationalPictureBuffer(AbstractSimulationListener):
                 vxs.append(target.velocity.vx)
                 vys.append(target.velocity.vy)
                 vzs.append(target.velocity.vz)
-            trajectories.append(
-                Trajectory(
-                    target_id=target.id,
-                    target_sidc=target.sidc,
-                    times=times,
-                    lats=lats,
-                    lons=lons,
-                    alts=alts,
-                    vxs=vxs,
-                    vys=vys,
-                    vzs=vzs,
-                    cross_section_model=ConstantRcsModel(rcs=np.nan),
+            if len(times) >= 2:
+                trajectories.append(
+                    Trajectory(
+                        target_id=target.id,
+                        target_sidc=target.sidc,
+                        times=times,
+                        lats=lats,
+                        lons=lons,
+                        alts=alts,
+                        vxs=vxs,
+                        vys=vys,
+                        vzs=vzs,
+                        cross_section_model=ConstantRcsModel(rcs=np.nan),
+                    )
                 )
-            )
         return trajectories
 
     def get_situational_picture(self, is_blue: bool) -> SituationalPicture:
