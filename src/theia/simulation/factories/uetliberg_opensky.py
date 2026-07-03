@@ -1,6 +1,8 @@
 import datetime
 from pathlib import Path
 
+import numpy as np
+
 from theia.config import SIDC
 from theia.data_loading import load_trajectory_file
 from theia.detection.pcl import PclDetector
@@ -17,12 +19,15 @@ from theia.simulation.factories.abstract_simulator_factory import (
 )
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
 from theia.simulation.trackers.pseudo_tracker import PseudoTracker
+from theia.terrain import AbstractTerrainModel
 from theia.test_data import get_uetliberg_radar
 from theia.types import AbstractTracker, ConstantRcsModel, Controller
 
 
 class UetlibergOpenskySimulatorFactory(AbstractSimulatorFactory):
-    def __init__(self):
+    def __init__(self, rng: np.random.Generator, terrain: AbstractTerrainModel):
+        self._rng = rng
+        self._terrain = terrain
         self._radar = get_uetliberg_radar(
             min_range_uncertainty=0.0,
             max_range_uncertainty=0.0,
@@ -38,13 +43,17 @@ class UetlibergOpenskySimulatorFactory(AbstractSimulatorFactory):
         return PclDetector()
 
     def _get_pet_detector(self) -> PetDetector:
-        return PetDetector()
+        return PetDetector(terrain_model=self._terrain)
 
     def _get_blue_tracker(self) -> AbstractTracker:
-        return PseudoTracker(removal_patience=30)
+        return PseudoTracker(
+            removal_patience=30, rng=self._rng, start_time=self._get_start_time()
+        )
 
     def _get_red_tracker(self) -> AbstractTracker:
-        return PseudoTracker(removal_patience=30)
+        return PseudoTracker(
+            removal_patience=30, rng=self._rng, start_time=self._get_start_time()
+        )
 
     def _get_blue_controller(self) -> Controller:
         return MonostaticRadarController(
