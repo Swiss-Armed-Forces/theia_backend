@@ -16,3 +16,4 @@ drafts/
 bistatic_range_*.png
 output/
 **/__pycache__
+hgt/
