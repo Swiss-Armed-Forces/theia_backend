@@ -23,7 +23,7 @@ terrain = FastSrtmModel(tree=tree, srtm_model=SrtmTerrainModel(), t_min=30)
 damage_model = UniformDamageModel(1.0, rng)  # Every shot kills.
 factory = SingleTargetSingleEffectorFactory(rng, terrain, True)
 # factory = PerformanceDemoFactory(rng, terrain)
-# factory = UetlibergOpenskySimulatorFactory()
+factory = UetlibergOpenskySimulatorFactory(rng, terrain)
 # factory = BodenseeMonostaticFactory(rng)
 simulator, buffer = factory.build_simulator(True, rng, terrain, damage_model)
 
