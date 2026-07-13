@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import tqdm
 
 from theia.simulation.factories.performance_demo import PerformanceDemoFactory
-from theia.simulation.logging import FileLogger
+from theia.simulation.theia_logging import FileLogger
 from theia.terrain import SrtmTerrainModel
 from theia.terrain_fast_los import FastSrtmModel, HbvTree
 

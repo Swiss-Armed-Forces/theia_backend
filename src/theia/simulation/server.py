@@ -21,7 +21,7 @@ from theia.coverage import (
 from theia.detection.pcl import PclDetector
 from theia.grids import LatLonHeightGrid
 from theia.radar_equation import calculate_maximum_monostatic_range
-from theia.simulation.logging import SituationalPictureBuffer
+from theia.simulation.theia_logging import SituationalPictureBuffer
 from theia.simulation.simulation_director import SimulationDirector
 from theia.types import (
     Event,

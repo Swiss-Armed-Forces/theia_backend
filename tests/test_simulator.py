@@ -21,7 +21,7 @@ from theia.simulation.damage_model import UniformDamageModel
 from theia.simulation.factories.single_target_single_effector import (
     SingleTargetSingleEffectorFactory,
 )
-from theia.simulation.logging import FileLogger, InMemoryLogger
+from theia.simulation.theia_logging import FileLogger, InMemoryLogger
 from theia.simulation.simulator import KillEvent, Simulator, TimeCriterion
 from theia.simulation.trackers.tracking import DummyTracker
 from theia.terrain import SrtmTerrainModel

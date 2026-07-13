@@ -1,6 +1,6 @@
 import cProfile
 
-from theia.simulation.logging import LogLoader
+from theia.simulation.theia_logging import LogLoader
 from theia.simulation.trackers.tracking import MonostaticSingleSensorTracker
 
 # Load data.

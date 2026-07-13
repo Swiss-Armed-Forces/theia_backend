@@ -6,7 +6,7 @@ import numpy as np
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.simulation.damage_model import AbstractDamageModel
-from theia.simulation.logging import SituationalPictureBuffer
+from theia.simulation.theia_logging import SituationalPictureBuffer
 from theia.simulation.simulator import Simulator, TerminationCriterion
 from theia.terrain import AbstractTerrainModel
 from theia.types import AbstractTracker, Controller
