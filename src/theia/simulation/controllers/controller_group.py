@@ -2,8 +2,10 @@ import datetime
 import itertools
 from theia.types import (
     AbstractEffector,
+    AbstractEventListener,
     Controller,
     Event,
+    EventRelais,
     MonostaticSensor,
     PclSensor,
     Point,
@@ -14,10 +16,13 @@ from theia.types import (
 )
 
 
-class ControllerGroup(Controller):
+class ControllerGroup(Controller, AbstractEventListener):
     def __init__(self, controllers: list[Controller]):
         super().__init__()
         self._controllers = controllers
+        self._relais = EventRelais()
+        for c in controllers:
+            c.register_event_listener(self._relais)
 
     def get_monostatic_radars(
         self, situational_picture: SituationalPicture, dt: datetime.timedelta
@@ -84,6 +89,9 @@ class ControllerGroup(Controller):
             return []
         else:
             return list(itertools.chain.from_iterable(all_sensors))
+
+    def register_event_listener(self, listener):
+        self._relais.register_event_listener(listener)
 
     def on_event(self, event: Event):
         for controller in self._controllers:
