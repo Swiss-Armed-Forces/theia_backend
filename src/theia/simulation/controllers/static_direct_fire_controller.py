@@ -47,6 +47,9 @@ class StaticDirectFireController(Controller):
     """Track ID of the track to be fought."""
     target_name: str = ""
 
+    def __post_init__(self):
+        super().__init__()
+
     def on_event(self, event: Event):
         pass
 
