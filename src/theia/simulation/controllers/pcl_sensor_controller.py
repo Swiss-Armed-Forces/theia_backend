@@ -28,6 +28,7 @@ class PclSensorController(Controller):
         own_transmitter: bool,
         name: str = "",
     ):
+        super().__init__()
         self._sensor = sensor
         self._name = name
         self._rcs_model = rcs_model
