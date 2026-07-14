@@ -32,6 +32,7 @@ from theia.types import (
     Point,
     TrackInitEvent,
     Trigger,
+    VisualDetection,
 )
 
 
@@ -122,6 +123,7 @@ class TargetDetections(pydantic.BaseModel):
     monostatic_detections: list[MonostaticRadarDetection] = []
     pcl_detections: list[PclDetection] = []
     pet_detections: list[PetDetection] = []
+    visual_detections: list[VisualDetection] = []
 
 
 class PseudoTracker(AbstractTracker, Trigger):
@@ -182,6 +184,7 @@ class PseudoTracker(AbstractTracker, Trigger):
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
         pet_detections: list[PetDetection],
+        visual_detections: list[VisualDetection],
     ) -> list[TargetDetections]:
         # Ignore clutter.
         monostatic_detections = [
@@ -190,12 +193,15 @@ class PseudoTracker(AbstractTracker, Trigger):
         pcl_detections = [d for d in pcl_detections if d.target != CLUTTER_TARGET]
         pet_detections = [d for d in pet_detections if d.target != CLUTTER_TARGET]
 
-        def f(d: MonostaticRadarDetection | PclDetection | PetDetection) -> int:
+        def f(
+            d: MonostaticRadarDetection | PclDetection | PetDetection | VisualDetection,
+        ) -> int:
             return d.target.id
 
         monostatic_detections = sorted(monostatic_detections, key=f)
         pcl_detections = sorted(pcl_detections, key=f)
         pet_detections = sorted(pet_detections, key=f)
+        visual_detections = sorted(visual_detections, key=f)
 
         grouped_monostatic_detections = {
             key: list(values)
@@ -207,13 +213,19 @@ class PseudoTracker(AbstractTracker, Trigger):
         grouped_pet_detections = {
             key: list(values) for key, values in itertools.groupby(pet_detections, f)
         }
+        grouped_visual_detections = {
+            key: list(values) for key, values in itertools.groupby(visual_detections, f)
+        }
 
         monostatic_target_ids = set(grouped_monostatic_detections.keys())
         pcl_target_ids = set(grouped_pcl_detections)
         pet_target_ids = set(grouped_pet_detections)
+        visual_target_ids = set(grouped_visual_detections)
 
         target_ids = list(
-            monostatic_target_ids.union(pcl_target_ids).union(pet_target_ids)
+            monostatic_target_ids.union(pcl_target_ids)
+            .union(pet_target_ids)
+            .union(visual_target_ids)
         )
 
         target_detections: list[TargetDetections] = []
@@ -224,6 +236,8 @@ class PseudoTracker(AbstractTracker, Trigger):
                 target = grouped_pcl_detections[target_id][0].target
             elif len(grouped_pet_detections.get(target_id, [])) > 0:
                 target = grouped_pet_detections[target_id][0].target
+            elif len(grouped_visual_detections.get(target_id, [])) > 0:
+                target = grouped_visual_detections[target_id][0].target
             else:
                 raise RuntimeError("This code should never be reached!")
 
@@ -236,6 +250,7 @@ class PseudoTracker(AbstractTracker, Trigger):
                     ),
                     pcl_detections=grouped_pcl_detections.get(target_id, []),
                     pet_detections=grouped_pet_detections.get(target_id, []),
+                    visual_detections=grouped_visual_detections.get(target_id, []),
                 )
             )
         return target_detections
@@ -245,12 +260,14 @@ class PseudoTracker(AbstractTracker, Trigger):
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
         pet_detections: list[PetDetection],
+        visual_detections: list[VisualDetection],
         id_provider: IdProvider,  # needed to get unused track IDs
     ):
         target_detections = self._preprocess_detections(
             monostatic_detections,
             pcl_detections,
             pet_detections,
+            visual_detections,
         )
         updated_targets: set[int] = set()
         for detections in target_detections:
@@ -259,6 +276,7 @@ class PseudoTracker(AbstractTracker, Trigger):
                 detections.monostatic_detections,
                 detections.pcl_detections,
                 detections.pet_detections,
+                detections.visual_detections,
                 track_exists,
             )
 

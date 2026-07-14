@@ -11,7 +11,7 @@ from scipy.interpolate import CubicSpline, make_interp_spline, BSpline
 import scipy.constants as sc
 import shapely
 
-from theia.config import SIDC
+from theia.config import SIDC, UNKNOWN_ID
 from theia.util import from_dB
 
 
@@ -389,7 +389,27 @@ class PetSensor(AbstractSensor):
     error_model: PetMeasurementModel
 
 
-Sensor = MonostaticSensor | PclSensor
+class VisualSensor(AbstractSensor):
+    transmitter: Transmitter = Transmitter(
+        id=UNKNOWN_ID,
+        point=Point(lat=0, lon=0, alt=0),
+        power=0,
+        erp=-np.inf,
+        antenna_height=0.0,
+        antenna_diameter=0.0,
+        antenna_gain=0.0,
+        frequency=0.0,
+        pulse_width=0.0,
+        polarization=Polarization.HORIZONTAL,
+        bandwidth=0.0,
+        max_coherent_integration_time=0.0,
+        antenna_efficiency_value=0.0,
+    )
+    detection_range: float
+    """Detection range [m]"""
+
+
+Sensor = MonostaticSensor | PclSensor | PetSensor | VisualSensor
 
 
 class Target(pydantic.BaseModel):
@@ -660,6 +680,14 @@ class PetDetection(pydantic.BaseModel):
     """Standard deviation of the azimuth [rad]"""
     sigma_elevation: float
     """Standard deviation of the elevation [rad]"""
+
+
+class VisualDetection(pydantic.BaseModel):
+    detection_id: int
+    time: datetime.datetime
+    """Date and time at which the detection takes place."""
+    sensor: VisualSensor
+    target: Target
 
 
 class RcsModel(abc.ABC):
@@ -1255,6 +1283,13 @@ class Controller(AbstractEventListener, Trigger):
     ) -> list[Receiver]:
         raise NotImplementedError()
 
+    def get_visual_sensors(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[VisualSensor]:
+        return []
+
     @abc.abstractmethod
     def get_firing_effectors(
         self,
@@ -1334,6 +1369,7 @@ class Entity(enum.Enum):
     INDIRECT_SHOT = 4
     TARGET = 5
     DIRECT_FIRE_EFFECTOR = 6
+    SENSOR = 7
 
 
 class IdProvider:
@@ -1350,6 +1386,7 @@ class IdProvider:
             Entity.INDIRECT_SHOT: 0,
             Entity.TARGET: 0,
             Entity.DIRECT_FIRE_EFFECTOR: 0,
+            Entity.SENSOR: 0,
         }
 
     def increment(self, entity: Entity) -> int:
@@ -1373,6 +1410,7 @@ class AbstractTracker(abc.ABC, Trigger):
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
         pet_detections: list[PetDetection],
+        visual_detections: list[VisualDetection],
         id_provider: IdProvider,  # needed to get unused track IDs
     ):
         """Add detections of a single iteration to this tracker."""

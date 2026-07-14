@@ -10,6 +10,7 @@ from theia.types import (
     Receiver,
     SituationalPicture,
     Target,
+    VisualSensor,
 )
 
 
@@ -70,6 +71,19 @@ class ControllerGroup(Controller):
             return []
         else:
             return list(itertools.chain.from_iterable(all_shots))
+
+    def get_visual_sensors(
+        self,
+        situational_picture: SituationalPicture,
+        dt: datetime.timedelta,
+    ) -> list[VisualSensor]:
+        all_sensors = [
+            c.get_visual_sensors(situational_picture, dt) for c in self._controllers
+        ]
+        if len(all_sensors) == 0:
+            return []
+        else:
+            return list(itertools.chain.from_iterable(all_sensors))
 
     def on_event(self, event: Event):
         for controller in self._controllers:

@@ -9,7 +9,13 @@ from theia.coordinates import (
 )
 from theia.distance import line_of_sight_distance
 from theia.ellipsoid import Ellipsoid
-from theia.types import MonostaticRadarDetection, PclDetection, PetDetection, Point
+from theia.types import (
+    MonostaticRadarDetection,
+    PclDetection,
+    PetDetection,
+    Point,
+    VisualDetection,
+)
 
 
 class EcefDetectionSampler:
@@ -253,10 +259,18 @@ class EcefDetectionSampler:
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
         pet_detections: list[PetDetection],
+        visual_detections: list[VisualDetection],
         track_exists: bool,
     ) -> Detection | None:
         detection: Detection | None = None
-        if len(monostatic_detections) > 0:
+        if len(visual_detections) > 0:
+            d = visual_detections[0]
+            detection = self._sample_position(
+                d.target.point,
+                (1.0, 1.0, 1.0),
+                d.time,
+            )
+        elif len(monostatic_detections) > 0:
             # Whenever we have monostatic detections, we use those detections
             # to initialize or update the track.
             # Select detection with shortest range and initiate or update

@@ -5,12 +5,14 @@ from copy import deepcopy
 import datetime
 import itertools
 import time
+from typing import Optional
 
 import numpy as np
 from theia.config import UNKNOWN_ID, UNKNOWN_TIME
 from theia.detection.active import calculate_monostatic_detection
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
+from theia.detection.visual import VisualDetector
 from theia.distance import line_of_sight_distance
 from theia.effectors import (
     DirectFireEffector,
@@ -42,6 +44,8 @@ from theia.types import (
     Snapshot,
     Target,
     Trigger,
+    VisualDetection,
+    VisualSensor,
 )
 
 
@@ -76,6 +80,7 @@ class Simulator(Trigger, AbstractEventListener):
         listener: AbstractSimulationListener,
         terrain_model: AbstractTerrainModel,
         damage_model: AbstractDamageModel,
+        visual_detector: Optional[VisualDetector] = None,
         simulate_clutter: bool = True,
         id_provider: IdProvider | None = None,
         shot_association_tolerance: float = 1000.0,
@@ -111,6 +116,8 @@ class Simulator(Trigger, AbstractEventListener):
             Pseudo-random number generator (RNG)
         listener: AbstractSimulationListener
             Called when intermediate results are available
+        visual_detector: Optional[VisualDetector], default None
+            Visual line-of-sight detector
         simulate_clutter: bool, default True
             Whether to simulate clutter detections
         shot_association_tolerance: float, default 1000.0
@@ -119,6 +126,11 @@ class Simulator(Trigger, AbstractEventListener):
         super().__init__()
         self._pcl_detector = pcl_detector
         self._pet_detector = pet_detector
+        self._visual_detector = (
+            VisualDetector(terrain=terrain_model)
+            if visual_detector is None
+            else visual_detector
+        )
         self._blue_controller = blue_controller
         self._red_controller = red_controller
         self._blue_tracker = blue_tracker
@@ -138,10 +150,12 @@ class Simulator(Trigger, AbstractEventListener):
         self._events: list[Event] = []
         self._blue_monostatic_radars: list[MonostaticSensor] = []
         self._blue_pcl_sensors: list[PclSensor] = []
+        self._blue_visual_sensors: list[VisualSensor] = []
         self._blue_targets: list[Target] = []
         self._blue_effectors: list[AbstractEffector] = []
         self._red_monostatic_radars: list[MonostaticSensor] = []
         self._red_pcl_sensors: list[PclSensor] = []
+        self._red_visual_sensors: list[VisualSensor] = []
         self._red_targets: list[Target] = []
         self._red_effectors: list[AbstractEffector] = []
         self._blue_pet_receivers: list[Receiver] = []
@@ -302,7 +316,7 @@ class Simulator(Trigger, AbstractEventListener):
         """
         detections: list[PclDetection] = []
         sensors = self._blue_pcl_sensors if is_scanner_blue else self._red_pcl_sensors
-        targets = self._red_targets if is_scanner_blue else self._red_pcl_sensors
+        targets = self._red_targets if is_scanner_blue else self._blue_targets
         for sensor in sensors:
             time_of_last_detection = self._time_of_last_detection.get(
                 sensor.id,
@@ -387,6 +401,47 @@ class Simulator(Trigger, AbstractEventListener):
             if self._simulate_clutter:
                 # TODO: Implement PET clutter sampling.
                 pass
+
+        return detections
+
+    def _calculate_visual_detections(self, is_scanner_blue: bool) -> list[PetDetection]:
+        """
+        Calculate visual detections at the current time step.
+        Does not include clutter.
+
+        Parameters
+        ----------
+        is_scanner_blue: bool
+            Whether the scanning part ("hunter") is blue; otherwise it is red
+
+        Notes
+        -----
+        The detections are assumed to take place at a fixed period
+        (the receiver's rotation time) all at once.
+        No angular update is implemented.
+        """
+        detections: list[VisualDetection] = []
+
+        sensors = (
+            self._blue_visual_sensors if is_scanner_blue else self._red_visual_sensors
+        )
+        targets = self._red_targets if is_scanner_blue else self._blue_targets
+        for sensor, target in itertools.product(sensors, targets):
+            detection = self._visual_detector.calculate_visual_detection(
+                self._rng,
+                sensor,
+                target,
+            )
+            if detection is not None:
+                detection.time = self._t
+                detection.detection_id = self._detection_id
+                self._detection_id += 1
+                detections.append(detection)
+
+        # Simulate clutter.
+        if self._simulate_clutter:
+            # TODO: Implement visual clutter sampling? (deception)
+            pass
 
         return detections
 
@@ -488,6 +543,8 @@ class Simulator(Trigger, AbstractEventListener):
             self._dt,
         )
 
+        print(self._red_firing_effectors)
+
         self._execute_attacks(is_blue=True)
         self._execute_attacks(is_blue=False)
 
@@ -500,6 +557,10 @@ class Simulator(Trigger, AbstractEventListener):
             blue_situational_picture,
             self._dt,
         )
+        self._blue_visual_sensors = self._blue_controller.get_visual_sensors(
+            blue_situational_picture,
+            self._dt,
+        )
         self._blue_targets = self._blue_controller.get_targets(
             blue_situational_picture,
             self._dt,
@@ -509,6 +570,10 @@ class Simulator(Trigger, AbstractEventListener):
             self._dt,
         )
         self._red_pcl_sensors = self._red_controller.get_pcl_sensors(
+            red_situational_picture,
+            self._dt,
+        )
+        self._red_visual_sensors = self._red_controller.get_visual_sensors(
             red_situational_picture,
             self._dt,
         )
@@ -575,18 +640,22 @@ class Simulator(Trigger, AbstractEventListener):
         red_pcl_detections = self._calculate_pcl_detections(is_scanner_blue=False)
         blue_pet_detections = self._calculate_pet_detections(is_scanner_blue=True)
         red_pet_detections = self._calculate_pet_detections(is_scanner_blue=False)
+        blue_visual_detections = self._calculate_visual_detections(is_scanner_blue=True)
+        red_visual_detections = self._calculate_visual_detections(is_scanner_blue=False)
 
         # Track.
         self._blue_tracker.add_detections(
             blue_active_radar_detections,
             blue_pcl_detections,
             blue_pet_detections,
+            blue_visual_detections,
             self._id_provider,
         )
         self._red_tracker.add_detections(
             red_active_radar_detections,
             red_pcl_detections,
             red_pet_detections,
+            red_visual_detections,
             self._id_provider,
         )
 
