@@ -5,6 +5,7 @@ from theia.types import (
     MonostaticRadarDetection,
     PclDetection,
     PetDetection,
+    VisualDetection,
 )
 
 
@@ -14,6 +15,7 @@ class DummyTracker(AbstractTracker):
         monostatic_detections: list[MonostaticRadarDetection],
         pcl_detections: list[PclDetection],
         pet_detections: list[PetDetection],
+        visual_detections: list[VisualDetection],
         id_provider: IdProvider,  # needed to get unused track IDs
     ):
         pass
