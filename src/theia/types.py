@@ -3,7 +3,7 @@ import abc
 from dataclasses import dataclass
 import datetime
 import enum
-from typing import Optional, Self
+from typing import Any, Literal, Optional, Self
 from matplotlib import pyplot as plt
 import numpy as np
 import pydantic
@@ -1171,6 +1171,57 @@ class IndirectShot(DirectShot):
 Shot = DirectShot | IndirectShot
 
 
+class GeoJSONPolygon(pydantic.BaseModel):
+    type: Literal["Polygon"] = "Polygon"
+    coordinates: list[list[list[float]]]
+
+    @classmethod
+    def from_shapely(cls, polygon: shapely.Polygon) -> "GeoJSONPolygon":
+        geojson = shapely.geometry.mapping(polygon)
+        return cls(
+            coordinates=[list(map(list, ring)) for ring in geojson["coordinates"]]
+        )
+
+
+class GeoJSONMultiPolygon(pydantic.BaseModel):
+    type: Literal["MultiPolygon"] = "MultiPolygon"
+    # One extra nesting level: [polygon][ring][point][coordinate]
+    coordinates: list[list[list[list[float]]]]
+
+    @classmethod
+    def from_shapely(cls, multi: shapely.MultiPolygon) -> "GeoJSONMultiPolygon":
+        geojson = shapely.geometry.mapping(multi)
+        return cls(
+            coordinates=[
+                [list(map(list, ring)) for ring in polygon]
+                for polygon in geojson["coordinates"]
+            ]
+        )
+
+
+GeoJSONGeometry = GeoJSONPolygon | GeoJSONMultiPolygon
+
+
+class GeoJSONFeature(pydantic.BaseModel):
+    type: str = "Feature"
+    geometry: GeoJSONGeometry = pydantic.Field(discriminator="type")
+    properties: dict[str, Any] = {}
+
+    @classmethod
+    def from_shapely(
+        cls,
+        shape: shapely.Polygon | shapely.MultiPolygon,
+        properties: dict[str, Any] = {},
+    ) -> "GeoJSONFeature":
+        if isinstance(shape, shapely.Polygon):
+            geometry = GeoJSONPolygon.from_shapely(shape)
+        elif isinstance(shape, shapely.MultiPolygon):
+            geometry = GeoJSONMultiPolygon.from_shapely(shape)
+        else:
+            raise TypeError(f"Unsupported geometry type: {type(shape)}")
+        return cls(geometry=geometry, properties=properties)
+
+
 class Controller(AbstractEventListener, Trigger):
     @abc.abstractmethod
     def get_monostatic_radars(
@@ -1212,6 +1263,9 @@ class Controller(AbstractEventListener, Trigger):
     ) -> list[tuple[AbstractEffector, Point]]:
         """Let the controller perform shots."""
         raise NotImplementedError()
+
+    def get_geojson(self) -> dict[str, GeoJSONFeature]:
+        return {}
 
 
 class Snapshot(pydantic.BaseModel):
@@ -1278,6 +1332,8 @@ class Entity(enum.Enum):
     EFFECTOR = 2
     DIRECT_SHOT = 3
     INDIRECT_SHOT = 4
+    TARGET = 5
+    DIRECT_FIRE_EFFECTOR = 6
 
 
 class IdProvider:
@@ -1292,6 +1348,8 @@ class IdProvider:
             Entity.EFFECTOR: 0,
             Entity.DIRECT_SHOT: 0,
             Entity.INDIRECT_SHOT: 0,
+            Entity.TARGET: 0,
+            Entity.DIRECT_FIRE_EFFECTOR: 0,
         }
 
     def increment(self, entity: Entity) -> int:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 import datetime
 from enum import Enum
-from typing import Any, Literal, Optional
+from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,6 +25,9 @@ from theia.simulation.theia_logging import SituationalPictureBuffer
 from theia.simulation.simulation_director import SimulationDirector
 from theia.types import (
     Event,
+    GeoJSONFeature,
+    GeoJSONMultiPolygon,
+    GeoJSONPolygon,
     MonostaticSensor,
     PclSensor,
     Receiver,
@@ -82,57 +85,6 @@ class ExtrapolatedGroundtruth(pydantic.BaseModel):
     target_id: int
     points: list[TrackPoint]
     sidc: str
-
-
-class GeoJSONPolygon(pydantic.BaseModel):
-    type: Literal["Polygon"] = "Polygon"
-    coordinates: list[list[list[float]]]
-
-    @classmethod
-    def from_shapely(cls, polygon: shapely.Polygon) -> "GeoJSONPolygon":
-        geojson = shapely.geometry.mapping(polygon)
-        return cls(
-            coordinates=[list(map(list, ring)) for ring in geojson["coordinates"]]
-        )
-
-
-class GeoJSONMultiPolygon(pydantic.BaseModel):
-    type: Literal["MultiPolygon"] = "MultiPolygon"
-    # One extra nesting level: [polygon][ring][point][coordinate]
-    coordinates: list[list[list[list[float]]]]
-
-    @classmethod
-    def from_shapely(cls, multi: shapely.MultiPolygon) -> "GeoJSONMultiPolygon":
-        geojson = shapely.geometry.mapping(multi)
-        return cls(
-            coordinates=[
-                [list(map(list, ring)) for ring in polygon]
-                for polygon in geojson["coordinates"]
-            ]
-        )
-
-
-GeoJSONGeometry = GeoJSONPolygon | GeoJSONMultiPolygon
-
-
-class GeoJSONFeature(pydantic.BaseModel):
-    type: str = "Feature"
-    geometry: GeoJSONGeometry = pydantic.Field(discriminator="type")
-    properties: dict[str, Any] = {}
-
-    @classmethod
-    def from_shapely(
-        cls,
-        shape: shapely.Polygon | shapely.MultiPolygon,
-        properties: dict[str, Any] = {},
-    ) -> "GeoJSONFeature":
-        if isinstance(shape, shapely.Polygon):
-            geometry = GeoJSONPolygon.from_shapely(shape)
-        elif isinstance(shape, shapely.MultiPolygon):
-            geometry = GeoJSONMultiPolygon.from_shapely(shape)
-        else:
-            raise TypeError(f"Unsupported geometry type: {type(shape)}")
-        return cls(geometry=geometry, properties=properties)
 
 
 def create_app(
