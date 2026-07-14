@@ -487,6 +487,8 @@ class Simulator(Trigger, AbstractEventListener):
                     # The effector's behaviour is correct when exceptions are raised.
                     # No need to react here.
                     shot = effector.fire(target)
+                    self._events.append(shot)
+                    self._broadcast_event(shot)
                 except OutOfRangeException:
                     continue
                 except OutOfAttacksException:
@@ -542,8 +544,6 @@ class Simulator(Trigger, AbstractEventListener):
             red_situational_picture,
             self._dt,
         )
-
-        print(self._red_firing_effectors)
 
         self._execute_attacks(is_blue=True)
         self._execute_attacks(is_blue=False)

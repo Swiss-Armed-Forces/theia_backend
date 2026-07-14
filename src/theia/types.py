@@ -1163,6 +1163,18 @@ class Trigger:
             listener.on_event(event)
 
 
+class EventRelais(AbstractEventListener, Trigger):
+    """
+    Listens to events from the given controllers and relais them to the given listeners.
+
+    This helper class is needed because some classes like the ControllerGroup
+    and LivingController forward events from the Simulator to the child controllers,
+    but also need to forward events of the child controllers to the Simulator.
+    """
+    def on_event(self, event):
+        self._broadcast_event(event)
+
+
 @dataclass
 class AbstractEffector:
     id: int

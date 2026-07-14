@@ -1,4 +1,4 @@
-from theia.types import Controller, Event, KillEvent, TheiaException
+from theia.types import Controller, Event, EventRelais, KillEvent, TheiaException
 
 
 class AlreadyDeadException(TheiaException):
@@ -18,6 +18,8 @@ class LivingController(Controller):
         self._child = child
         self._target_id = target_id
         self._is_alive = True
+        self._relais = EventRelais()
+        child.register_event_listener(self._relais)
 
     def on_event(self, event: Event):
         """
@@ -33,6 +35,10 @@ class LivingController(Controller):
                 )
             else:
                 self._is_alive = False
+        self._child.on_event(event)
+
+    def register_event_listener(self, listener):
+        self._relais.register_event_listener(listener)
 
     def get_monostatic_radars(self, situational_picture, dt):
         if self._is_alive:
