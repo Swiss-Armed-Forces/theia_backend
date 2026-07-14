@@ -2,6 +2,7 @@ import numpy as np
 import uvicorn
 from theia.simulation.damage_model import UniformDamageModel
 from theia.simulation.factories.bodensee_monostatic import BodenseeMonostaticFactory
+from theia.simulation.factories.davos_drone import DavosDroneScenarioFactory
 from theia.simulation.factories.performance_demo import PerformanceDemoFactory
 from theia.simulation.factories.single_target_single_effector import SingleTargetSingleEffectorFactory
 from theia.simulation.factories.uetliberg_opensky import (
@@ -21,9 +22,10 @@ rng = np.random.Generator(np.random.PCG64(seed=4054080))
 tree = HbvTree.load("tree_lat46:49_lon7:11_subsamplestride2.zip")
 terrain = FastSrtmModel(tree=tree, srtm_model=SrtmTerrainModel(), t_min=30)
 damage_model = UniformDamageModel(1.0, rng)  # Every shot kills.
-factory = SingleTargetSingleEffectorFactory(rng, terrain, True)
+factory = DavosDroneScenarioFactory(rng, terrain)
+# factory = SingleTargetSingleEffectorFactory(rng, terrain, True)
 # factory = PerformanceDemoFactory(rng, terrain)
-factory = UetlibergOpenskySimulatorFactory(rng, terrain)
+# factory = UetlibergOpenskySimulatorFactory(rng, terrain)
 # factory = BodenseeMonostaticFactory(rng)
 simulator, buffer = factory.build_simulator(True, rng, terrain, damage_model)
 
