@@ -8,9 +8,7 @@ from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.effectors import DirectFireEffector
 from theia.simulation.controllers.controller_group import ControllerGroup
-from theia.simulation.controllers.fixed_path_one_way_drone import (
-    FixedPathOneWayDrone,
-)
+from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
 from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.stationary_eye_controller import (
     StationaryEyeController,
@@ -78,43 +76,7 @@ class DavosDroneScenarioFactory(AbstractSimulatorFactory):
             ]
         self._id_provider = IdProvider()
 
-    def _get_pcl_detector(self) -> PclDetector:
-        return PclDetector()
-
-    def _get_pet_detector(self) -> PetDetector:
-        return PetDetector(terrain_model=self._terrain_model)
-
-    def _get_blue_tracker(self) -> AbstractTracker:
-        return PseudoTracker(
-            removal_patience=30,
-            rng=self._rng,
-            start_time=self._get_start_time(),
-        )
-
-    def _get_red_tracker(self) -> AbstractTracker:
-        return PseudoTracker(
-            removal_patience=0,
-            rng=self._rng,
-            start_time=self._get_start_time(),
-        )
-
-    def _get_blue_controller(self) -> Controller:
-        # Define critical infrastructure.
-        target_id = self._id_provider.increment(Entity.TARGET)
-
-        return LivingController(
-            child=WaypointTargetController(
-                name="Conference center",
-                sidc=SIDC.BLUE_GOVERNMENT_SITE,
-                target_id=self._id_provider.increment(Entity.TARGET),
-                times=[self._t0, self._tmax],
-                waypoints=[self._p_infra, self._p_infra],
-                rcs_model=ConstantRcsModel(rcs=100),
-            ),
-            target_id=target_id,
-        )
-
-    def _get_red_controller(self) -> Controller:
+    def _build_single_drone(self) -> Controller:
         trajectory = Trajectory(
             target_id=self._id_provider.increment(Entity.TRACK),
             target_sidc=SIDC.RED_FIXED_WING,
@@ -144,7 +106,10 @@ class DavosDroneScenarioFactory(AbstractSimulatorFactory):
             ),
             target_id=trajectory.target_id,
         )
-        # We know the position of the conference center.
+        return controller
+
+    def _build_conference_center_observer(self) -> Controller:
+        """Incorporate the prior knowledge that the position of the conference center is known."""
         conf_center_observer = StationaryEyeController(
             sensor=VisualSensor(
                 id=self._id_provider.increment(Entity.SENSOR),
@@ -165,6 +130,51 @@ class DavosDroneScenarioFactory(AbstractSimulatorFactory):
                 detection_range=10.0,
             ),
         )
+        return conf_center_observer
+
+    def _build_conference_center_controller(self) -> Controller:
+        # Define critical infrastructure.
+        target_id = self._id_provider.increment(Entity.TARGET)
+
+        return LivingController(
+            child=WaypointTargetController(
+                name="Conference center",
+                sidc=SIDC.BLUE_GOVERNMENT_SITE,
+                target_id=self._id_provider.increment(Entity.TARGET),
+                times=[self._t0, self._tmax],
+                waypoints=[self._p_infra, self._p_infra],
+                rcs_model=ConstantRcsModel(rcs=100),
+            ),
+            target_id=target_id,
+        )
+
+    def _get_pcl_detector(self) -> PclDetector:
+        return PclDetector()
+
+    def _get_pet_detector(self) -> PetDetector:
+        return PetDetector(terrain_model=self._terrain_model)
+
+    def _get_blue_tracker(self) -> AbstractTracker:
+        return PseudoTracker(
+            removal_patience=30,
+            rng=self._rng,
+            start_time=self._get_start_time(),
+        )
+
+    def _get_red_tracker(self) -> AbstractTracker:
+        return PseudoTracker(
+            removal_patience=0,
+            rng=self._rng,
+            start_time=self._get_start_time(),
+        )
+
+    def _get_blue_controller(self) -> Controller:
+        conf_center_controller = self._build_conference_center_controller()
+        return conf_center_controller
+
+    def _get_red_controller(self) -> Controller:
+        conf_center_observer = self._build_conference_center_observer()
+        controller = self._build_single_drone()
         return ControllerGroup(controllers=[controller, conf_center_observer])
 
     def _get_start_time(self) -> datetime.datetime:
