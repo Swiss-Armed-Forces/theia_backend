@@ -11,6 +11,7 @@ from theia.simulation.simulator import AbstractSimulationListener, Simulator
 from theia.types import (
     ConstantRcsModel,
     Event,
+    GeoJSONFeature,
     KillEvent,
     MonostaticRadarDetection,
     MonostaticSensor,
@@ -471,9 +472,13 @@ class SituationalPictureBuffer(AbstractSimulationListener):
         Time of death for target IDs.
         If a target ID has no entry, the corresponding target is still alive.
         """
+        self._geojson_blue: dict[str, GeoJSONFeature] = {}
+        self._geojson_red: dict[str, GeoJSONFeature] = {}
 
     def register_simulator(self, simulator: Simulator):
         self._simulator = simulator
+        self._geojson_blue = simulator._blue_controller.get_geojson()
+        self._geojson_red = simulator._red_controller.get_geojson()
 
     def on_snapshot(self, snapshot: Snapshot):
         for target in snapshot.red_targets:
@@ -572,3 +577,6 @@ class SituationalPictureBuffer(AbstractSimulationListener):
 
     def get_events(self) -> list[Event]:
         return self._events
+
+    def get_geojson(self, is_blue: bool) -> dict[str, GeoJSONFeature]:
+        return self._geojson_blue if is_blue else self._geojson_red
