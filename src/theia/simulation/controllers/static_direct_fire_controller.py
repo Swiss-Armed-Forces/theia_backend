@@ -12,6 +12,8 @@ from theia.types import (
     ConstantRcsModel,
     Controller,
     Event,
+    GeoJSONFeature,
+    GeoJSONPolygon,
     MonostaticSensor,
     PclSensor,
     Point,
@@ -127,6 +129,10 @@ class StaticDirectFireController(Controller):
                 self.effector.point,
                 self.effector.combat_range,
                 alt,
+            )
+            coverage = GeoJSONFeature(
+                geometry=GeoJSONPolygon.from_shapely(coverage),
+                properties={"name": "my polygon"},
             )
             result["Effector range @ {alt}MASL"] = coverage
         return result
