@@ -44,7 +44,9 @@ class StaticDirectFireController(Controller):
     """Radar cross section [m^2]"""
     effector: DirectFireEffector
     assigned_track_id: Optional[str] = None
-    """Track ID of the track to be fought."""
+    """
+    Track ID of the track to be fought. No track is fought if ``None``.
+    """
     target_name: str = ""
 
     def __post_init__(self):
