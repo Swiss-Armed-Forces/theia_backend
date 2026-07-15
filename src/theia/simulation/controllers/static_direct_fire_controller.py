@@ -1,10 +1,11 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import datetime
 from typing import Optional
 
 
 from theia.config import SIDC
 from theia.coordinates import CoordinateTransformations
+from theia.coverage import calculate_coverage
 from theia.effectors import DirectFireEffector
 from theia.types import (
     AbstractEffector,
@@ -48,6 +49,7 @@ class StaticDirectFireController(Controller):
     Track ID of the track to be fought. No track is fought if ``None``.
     """
     target_name: str = ""
+    geojson_range_altitudes: list[float] = field(default_factory=list)
 
     def __post_init__(self):
         super().__init__()
@@ -116,3 +118,15 @@ class StaticDirectFireController(Controller):
         lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
 
         return [(self.effector, Point(lat=lat, lon=lon, alt=alt))]
+
+    def get_geojson(self):
+        result = {}
+        for alt in self.geojson_range_altitudes:
+            coverage = calculate_coverage(
+                self.effector.terrain,
+                self.effector.point,
+                self.effector.combat_range,
+                alt,
+            )
+            result["Effector range @ {alt}MASL"] = coverage
+        return result

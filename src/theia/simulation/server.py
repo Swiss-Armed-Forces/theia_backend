@@ -327,6 +327,10 @@ def create_app(
             if no_constraint or e.time >= t_start
         ]
 
+    @app.get("/geojson/{which}")
+    def get_geojson(which: Team) -> dict[str, GeoJSONFeature]:
+        return buffer.get_geojson(which == Team.blue)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[FRONTEND_URL],

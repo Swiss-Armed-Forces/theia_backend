@@ -90,6 +90,12 @@ class ControllerGroup(Controller, AbstractEventListener):
         else:
             return list(itertools.chain.from_iterable(all_sensors))
 
+    def get_geojson(self):
+        result = {}
+        for controller in self._controllers:
+            result = result | controller.get_geojson()
+        return result
+
     def register_event_listener(self, listener):
         self._relais.register_event_listener(listener)
 
