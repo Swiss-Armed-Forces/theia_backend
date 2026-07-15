@@ -22,18 +22,8 @@ class LivingController(Controller):
         child.register_event_listener(self._relais)
 
     def on_event(self, event: Event):
-        """
-        Raises
-        ------
-        AlreadyDeadException
-            When the controller is already dead
-        """
         if isinstance(event, KillEvent) and event.target_id == self._target_id:
-            if not self._is_alive:
-                raise AlreadyDeadException(
-                    f"Target with ID {self._target_id} is already dead, but event {event.id} kills it."
-                )
-            else:
+            if self._is_alive:
                 self._is_alive = False
         self._child.on_event(event)
 
