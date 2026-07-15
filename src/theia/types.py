@@ -1203,6 +1203,9 @@ class DirectShot(Event):
     shooter: AbstractEffector
     target: Target
 
+    def __str__(self) -> str:
+        return f"{self.shooter.name} 🞋 {self.target.name} (ID {self.target.id}) [{self.shooter.n_attacks_left} attacks left]"
+
 
 class IndirectShot(DirectShot):
     projectile: AbstractEffector
@@ -1400,8 +1403,9 @@ class IdProvider:
             Entity.DIRECT_FIRE_EFFECTOR: 0,
             Entity.SENSOR: 0,
         }
+        self._names = {}
 
-    def increment(self, entity: Entity) -> int:
+    def increment(self, entity: Entity, name: str = "") -> int:
         """
         Return the next unused ID for the given entity and increment it.
 
@@ -1412,6 +1416,7 @@ class IdProvider:
         """
         free_id = self._free_ids[entity]
         self._free_ids[entity] += 1
+        self._names[f"{entity.name} {free_id}"] = name
         return free_id
 
 
