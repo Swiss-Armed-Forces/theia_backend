@@ -28,11 +28,13 @@ author = "Jürg Huber"
 
 extensions = [
     "sphinx_rtd_theme",
-    "sphinx.ext.autodoc",
+    "autoapi.extension",
+    "sphinx.ext.napoleon",
     "sphinxcontrib.bibtex",
     "matplotlib.sphinxext.plot_directive",
 ]
 bibtex_bibfiles = ["refs.bib"]
+autoapi_dirs = ["../../src/theia"]
 
 templates_path = ["_templates"]
 exclude_patterns = []
