@@ -10,6 +10,17 @@ Then, the repository can be installed as follows:
 poetry install
 ```
 
+## Generating doc
+
+Run the following commands from the repo root directory:
+
+```bash
+cd doc/
+make html
+```
+
+You will find the HTML documentation at `doc/build/html/index.html`.
+
 ## Running unit tests
 
 ```bash
