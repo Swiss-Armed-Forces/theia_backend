@@ -8,6 +8,7 @@ from theia.simulation.factories.single_target_single_effector import SingleTarge
 from theia.simulation.factories.uetliberg_opensky import (
     UetlibergOpenskySimulatorFactory,
 )
+from theia.simulation.factories.zurich_airport import ZurichAirportScenarioFactory
 from theia.simulation.server import create_app
 from theia.simulation.simulation_director import SimulationDirector
 from theia.terrain import SrtmTerrainModel
@@ -20,9 +21,11 @@ print("Initialise...")
 ################################################
 rng = np.random.Generator(np.random.PCG64(seed=4054080))
 tree = HbvTree.load("tree_lat46:49_lon7:11_subsamplestride2.zip")
-terrain = FastSrtmModel(tree=tree, srtm_model=SrtmTerrainModel(), t_min=30)
+terrain = SrtmTerrainModel()
+# terrain = FastSrtmModel(tree=tree, srtm_model=SrtmTerrainModel(), t_min=30)
 damage_model = UniformDamageModel(1.0, rng)  # Every shot kills.
-factory = DavosDroneScenarioFactory(rng, terrain)
+factory = ZurichAirportScenarioFactory(rng, terrain)
+# factory = DavosDroneScenarioFactory(rng, terrain)
 # factory = SingleTargetSingleEffectorFactory(rng, terrain, True)
 # factory = PerformanceDemoFactory(rng, terrain)
 # factory = UetlibergOpenskySimulatorFactory(rng, terrain)
