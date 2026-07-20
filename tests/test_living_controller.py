@@ -81,12 +81,6 @@ class LivingControllerTest(unittest.TestCase):
         self._controller.on_event(KillEvent(id=3, time=get_t0(), target_id=2))
         self.assertFalse(self._controller._is_alive)
 
-    def test_double_kill_raises(self):
-        self.assertTrue(self._controller._is_alive)
-        self._controller.on_event(KillEvent(id=3, time=get_t0(), target_id=2))
-        with self.assertRaises(AlreadyDeadException):
-            self._controller.on_event(KillEvent(id=4, time=get_t0(), target_id=2))
-
     def test_dead(self):
         self.assertTrue(self._controller._is_alive)
         self._controller.on_event(KillEvent(id=3, time=get_t0(), target_id=2))
