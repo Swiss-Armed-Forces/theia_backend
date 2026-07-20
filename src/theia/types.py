@@ -521,6 +521,8 @@ class Trajectory(pydantic.BaseModel):
         return self
 
     def __call__(self, t: datetime.datetime) -> Target | None:
+        if t < self.times[0] or t > self.times[-1]:
+            return None
         y = self._spline(t.timestamp())
         if np.isnan(y).any():
             return None
