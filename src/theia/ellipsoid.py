@@ -159,7 +159,7 @@ def _area_weight(
     Surface area element (without dθdφ):
         w(θ,φ) = sinθ · sqrt(b²c²sin²θcos²φ + a²c²sin²θsin²φ + a²b²cos²θ)
 
-    This is |r_θ x r_φ|, the Jacobian of the parametrisation.
+    This is :math:`|r_\theta x r_\phi|`, the Jacobian of the parametrisation.
 
     Notes
     -----
