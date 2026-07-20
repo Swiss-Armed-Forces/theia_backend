@@ -11,7 +11,7 @@ import pydantic
 import shapely
 
 import theia
-from theia.config import FRONTEND_URL
+from theia.config import FRONTEND_URL, SIDC
 from theia.coordinates import CoordinateTransformations
 from theia.coverage import (
     calculate_coverage,
@@ -154,8 +154,11 @@ def create_app(
         results = []
         for trajectory in trajectories:
             points = []
+            sidc = SIDC.UNKNOWN
             for time in times:
                 target = trajectory(time)
+                if target is None:
+                    continue
                 points.append(
                     TrackPoint(
                         time=time,
@@ -168,13 +171,15 @@ def create_app(
                         v_up=0.0,
                     )
                 )
-            results.append(
-                ExtrapolatedGroundtruth(
-                    target_id=trajectory.target_id,
-                    points=points,
-                    sidc=target.sidc,
+                sidc = target.sidc
+            if len(points) > 0:
+                results.append(
+                    ExtrapolatedGroundtruth(
+                        target_id=trajectory.target_id,
+                        points=points,
+                        sidc=sidc,
+                    )
                 )
-            )
         return results
 
     @app.post("/calculate_monostatic_coverage")

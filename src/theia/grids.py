@@ -1,7 +1,12 @@
+from functools import cached_property
+import itertools
+import math
+
 import numpy as np
 import pydantic
 import shapely
 from scipy.ndimage import maximum_filter
+from theia.coordinates import CoordinateTransformations, EcefToEnuTransformer
 from theia.terrain import AbstractTerrainModel
 from theia.types import Point
 
@@ -223,3 +228,72 @@ class LatLonTerrainGrid(pydantic.BaseModel):
             and self.lon_start <= point.lon
             and point.lon <= self.lon_stop
         )
+
+
+class EnuGridMask(pydantic.BaseModel):
+    reference_point: Point
+    east_min: float
+    """Minimum east coordinate [m]"""
+    east_max: float
+    """Maximum east coordinate [m]"""
+    north_min: float
+    """Minimum north coordinate [m]"""
+    north_max: float
+    """Maximum north coordinate [m]"""
+    up_min: float
+    """Minimum up coordinate [m]"""
+    up_max: float
+    """Maximum up coordinate [m]"""
+    res_north_east: float
+    """Grid resolution in north and east directions [m]"""
+    res_up: float
+    """Grid resolution in up direction [m]"""
+    terrain: AbstractTerrainModel
+
+    @cached_property
+    def points(self) -> np.ndarray:
+        """
+        Returns
+        -------
+        np.ndarray
+            Points in geodetic coordinates [m]; shape (N_east, N_north, N_up, 3)
+        """
+        transformer = EcefToEnuTransformer(reference_point=self.reference_point)
+
+        easts = np.arange(self.east_min, self.east_max, self.res_north_east)
+        norths = np.arange(self.north_min, self.north_max, self.res_north_east)
+        ups = np.arange(self.up_min, self.up_max, self.res_up)
+
+        points = np.empty((len(easts), len(norths), len(ups), 3))
+        for i, east in enumerate(easts):
+            for j, north in enumerate(norths):
+                for k, up in enumerate(ups):
+                    points[i, j, k, :] = (
+                        CoordinateTransformations.cartesian_to_geodetic(
+                            *transformer.enu_to_ecef((north, east, up))
+                        )
+                    )
+        return points
+
+    @property
+    def binary_mask(self) -> np.ndarray:
+        """
+        Returns
+        -------
+        np.ndarray
+            Binary mask indicating terrain (True) or open space (False);
+            shape (n_north, n_east, n_up)
+        """
+        points = self.points
+        mask = np.empty(
+            (points.shape[0], points.shape[1], points.shape[2]),
+            dtype=bool,
+        )
+        for i in range(points.shape[0]):
+            for j in range(points.shape[1]):
+                for k in range(points.shape[2]):
+                    lat = points[i, j, k, 0]
+                    lon = points[i, j, k, 1]
+                    alt = points[i, j, k, 2]
+                    mask[i, j, k] = self.terrain.elevationAt(lat, lon) >= alt
+        return mask

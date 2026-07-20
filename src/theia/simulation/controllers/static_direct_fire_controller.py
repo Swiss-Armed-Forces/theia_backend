@@ -118,8 +118,14 @@ class StaticDirectFireController(Controller):
 
         x, vx, y, vy, z, vz = track(situational_picture.time)
         lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
+        target_position = Point(lat=lat, lon=lon, alt=alt)
 
-        return [(self.effector, Point(lat=lat, lon=lon, alt=alt))]
+        if self.effector.terrain.has_line_of_sight(
+            self.effector.point, target_position
+        ):
+            return [(self.effector, target_position)]
+        else:
+            return []
 
     def get_geojson(self):
         result = {}

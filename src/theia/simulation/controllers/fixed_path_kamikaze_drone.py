@@ -46,7 +46,11 @@ class FixedPathOneWayDrone(Controller):
         return []
 
     def get_targets(self, situational_picture, dt):
-        return [self.trajectory(situational_picture.time)]
+        target = self.trajectory(situational_picture.time)
+        if target is not None:
+            return [target]
+        else:
+            return []
 
     def get_pet_receivers(self, situational_picture, dt):
         return []
@@ -56,7 +60,10 @@ class FixedPathOneWayDrone(Controller):
         situational_picture,
         dt,
     ) -> list[tuple[AbstractEffector, Point]]:
-        p = self.trajectory(situational_picture.time).point
+        target = self.trajectory(situational_picture.time)
+        if target is None:
+            return []
+        p = target.point
 
         if (
             self.terrain.has_line_of_sight(p, self.assigned_goal)
