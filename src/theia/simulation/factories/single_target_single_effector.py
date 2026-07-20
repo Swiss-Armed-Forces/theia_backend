@@ -39,8 +39,8 @@ class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
         self._terrain = terrain_model
         self._t0 = datetime.datetime.fromtimestamp(0)
 
-        ANGULAR_UNCERTAINTY = np.deg2rad(1.0) if include_uncertainty else 0.0
-        RANGE_UNCERTAINTY = 100.0 if include_uncertainty else 0.0
+        ANGULAR_UNCERTAINTY = np.deg2rad(0.5) if include_uncertainty else 0.0
+        RANGE_UNCERTAINTY = 50.0 if include_uncertainty else 0.0
 
         # Build BLUE sensor.
         self._radar = get_uetliberg_radar(

@@ -84,7 +84,7 @@ class Simulator(Trigger, AbstractEventListener):
         visual_detector: Optional[VisualDetector] = None,
         simulate_clutter: bool = True,
         id_provider: IdProvider | None = None,
-        shot_association_tolerance: float = 100.0,
+        shot_association_tolerance: float = 250.0,
     ):
         """
         Parameters
