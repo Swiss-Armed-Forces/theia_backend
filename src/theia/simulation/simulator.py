@@ -17,6 +17,7 @@ from theia.distance import line_of_sight_distance
 from theia.effectors import (
     DirectFireEffector,
     IndirectFireEffector,
+    NoLosException,
     OutOfAttacksException,
     OutOfRangeException,
 )
@@ -83,7 +84,7 @@ class Simulator(Trigger, AbstractEventListener):
         visual_detector: Optional[VisualDetector] = None,
         simulate_clutter: bool = True,
         id_provider: IdProvider | None = None,
-        shot_association_tolerance: float = 1000.0,
+        shot_association_tolerance: float = 100.0,
     ):
         """
         Parameters
@@ -489,6 +490,8 @@ class Simulator(Trigger, AbstractEventListener):
                     shot = effector.fire(target)
                     self._events.append(shot)
                     self._broadcast_event(shot)
+                except NoLosException:
+                    continue
                 except OutOfRangeException:
                     continue
                 except OutOfAttacksException:
