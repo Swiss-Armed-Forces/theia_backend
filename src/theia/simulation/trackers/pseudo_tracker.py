@@ -282,16 +282,19 @@ class PseudoTracker(AbstractTracker, Trigger):
 
             # Actually initialise or update the track.
             if detection is not None:
-                track_id = id_provider.increment(Entity.TRACK)
-                tracker = self._trackers.setdefault(
-                    detections.target_id,
-                    SingleTargetEcefTracker(
+                if detections.target_id in self._trackers.keys():
+                    # Update an existing track.
+                    tracker = self._trackers[detections.target_id]
+                else:
+                    # Initialize a new track.
+                    track_id = id_provider.increment(Entity.TRACK)
+                    tracker = SingleTargetEcefTracker(
                         track_id,
                         self._t0,
                         self._prior,
                         sidc=detections.target_sidc,
-                    ),
-                )
+                    )
+                    self._trackers[detections.target_id] = tracker
                 tracker.add_detection(detection)
                 self._iterations_without_update[detections.target_id] = 0
                 updated_targets.add(detections.target_id)
