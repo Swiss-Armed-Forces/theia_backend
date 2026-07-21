@@ -216,6 +216,29 @@ def create_app(
             properties={"name": "my polygon"},
         )
 
+    @app.post("/calculate_min_detectable_rcs")
+    def calculate_min_detectable_rcs(
+        sensor: PclSensor,
+        grid: LatLonHeightGrid,
+        snr_threshold: float = theia.config.SNR_THRESHOLD_PCL,
+        doppler_threshold: float = theia.config.DOPPLER_SHIFT_THRESHOLD_PCL,
+        delay_threshold: float = theia.config.DELAY_THRESHOLD_PCL,
+    ) -> list[list[list[float]]]:
+        """
+        Calculate the minimum detectable radar cross section for the given
+        sensor on a grid. The grid dimensions are (lat, lon, MASL).
+        """
+        detector = PclDetector(
+            snr_threshold=snr_threshold,
+            doppler_threshold=doppler_threshold,
+            delay_threshold=delay_threshold,
+        )
+        return detector.minimum_detectable_rcs_grid(
+            sensor.receiver,
+            sensor.transmitter,
+            grid,
+        )
+
     @app.post("/calculate_pcl_coverage")
     def calculate_pcl_coverage(
         sensors: list[PclSensor],
