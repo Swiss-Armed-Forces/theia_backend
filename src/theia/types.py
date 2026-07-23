@@ -1248,7 +1248,7 @@ GeoJSONGeometry = GeoJSONPolygon | GeoJSONMultiPolygon
 
 
 class GeoJSONFeature(pydantic.BaseModel):
-    type: str = "Feature"
+    type: Literal["Feature"] = "Feature"
     geometry: GeoJSONGeometry = pydantic.Field(discriminator="type")
     properties: dict[str, Any] = {}
 
@@ -1387,6 +1387,8 @@ class Entity(enum.Enum):
     TARGET = 5
     DIRECT_FIRE_EFFECTOR = 6
     SENSOR = 7
+    TRANSMITTER = 8
+    RECEIVER = 9
 
 
 class IdProvider:
@@ -1404,6 +1406,8 @@ class IdProvider:
             Entity.TARGET: 0,
             Entity.DIRECT_FIRE_EFFECTOR: 0,
             Entity.SENSOR: 0,
+            Entity.TRANSMITTER: 0,
+            Entity.RECEIVER: 0,
         }
         self._names = {}
 
