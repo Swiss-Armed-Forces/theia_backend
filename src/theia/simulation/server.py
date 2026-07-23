@@ -359,6 +359,13 @@ def create_app(
     def get_geojson(which: Team) -> dict[str, GeoJSONFeature]:
         return buffer.get_geojson(which == Team.blue)
 
+    @app.get("/elevation_at/{lat}_{lon}")
+    def elevationAt(lat: float, lon: float) -> float:
+        """
+        Calculate elevation [MASL] for the given decimal (lat, lon) coordinates.
+        """
+        return director._simulator._terrain_model.elevationAt(lat, lon)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[FRONTEND_URL],
