@@ -21,6 +21,7 @@ from theia.coverage import (
 )
 from theia.data_loading import load_bakom_ukw_transmitters
 from theia.detection.pcl import PclDetector
+from theia.distance import haversine, line_of_sight_distance
 from theia.grids import LatLonHeightGrid
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.theia_logging import SituationalPictureBuffer
@@ -372,6 +373,27 @@ def create_app(
     @app.get("/fm_transmitters")
     def get_fm_transmitters() -> list[Transmitter]:
         return load_bakom_ukw_transmitters()
+
+    @app.get("/line_of_sight_distance/{lat1}_{lon1}_{alt1}/{lat2}_{lon2}_{alt2}")
+    def get_los_distance(
+        lat1: float,
+        lon1: float,
+        alt1: float,
+        lat2: float,
+        lon2: float,
+        alt2: float,
+    ) -> float:
+        """Calculate LOS distance [m]"""
+        return line_of_sight_distance(lat1, lon1, alt1, lat2, lon2, alt2)
+
+    @app.get("/haversine_distance/{lat1}_{lon1}/{lat2}_{lon2}")
+    def get_haversine_distance(
+        lat1: float,
+        lon1: float,
+        lat2: float,
+        lon2: float,
+    ) -> float:
+        return haversine(lon1, lat1, lon2, lat2)
 
     app.add_middleware(
         CORSMiddleware,
