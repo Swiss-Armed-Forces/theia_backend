@@ -3,6 +3,7 @@
 from __future__ import annotations
 import datetime
 from enum import Enum
+from functools import cache
 from typing import Optional
 
 from fastapi import FastAPI
@@ -18,6 +19,7 @@ from theia.coverage import (
     calculate_range_polygon,
     pcl_track_init_update_masks_parallel,
 )
+from theia.data_loading import load_bakom_ukw_transmitters
 from theia.detection.pcl import PclDetector
 from theia.grids import LatLonHeightGrid
 from theia.radar_equation import calculate_maximum_monostatic_range
@@ -365,6 +367,11 @@ def create_app(
         Calculate elevation [MASL] for the given decimal (lat, lon) coordinates.
         """
         return director._simulator._terrain_model.elevationAt(lat, lon)
+
+    @cache
+    @app.get("/fm_transmitters")
+    def get_fm_transmitters() -> list[Transmitter]:
+        return load_bakom_ukw_transmitters()
 
     app.add_middleware(
         CORSMiddleware,
