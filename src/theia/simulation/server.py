@@ -6,6 +6,8 @@ from enum import Enum
 from functools import cache
 from typing import Optional
 
+import numpy as np
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import pydantic
@@ -230,17 +232,21 @@ def create_app(
         """
         Calculate the minimum detectable radar cross section for the given
         sensor on a grid. The grid dimensions are (lat, lon, MASL).
+
+        The value -1 indicates a NaN, i. e. the sensor cannot detect a target
+        at all at that position.
         """
         detector = PclDetector(
             snr_threshold=snr_threshold,
             doppler_threshold=doppler_threshold,
             delay_threshold=delay_threshold,
         )
-        return detector.minimum_detectable_rcs_grid(
+        values = detector.minimum_detectable_rcs_grid(
             sensor.receiver,
             sensor.transmitter,
             grid,
         )
+        return np.nan_to_num(values, copy=False, nan=-1)
 
     @app.post("/calculate_pcl_coverage")
     def calculate_pcl_coverage(
