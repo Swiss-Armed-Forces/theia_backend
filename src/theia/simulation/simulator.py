@@ -64,6 +64,11 @@ class TimeCriterion(TerminationCriterion):
         return snapshot.time >= self._end_time
 
 
+class NeverCriterion(TerminationCriterion):
+    def is_terminated(self, snapshot: Snapshot):
+        return False
+
+
 class Simulator(Trigger, AbstractEventListener):
     def __init__(
         self,
