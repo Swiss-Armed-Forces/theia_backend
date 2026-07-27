@@ -35,6 +35,7 @@ from theia.types import (
     GeoJSONPolygon,
     MonostaticSensor,
     PclSensor,
+    Point,
     Receiver,
     Sensor,
     Transmitter,
@@ -216,6 +217,24 @@ def create_app(
                 target_alt,
                 d_theta=azimuth_resolution_degree,
             )
+        return GeoJSONFeature(
+            geometry=GeoJSONPolygon.from_shapely(polygon),
+            properties={"name": "my polygon"},
+        )
+
+    @app.post("/calculate_monostatic_coverage")
+    def calculate_line_of_sight(
+        center: Point,
+        target_alt: float,
+        max_range: float,
+        azimuth_resolution_degree: float,
+    ) -> GeoJSONFeature:
+        polygon = calculate_range_polygon(
+            center,
+            max_range,
+            target_alt,
+            azimuth_resolution_degree,
+        )
         return GeoJSONFeature(
             geometry=GeoJSONPolygon.from_shapely(polygon),
             properties={"name": "my polygon"},
