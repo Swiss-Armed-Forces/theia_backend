@@ -73,6 +73,7 @@ class PetDetector(pydantic.BaseModel):
             distance_receiver_target=dist,
             transmission_power=sensor.transmitter.power,
             bandwidth=sensor.transmitter.bandwidth,
+            pulse_width=sensor.transmitter.pulse_width,
             cpi_pulses=1,
             equivalent_temperature=sensor.receiver.noise_temperature,
             L_t=self.rf_loss,

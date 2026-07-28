@@ -14,6 +14,7 @@ def calculate_snr(
     distance_receiver_target: float,
     transmission_power: float,
     bandwidth: float,
+    pulse_width: float,
     cpi_pulses: int,
     equivalent_temperature: float,
     L_t: float,
@@ -45,6 +46,8 @@ def calculate_snr(
         Power of the signal [W]
     bandwidth: float
         Noise bandwidth of the signal [MHz]
+    pulse_width: float
+        Pulse width [us]
     cpi_pulses:
         Number of pulses within a Coherent Processing Interval (CPI)
     equivalent_temperature: float
@@ -87,6 +90,7 @@ def calculate_snr(
     # Scale to dB units.
     power_dB = 10 * np.log10(transmission_power)
     coherent_integration_gain_dB = 10 * np.log10(cpi_pulses)
+    pulse_compression_gain = 10 * np.log10(pulse_width * bandwidth)
     lambda_sq_dB = 2 * 10 * np.log10(wavelength)
     rcs_dB = 10 * np.log10(radar_cross_section)
     four_pi_dB = 10 * np.log10(pow((4 * np.pi), 3 if not is_one_way else 2))
@@ -97,6 +101,7 @@ def calculate_snr(
     snr = (
         power_dB
         + coherent_integration_gain_dB
+        + pulse_compression_gain
         + antenna_gain_transmitter
         + antenna_gain_receiver
         + lambda_sq_dB
