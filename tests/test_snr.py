@@ -46,6 +46,7 @@ class SnrTest(unittest.TestCase):
     def test_formula(self):
         power = 6.2 * 1e3
         bandwidth = 100
+        pulse_width = 1 / bandwidth
         G_T = to_dB(1.0)
         G_R = to_dB(1.0)
         rcs = 2.0
@@ -70,6 +71,7 @@ class SnrTest(unittest.TestCase):
             d,
             power,
             bandwidth,
+            pulse_width,
             cpi,
             T,
             L_t,
@@ -109,6 +111,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -138,6 +141,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -166,6 +170,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -194,6 +199,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -222,6 +228,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -251,6 +258,7 @@ class SnrTest(unittest.TestCase):
                     a * d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -280,6 +288,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     a * power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -298,7 +307,7 @@ class SnrTest(unittest.TestCase):
                 snr_linear_scaled_expected,
             )
 
-            # Bandwidth: Linear behaviour.
+            # Bandwidth: No dependence.
             snr_linear_scaled = from_dB(
                 calculate_snr(
                     wavelength,
@@ -309,6 +318,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     a * bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -321,7 +331,37 @@ class SnrTest(unittest.TestCase):
                 )
             )
 
-            snr_linear_scaled_expected = snr_linear / a
+            snr_linear_scaled_expected = snr_linear
+            self.assertAlmostEqual(
+                snr_linear_scaled,
+                snr_linear_scaled_expected,
+            )
+
+            # Pulse width: Linear behaviour.
+            snr_linear_scaled = from_dB(
+                calculate_snr(
+                    wavelength,
+                    G_T,
+                    G_R,
+                    rcs,
+                    d,
+                    d,
+                    power,
+                    bandwidth,
+                    a * pulse_width,
+                    cpi,
+                    T,
+                    L_t,
+                    L_r,
+                    L_a,
+                    pol,
+                    F_t2,
+                    F_r2,
+                    is_one_way=False,
+                )
+            )
+
+            snr_linear_scaled_expected = snr_linear * a
             self.assertAlmostEqual(
                 snr_linear_scaled,
                 snr_linear_scaled_expected,
@@ -338,6 +378,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     a * cpi,
                     T,
                     L_t,
@@ -367,6 +408,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     a * T,
                     L_t,
@@ -396,6 +438,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     to_dB(a * from_dB(L_t)),
@@ -425,6 +468,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -454,6 +498,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -483,6 +528,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -512,6 +558,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,
@@ -541,6 +588,7 @@ class SnrTest(unittest.TestCase):
                     d,
                     power,
                     bandwidth,
+                    pulse_width,
                     cpi,
                     T,
                     L_t,

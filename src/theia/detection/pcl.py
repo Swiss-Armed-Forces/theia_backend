@@ -171,6 +171,7 @@ class PclDetector(pydantic.BaseModel):
             distance_receiver_target=r_r,
             transmission_power=tx.power,
             bandwidth=rx.bandwidth,
+            pulse_width=1/rx.bandwidth, # Needed so that pulse compression gain = 0dB
             cpi_pulses=rx.cpi_pulses,
             equivalent_temperature=rx.noise_temperature,
             L_t=0.0,
