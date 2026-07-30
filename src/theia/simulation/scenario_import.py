@@ -1,21 +1,31 @@
 from __future__ import annotations
+import datetime
 import json
 from typing import Literal
+import numpy as np
 import pydantic
 
+from theia.detection.pcl import PclDetector
+from theia.detection.pet import PetDetector
 from theia.effectors import DirectFireEffector
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
 )
+from theia.simulation.damage_model import AbstractDamageModel, UniformDamageModel
+from theia.simulation.simulator import Simulator, TimeCriterion
+from theia.simulation.theia_logging import FileLogger
+from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
 from theia.types import (
+    AbstractTracker,
     ConstantRcsModel,
     Controller,
     Entity,
     IdProvider,
     MonostaticSensor,
+    PetDetection,
     Point,
     Trajectory,
 )
@@ -72,14 +82,6 @@ class FixedPathOneWayDroneFactory(pydantic.BaseModel):
         )
 
 
-class TrajectoryCollection(pydantic.BaseModel):
-    oneway_trajectories: list[Trajectory]
-
-    def to_controller(self) -> Controller:
-        controllers = [FixedPathOneWayDrone(t) for t in self.trajectories]
-        return ControllerGroup(controllers=controllers)
-
-
 class MobileDispositive(pydantic.BaseModel):
     oneway_drones: list[FixedPathOneWayDroneFactory]
 
@@ -93,6 +95,23 @@ class MobileDispositive(pydantic.BaseModel):
     def from_file(file: str) -> MobileDispositive:
         with open(file, "r") as file:
             return MobileDispositive.model_validate_json(file.read())
+
+    def update_id_provider(self, id_provider: IdProvider):
+        for drone in self.oneway_drones:
+            id_provider.register_entity(Entity.EFFECTOR, drone.effector.id)
+            id_provider.register_entity(Entity.TARGET, drone.trajectory.target_id)
+
+    @property
+    def t_min(self) -> datetime.datetime | None:
+        if len(self.oneway_drones) == 0:
+            return None
+        return max([drone.trajectory.times[0] for drone in self.oneway_drones])
+
+    @property
+    def t_max(self) -> datetime.datetime:
+        if len(self.oneway_drones) == 0:
+            return None
+        return max([drone.trajectory.times[-1] for drone in self.oneway_drones])
 
 
 class StaticDispositive(pydantic.BaseModel):
@@ -131,6 +150,32 @@ class StaticDispositive(pydantic.BaseModel):
 
         return dispo
 
+    def update_id_provider(self, id_provider: IdProvider):
+        for sensor in self.monostatic_sensors:
+            id_provider.register_entity(Entity.SENSOR, sensor.id)
+            id_provider.register_entity(Entity.TRANSMITTER, sensor.transmitter.id)
+            id_provider.register_entity(Entity.RECEIVER, sensor.receiver.id)
+        for sensor in self.pcl_sensors:
+            if sensor.receiver.id in id_provider._used_ids[Entity.RECEIVER]:
+                raise ValueError(f"PCL Receiver ID duplicated: {sensor.receiver.id}")
+            if sensor.transmitter.id in id_provider._used_ids[Entity.TRANSMITTER]:
+                raise ValueError(
+                    f"PCL Transmitter ID duplicated: {sensor.transmitter.id}"
+                )
+        for sensor in self.pcl_sensors:
+            id_provider.register_entity(Entity.SENSOR, sensor.id)
+            # Receiver and Transmitter can be duplicated in PCL sensors.
+            try:
+                id_provider.register_entity(Entity.TRANSMITTER, sensor.transmitter.id)
+            except ValueError:
+                pass
+            try:
+                id_provider.register_entity(Entity.RECEIVER, sensor.receiver.id)
+            except ValueError:
+                pass
+        for effector in self.effectors:
+            id_provider.register_entity(Entity.EFFECTOR, effector.id)
+
 
 class Dispositive(pydantic.BaseModel):
     static_dispositive: StaticDispositive
@@ -150,8 +195,110 @@ class Dispositive(pydantic.BaseModel):
         mobile_controller = self.mobile_dispositive.to_controller()
         return ControllerGroup(controllers=[static_controller, mobile_controller])
 
+    def update_id_provider(self, id_provider: IdProvider):
+        self.static_dispositive.update_id_provider(id_provider)
+        self.mobile_dispositive.update_id_provider(id_provider)
+
+
+class PseudoTrackerParams(pydantic.BaseModel):
+    removal_patience: int
+    start_timestamp: int
+    prior_position: Point
+
+
+class TrackerFactory(pydantic.BaseModel):
+    tracker_name: Literal["pseudotracker"] = "pseudotracker"
+    parameters: PseudoTrackerParams
+
+    def to_tracker(self, rng: np.random.Generator) -> AbstractTracker:
+        if self.tracker_name == "pseudotracker":
+            return PseudoTracker(
+                removal_patience=self.parameters.removal_patience,
+                rng=rng,
+                start_time=datetime.datetime.fromtimestamp(
+                    self.parameters.start_timestamp
+                ),
+                prior_position=self.parameters.prior_position,
+            )
+        else:
+            raise ValueError(f"Unknown tracker '{self.tracker_name}'")
+
+
+class DamageModelFactory(pydantic.BaseModel):
+    model_name: Literal["kill_always"]
+
+    def to_damage_model(self, rng: np.random.Generator) -> AbstractDamageModel:
+        if self.model_name == "kill_always":
+            return UniformDamageModel(p_kill=1.0, rng=rng)
+        else:
+            raise RuntimeError(f"Unknown damage model {self.model_name}")
+
 
 class ScenarioFactory(pydantic.BaseModel):
     name: str
+    start_time: int
+    """Start time of the scenario (UNIX epoch)"""
+    stop_time: int
+    """Start time of the scenario (UNIX epoch)"""
+    time_step: int
+    """Time step per iteration [s]"""
     blue_dispositive: Dispositive
     red_dispositive: Dispositive
+    blue_tracker: TrackerFactory
+    red_tracker: TrackerFactory
+    terrain_model: TerrainFactory
+    damage_model: DamageModelFactory
+    seed: int
+
+    def update_id_provider(self, id_provider: IdProvider):
+        self.blue_dispositive.update_id_provider(id_provider)
+        self.red_dispositive.update_id_provider(id_provider)
+
+    def to_simulator(self, output_path: str):
+        id_provider = IdProvider()
+
+        # Ensure consistent IDs.
+        self.update_id_provider(id_provider)
+
+        controller_blue = self.blue_dispositive.to_controller(
+            1.0,
+            id_provider,
+            True,
+        )
+        controller_red = self.red_dispositive.to_controller(
+            1.0,
+            id_provider,
+            False,
+        )
+
+        listener = FileLogger(path=output_path)
+
+        terrain = self.terrain_model.to_terrain()
+
+        pcl_detector = PclDetector()
+        pet_detector = PetDetector(terrain_model=terrain)
+
+        rng = np.random.Generator(np.random.PCG64(seed=self.seed))
+
+        return Simulator(
+            pcl_detector=pcl_detector,
+            pet_detector=pet_detector,
+            visual_detector=None,
+            blue_controller=controller_blue,
+            red_controller=controller_red,
+            blue_tracker=self.blue_tracker.to_tracker(rng),
+            red_tracker=self.red_tracker.to_tracker(rng),
+            start_time=datetime.datetime.fromtimestamp(self.start_time),
+            time_step=datetime.timedelta(seconds=self.time_step),
+            termination_criterion=TimeCriterion(
+                end_time=datetime.datetime.fromtimestamp(self.stop_time)
+            ),
+            min_time_per_step=datetime.timedelta(seconds=0),
+            rng=rng,
+            listener=listener,
+            terrain_model=terrain,
+            damage_model=self.damage_model.to_damage_model(rng),
+            simulate_clutter=False,
+            id_provider=id_provider,
+            shot_association_tolerance=250.0,
+        )
