@@ -15,7 +15,11 @@ from theia.simulation.controllers.monostatic_radar_controller import (
 )
 from theia.simulation.damage_model import AbstractDamageModel, UniformDamageModel
 from theia.simulation.simulator import Simulator, TimeCriterion
-from theia.simulation.theia_logging import FileLogger
+from theia.simulation.theia_logging import (
+    CompositeSimulationListener,
+    FileLogger,
+    SituationalPictureBuffer,
+)
 from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
 from theia.types import (
@@ -216,7 +220,8 @@ class TrackerFactory(pydantic.BaseModel):
                 removal_patience=self.parameters.removal_patience,
                 rng=rng,
                 start_time=datetime.datetime.fromtimestamp(
-                    self.parameters.start_timestamp
+                    self.parameters.start_timestamp,
+                    tz=datetime.UTC,
                 ),
                 prior_position=self.parameters.prior_position,
             )
@@ -254,7 +259,11 @@ class ScenarioFactory(pydantic.BaseModel):
         self.blue_dispositive.update_id_provider(id_provider)
         self.red_dispositive.update_id_provider(id_provider)
 
-    def to_simulator(self, output_path: str):
+    def to_simulator(
+        self,
+        output_path: str,
+        is_interactive: bool,
+    ) -> tuple[Simulator, SituationalPictureBuffer | None]:
         id_provider = IdProvider()
 
         # Ensure consistent IDs.
@@ -271,7 +280,12 @@ class ScenarioFactory(pydantic.BaseModel):
             False,
         )
 
+        buffer = None
         listener = FileLogger(path=output_path)
+
+        if is_interactive:
+            buffer = SituationalPictureBuffer()
+            listener = CompositeSimulationListener([listener, buffer])
 
         terrain = self.terrain_model.to_terrain()
 
@@ -280,7 +294,9 @@ class ScenarioFactory(pydantic.BaseModel):
 
         rng = np.random.Generator(np.random.PCG64(seed=self.seed))
 
-        return Simulator(
+        min_time_step = datetime.timedelta(seconds=1 if is_interactive else 0)
+
+        simulator = Simulator(
             pcl_detector=pcl_detector,
             pet_detector=pet_detector,
             visual_detector=None,
@@ -288,12 +304,17 @@ class ScenarioFactory(pydantic.BaseModel):
             red_controller=controller_red,
             blue_tracker=self.blue_tracker.to_tracker(rng),
             red_tracker=self.red_tracker.to_tracker(rng),
-            start_time=datetime.datetime.fromtimestamp(self.start_time),
+            start_time=datetime.datetime.fromtimestamp(
+                self.start_time,
+                tz=datetime.UTC,
+            ),
             time_step=datetime.timedelta(seconds=self.time_step),
             termination_criterion=TimeCriterion(
-                end_time=datetime.datetime.fromtimestamp(self.stop_time)
+                end_time=datetime.datetime.fromtimestamp(
+                    self.stop_time, tz=datetime.UTC
+                )
             ),
-            min_time_per_step=datetime.timedelta(seconds=0),
+            min_time_per_step=min_time_step,
             rng=rng,
             listener=listener,
             terrain_model=terrain,
@@ -302,3 +323,5 @@ class ScenarioFactory(pydantic.BaseModel):
             id_provider=id_provider,
             shot_association_tolerance=250.0,
         )
+
+        return simulator, buffer
