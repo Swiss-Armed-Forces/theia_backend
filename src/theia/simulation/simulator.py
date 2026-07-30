@@ -765,6 +765,10 @@ class AbstractSimulationListener(abc.ABC):
     def on_end(self):
         raise NotImplementedError()
 
+    @abc.abstractmethod
+    def on_events(self, events: list[Event]):
+        raise NotImplementedError()
+
 
 def profile_simulation_until_completion(
     simulator: Simulator,

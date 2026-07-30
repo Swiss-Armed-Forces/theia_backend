@@ -393,6 +393,10 @@ class CompositeSimulationListener(AbstractSimulationListener):
         for listener in self._listeners:
             listener.on_end()
 
+    def on_events(self, events: list[Event]):
+        for listener in self._listeners:
+            listener.on_events(events)
+
 
 class FilterSimulationListener(AbstractSimulationListener):
     def __init__(
