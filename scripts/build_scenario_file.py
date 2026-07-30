@@ -1,13 +1,19 @@
 import argparse
+import math
 import pathlib
 
+from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.simulation.scenario_import import (
+    DamageModelFactory,
     Dispositive,
     MobileDispositive,
+    PseudoTrackerParams,
     ScenarioFactory,
     StaticDispositive,
+    TerrainFactory,
+    TrackerFactory,
 )
-from theia.types import IdProvider
+from theia.types import IdProvider, Point
 
 
 def load_dispositive(
@@ -47,10 +53,54 @@ if __name__ == "__main__":
         args.mobile_dispo_file_red,
     )
 
+    t_min = None
+    t_max = None
+    if dispo_blue.mobile_dispositive.t_min is not None:
+        t_min = dispo_blue.mobile_dispositive.t_min
+        t_max = dispo_blue.mobile_dispositive.t_max
+    if dispo_red.mobile_dispositive.t_min is not None:
+        t_min = (
+            dispo_red.mobile_dispositive.t_min
+            if t_min is None
+            else min(t_min, dispo_red.mobile_dispositive.t_min)
+        )
+        t_max = (
+            dispo_red.mobile_dispositive.t_max
+            if t_max is None
+            else min(t_max, dispo_red.mobile_dispositive.t_max)
+        )
+
+    if t_min is None or t_max is None:
+        raise ValueError("No mobile parts in the simulation!")
+
+    tracker_params = PseudoTrackerParams(
+        removal_patience=10,
+        start_timestamp=t_min.timestamp(),
+        prior_position=Point(
+            lat=POSITIONS_OF_INTEREST["CH_CENTER"]["lat"],
+            lon=POSITIONS_OF_INTEREST["CH_CENTER"]["lon"],
+            alt=1000,
+        ),
+    )
+
     scenario = ScenarioFactory(
         name=args.scenario_name,
+        start_time=math.floor(t_min.timestamp()),
+        stop_time=math.ceil(t_max.timestamp()),
+        time_step=1,
         blue_dispositive=dispo_blue,
         red_dispositive=dispo_red,
+        blue_tracker=TrackerFactory(
+            tracker_name="pseudotracker",
+            parameters=tracker_params,
+        ),
+        red_tracker=TrackerFactory(
+            tracker_name="pseudotracker",
+            parameters=tracker_params,
+        ),
+        terrain_model=TerrainFactory(terrain_name="SRTM"),
+        damage_model=DamageModelFactory(model_name="kill_always"),
+        seed=39270507,
     )
 
     with open(args.output_file, "w") as file:

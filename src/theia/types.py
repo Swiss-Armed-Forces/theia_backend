@@ -1173,6 +1173,7 @@ class EventRelais(AbstractEventListener, Trigger):
     and LivingController forward events from the Simulator to the child controllers,
     but also need to forward events of the child controllers to the Simulator.
     """
+
     def on_event(self, event):
         self._broadcast_event(event)
 
@@ -1410,6 +1411,9 @@ class IdProvider:
             Entity.RECEIVER: 0,
         }
         self._names = {}
+        self._used_ids: dict[Entity, set[int]] = {
+            e: set([]) for e in self._free_ids.keys()
+        }
 
     def increment(self, entity: Entity, name: str = "") -> int:
         """
@@ -1424,6 +1428,12 @@ class IdProvider:
         self._free_ids[entity] += 1
         self._names[f"{entity.name} {free_id}"] = name
         return free_id
+
+    def register_entity(self, entity: Entity, id: int):
+        if id in self._used_ids[entity]:
+            raise ValueError(f"Duplicate {entity.value} ID: {id}")
+        self._used_ids[entity].add(id)
+        self._free_ids[entity] = max(self._free_ids[entity], id + 1)
 
 
 class AbstractTracker(abc.ABC, Trigger):
