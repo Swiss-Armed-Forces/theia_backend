@@ -2,15 +2,17 @@ import abc
 import functools
 import math
 import os
+import re
 from rasterio.fill import fillnodata
 
 import numba
 import numpy as np
 import pydantic
+import shapely
 from theia.config import ELEVATION_DATA_DIR
 from theia.coordinates import CoordinateTransformations
 from theia.distance import R_EARTH, haversine
-from theia.types import Point
+from theia.types import GeoJSONFeature, Point
 
 
 @functools.cache
@@ -110,6 +112,61 @@ class SrtmTerrainModel(AbstractTerrainModel):
         lon_f = lon - lon0
 
         return interpolate_elevation_tile(lat_f, lon_f, arr)
+
+    @staticmethod
+    def _hgt_latlon(filename) -> tuple[int, int]:
+        """
+        Infer the (lat, lon) of the lower-left corner of an SRTM .hgt tile
+        from its filename, e.g. 'N40E000.hgt' -> (40, 0)
+
+        Naming convention: [N|S]YY[E|W]XXX.hgt
+        - YY  : latitude in degrees (integer, 2 digits)
+        - XXX : longitude in degrees (integer, 3 digits)
+        - N/S : north/south hemisphere (S -> negative latitude)
+        - E/W : east/west hemisphere (W -> negative longitude)
+
+        Returns
+        -------
+        (lat, lon) : tuple of int
+            Latitude and longitude of the SW corner of the tile.
+        """
+        name = os.path.basename(filename)
+        name = os.path.splitext(name)[0]  # strip .hgt extension if present
+
+        match = re.match(r"^([NS])(\d{2})([EW])(\d{3})$", name.upper())
+        if not match:
+            raise ValueError(f"Filename '{filename}' does not match HGT naming pattern")
+
+        ns, lat_str, ew, lon_str = match.groups()
+        lat = int(lat_str)
+        lon = int(lon_str)
+
+        if ns == "S":
+            lat = -lat
+        if ew == "W":
+            lon = -lon
+
+        return lat, lon
+
+    def covered_region(self) -> list[GeoJSONFeature]:
+        files = os.listdir(ELEVATION_DATA_DIR)
+        hgt_files = [f for f in files if f.endswith(".hgt")]
+        rectangles: list[GeoJSONFeature] = []
+        for file in hgt_files:
+            lat, lon = SrtmTerrainModel._hgt_latlon(file)
+            rect = GeoJSONFeature.from_shapely(
+                shapely.geometry.polygon.Polygon(
+                    [
+                        [lon, lat],
+                        [lon + 1, lat],
+                        [lon + 1, lat + 1],
+                        [lon, lat + 1],
+                    ]
+                ),
+                properties={"name": file},
+            )
+            rectangles.append(rect)
+        return rectangles
 
 
 class ConstantSphereTerrainModel(AbstractTerrainModel):
