@@ -1,6 +1,8 @@
 import argparse
+import cProfile
 import math
 import pathlib
+import sys
 
 from tqdm import tqdm
 import uvicorn
@@ -17,7 +19,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("scenario_file", type=pathlib.Path)
     parser.add_argument("--interactive", action="store_true")
+    parser.add_argument("--profile", action="store_true")
     args = parser.parse_args()
+
+    if args.interactive and args.profile:
+        sys.exit("Interactive and profiling mode cannot be activated at the same time.")
 
     with open(args.scenario_file, "r") as file:
         scenario = ScenarioFactory.model_validate_json(file.read())
@@ -35,5 +41,13 @@ if __name__ == "__main__":
             (scenario.stop_time - scenario.start_time).seconds / scenario.time_step
         )
 
+        if args.profile:
+            profiler = cProfile.Profile()
+            profiler.enable()
+
         for _ in tqdm(range(n_iterations + 1)):
             simulator.advance()
+
+        if args.profile:
+            profiler.disable()
+            profiler.dump_stats(f"profile_{scenario.name}.prof")
