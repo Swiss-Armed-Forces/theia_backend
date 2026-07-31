@@ -109,7 +109,7 @@ class MobileDispositive(pydantic.BaseModel):
     def t_min(self) -> datetime.datetime | None:
         if len(self.oneway_drones) == 0:
             return None
-        return max([drone.trajectory.times[0] for drone in self.oneway_drones])
+        return min([drone.trajectory.times[0] for drone in self.oneway_drones])
 
     @property
     def t_max(self) -> datetime.datetime:
@@ -242,9 +242,9 @@ class DamageModelFactory(pydantic.BaseModel):
 class ScenarioFactory(pydantic.BaseModel):
     name: str
     start_time: datetime.datetime
-    """Start time of the scenario (UNIX epoch)"""
+    """Start time of the scenario"""
     stop_time: datetime.datetime
-    """Start time of the scenario (UNIX epoch)"""
+    """Start time of the scenario"""
     time_step: int
     """Time step per iteration [s]"""
     blue_dispositive: Dispositive
