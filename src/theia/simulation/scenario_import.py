@@ -206,7 +206,7 @@ class Dispositive(pydantic.BaseModel):
 
 class PseudoTrackerParams(pydantic.BaseModel):
     removal_patience: int
-    start_timestamp: int
+    start_timestamp: float
     prior_position: Point
 
 
@@ -241,9 +241,9 @@ class DamageModelFactory(pydantic.BaseModel):
 
 class ScenarioFactory(pydantic.BaseModel):
     name: str
-    start_time: int
+    start_time: datetime.datetime
     """Start time of the scenario (UNIX epoch)"""
-    stop_time: int
+    stop_time: datetime.datetime
     """Start time of the scenario (UNIX epoch)"""
     time_step: int
     """Time step per iteration [s]"""
@@ -304,16 +304,9 @@ class ScenarioFactory(pydantic.BaseModel):
             red_controller=controller_red,
             blue_tracker=self.blue_tracker.to_tracker(rng),
             red_tracker=self.red_tracker.to_tracker(rng),
-            start_time=datetime.datetime.fromtimestamp(
-                self.start_time,
-                tz=datetime.UTC,
-            ),
+            start_time=self.start_time,
             time_step=datetime.timedelta(seconds=self.time_step),
-            termination_criterion=TimeCriterion(
-                end_time=datetime.datetime.fromtimestamp(
-                    self.stop_time, tz=datetime.UTC
-                )
-            ),
+            termination_criterion=TimeCriterion(end_time=self.stop_time),
             min_time_per_step=min_time_step,
             rng=rng,
             listener=listener,

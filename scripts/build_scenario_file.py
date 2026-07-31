@@ -85,8 +85,8 @@ if __name__ == "__main__":
 
     scenario = ScenarioFactory(
         name=args.scenario_name,
-        start_time=math.floor(t_min.timestamp()),
-        stop_time=math.ceil(t_max.timestamp()),
+        start_time=t_min,
+        stop_time=t_max,
         time_step=1,
         blue_dispositive=dispo_blue,
         red_dispositive=dispo_red,
