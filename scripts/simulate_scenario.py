@@ -32,7 +32,7 @@ if __name__ == "__main__":
         uvicorn.run(app, host="127.0.0.1", port=8000)
     else:
         n_iterations = math.ceil(
-            (scenario.stop_time - scenario.start_time) / scenario.time_step
+            (scenario.stop_time - scenario.start_time).seconds / scenario.time_step
         )
 
         for _ in tqdm(range(n_iterations + 1)):

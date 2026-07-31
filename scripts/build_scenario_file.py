@@ -67,7 +67,7 @@ if __name__ == "__main__":
         t_max = (
             dispo_red.mobile_dispositive.t_max
             if t_max is None
-            else min(t_max, dispo_red.mobile_dispositive.t_max)
+            else max(t_max, dispo_red.mobile_dispositive.t_max)
         )
 
     if t_min is None or t_max is None:
