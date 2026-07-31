@@ -1,5 +1,4 @@
 import argparse
-import math
 import pathlib
 
 from theia.coordinates import POSITIONS_OF_INTEREST
