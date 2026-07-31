@@ -1,10 +1,8 @@
 import datetime
-import json
 
 import numpy as np
 
 from theia.config import SIDC
-from theia.coordinates import CoordinateTransformations
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.distance import burstvincentydistance
