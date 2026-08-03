@@ -57,7 +57,11 @@ class TerrainFactory(pydantic.BaseModel):
             terrain = SrtmTerrainModel()
         elif self.terrain_name.startswith("tree_"):
             tree = HbvTree.load(f"{TERRAIN_HBV_DATA_DIR}/{self.terrain_name}.zip")
-            terrain = FastSrtmModel(tree=tree, srtm_model=SrtmTerrainModel())
+            terrain = FastSrtmModel(
+                tree=tree,
+                srtm_model=SrtmTerrainModel(),
+                t_min=30.0,
+            )
         else:
             raise ValueError(f"Unknown terrain model {self.terrain_name}")
 
