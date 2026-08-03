@@ -1,4 +1,5 @@
 from __future__ import annotations
+import copy
 import datetime
 import json
 from typing import Literal
@@ -31,6 +32,7 @@ from theia.types import (
     Entity,
     IdProvider,
     MonostaticSensor,
+    PclSensor,
     Point,
     Trajectory,
 )
@@ -39,8 +41,13 @@ from theia.types import (
 class TerrainFactory(pydantic.BaseModel):
     terrain_name: str
 
+    _terrain_models: pydantic.ClassVar[dict[str, AbstractTerrainModel]] = {}
+
     def to_terrain(self) -> AbstractTerrainModel:
-        terrain = None
+        # Avoid loading the same terrain twice.
+        if self.terrain_name in self._terrain_models:
+            return self._terrain_models[self.terrain_name]
+
         if self.terrain_name == "SRTM":
             terrain = SrtmTerrainModel()
         elif self.terrain_name.startswith("tree_"):
@@ -48,6 +55,8 @@ class TerrainFactory(pydantic.BaseModel):
             terrain = FastSrtmModel(tree=tree, srtm_model=SrtmTerrainModel())
         else:
             raise ValueError(f"Unknown terrain model {self.terrain_name}")
+
+        self._terrain_models[self.terrain_name] = terrain
         return terrain
 
 
@@ -123,7 +132,7 @@ class MobileDispositive(pydantic.BaseModel):
 
 class StaticDispositive(pydantic.BaseModel):
     monostatic_sensors: list[MonostaticSensor]
-    pcl_sensors: list[MonostaticSensor]
+    pcl_sensors: list[PclSensor]
     effectors: list[DirectFireEffector]
 
     def to_controller(
@@ -153,7 +162,17 @@ class StaticDispositive(pydantic.BaseModel):
     def from_file(static_dispositive_file: str) -> StaticDispositive:
         with open(static_dispositive_file, "r") as file:
             data = json.load(file)
-            dispo = StaticDispositive.model_validate(data)
+            dispo = StaticDispositive(
+                monostatic_sensors=[
+                    MonostaticSensor.model_validate(s)
+                    for s in data["monostatic_sensors"]
+                ],
+                pcl_sensors=[PclSensor.model_validate(s) for s in data["pcl_sensors"]],
+                effectors=[
+                    DirectFireEffectorFactory.model_validate(e).to_effector()
+                    for e in data["effectors"]
+                ],
+            )
 
         return dispo
 
@@ -182,6 +201,47 @@ class StaticDispositive(pydantic.BaseModel):
                 pass
         for effector in self.effectors:
             id_provider.register_entity(Entity.EFFECTOR, effector.id)
+
+    @staticmethod
+    def merge(
+        deployment1: StaticDispositive,
+        deployment2: StaticDispositive,
+    ) -> StaticDispositive:
+        id_provider = IdProvider()
+        deployment1.update_id_provider(id_provider)
+
+        monostatic_sensors = [s.model_copy() for s in deployment1.monostatic_sensors]
+        pcl_sensors = [s.model_copy() for s in deployment1.pcl_sensors]
+        effectors = [e.model_copy() for e in deployment1.effectors]
+
+        for sensor in deployment2.monostatic_sensors:
+            sensor = sensor.model_copy()
+            sensor.id += id_provider.increment(Entity.SENSOR)
+            sensor.transmitter.id += id_provider.increment(Entity.TRANSMITTER)
+            sensor.receiver.id += id_provider.increment(Entity.RECEIVER)
+            monostatic_sensors.append(sensor)
+        for sensor in deployment2.pcl_sensors:
+            sensor = sensor.model_copy()
+            sensor.id += id_provider.increment(Entity.SENSOR)
+            sensor.transmitter.id += id_provider.increment(Entity.TRANSMITTER)
+            sensor.receiver.id += id_provider.increment(Entity.RECEIVER)
+            pcl_sensors.append(sensor)
+        for effector in deployment2.effectors:
+            effector = DirectFireEffector(
+                id=effector.id + id_provider.increment(Entity.EFFECTOR),
+                name=effector.name,
+                point=effector.point.model_copy(),
+                combat_range=effector.combat_range,
+                n_attacks_left=effector.n_attacks_left,
+                terrain=effector.terrain, # do not copy terrain!
+            )
+            effectors.append(effector)
+
+        return StaticDispositive(
+            monostatic_sensors=monostatic_sensors,
+            pcl_sensors=pcl_sensors,
+            effectors=effectors,
+        )
 
 
 class Dispositive(pydantic.BaseModel):
