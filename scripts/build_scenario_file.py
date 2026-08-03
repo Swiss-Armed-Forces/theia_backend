@@ -12,14 +12,16 @@ from theia.simulation.scenario_import import (
     TerrainFactory,
     TrackerFactory,
 )
+from theia.terrain import AbstractTerrainModel
 from theia.types import IdProvider, Point
 
 
 def load_dispositive(
     static_controller_file: str,
     mobile_controller_file: str,
+    terrain: AbstractTerrainModel,
 ) -> Dispositive:
-    static_dispo = StaticDispositive.from_file(static_controller_file)
+    static_dispo = StaticDispositive.from_file(static_controller_file, terrain)
     mobile_dispo = MobileDispositive.from_file(mobile_controller_file)
     return Dispositive(
         static_dispositive=static_dispo,
@@ -42,15 +44,20 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    terrain_factory = TerrainFactory(terrain_name=args.terrain_model)
+    terrain = terrain_factory.to_terrain()
+
     id_provider = IdProvider()
 
     dispo_blue = load_dispositive(
         args.static_dispo_file_blue,
         args.mobile_dispo_file_blue,
+        terrain,
     )
     dispo_red = load_dispositive(
         args.static_dispo_file_red,
         args.mobile_dispo_file_red,
+        terrain,
     )
 
     t_min = None
@@ -98,7 +105,7 @@ if __name__ == "__main__":
             tracker_name="pseudotracker",
             parameters=tracker_params,
         ),
-        terrain_model=TerrainFactory(terrain_name=args.terrain_model),
+        terrain_model=terrain_factory,
         damage_model=DamageModelFactory(model_name="kill_always"),
         seed=39270507,
     )
