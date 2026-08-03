@@ -1,9 +1,15 @@
 import datetime
 import enum
 import os
+import pathlib
 
 
 ELEVATION_DATA_DIR = os.environ.get("THEIA_ELEVATION_DATA_DIR")
+TERRAIN_HBV_DATA_DIR = os.environ.get(
+    "THEIA_HBV_TERRAIN_DATA_DIR",
+    pathlib.Path(__file__).parent.parent.parent, # repo root
+)
+
 # Negative value means no Doppler thresholding, which is necessary for aircraft-mounted RAD
 ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD = -1
 """

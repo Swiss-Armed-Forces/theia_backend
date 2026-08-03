@@ -5,6 +5,7 @@ from typing import Literal
 import numpy as np
 import pydantic
 
+from theia.config import TERRAIN_HBV_DATA_DIR
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.effectors import DirectFireEffector
@@ -22,6 +23,7 @@ from theia.simulation.theia_logging import (
 )
 from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
+from theia.terrain_fast_los import FastSrtmModel, HbvTree
 from theia.types import (
     AbstractTracker,
     ConstantRcsModel,
@@ -29,19 +31,21 @@ from theia.types import (
     Entity,
     IdProvider,
     MonostaticSensor,
-    PetDetection,
     Point,
     Trajectory,
 )
 
 
 class TerrainFactory(pydantic.BaseModel):
-    terrain_name: Literal["SRTM"]
+    terrain_name: str
 
     def to_terrain(self) -> AbstractTerrainModel:
         terrain = None
         if self.terrain_name == "SRTM":
             terrain = SrtmTerrainModel()
+        elif self.terrain_name.startswith("tree_"):
+            tree = HbvTree.load(f"{TERRAIN_HBV_DATA_DIR}/{self.terrain_name}.zip")
+            terrain = FastSrtmModel(tree=tree, srtm_model=SrtmTerrainModel())
         else:
             raise ValueError(f"Unknown terrain model {self.terrain_name}")
         return terrain
@@ -75,23 +79,22 @@ class FixedPathOneWayDroneFactory(pydantic.BaseModel):
     effector: DirectFireEffectorFactory
     trajectory: Trajectory
     assigned_goal: Point
-    terrain: TerrainFactory
 
-    def to_controller(self) -> Controller:
+    def to_controller(self, terrain: AbstractTerrainModel) -> Controller:
         return FixedPathOneWayDrone(
             effector=self.effector.to_effector(),
             trajectory=self.trajectory,
             assigned_goal=self.assigned_goal,
-            terrain=self.terrain.to_terrain(),
+            terrain=terrain,
         )
 
 
 class MobileDispositive(pydantic.BaseModel):
     oneway_drones: list[FixedPathOneWayDroneFactory]
 
-    def to_controller(self) -> Controller:
+    def to_controller(self, terrain: AbstractTerrainModel) -> Controller:
         oneway_drone_controllers = [
-            drone.to_controller() for drone in self.oneway_drones
+            drone.to_controller(terrain) for drone in self.oneway_drones
         ]
         return ControllerGroup(controllers=oneway_drone_controllers)
 
@@ -147,7 +150,7 @@ class StaticDispositive(pydantic.BaseModel):
         return ControllerGroup(controllers=monostatic_controllers)
 
     @staticmethod
-    def from_file(static_dispositive_file: str) -> tuple[StaticDispositive]:
+    def from_file(static_dispositive_file: str) -> StaticDispositive:
         with open(static_dispositive_file, "r") as file:
             data = json.load(file)
             dispo = StaticDispositive.model_validate(data)
@@ -187,6 +190,7 @@ class Dispositive(pydantic.BaseModel):
 
     def to_controller(
         self,
+        terrain: AbstractTerrainModel,
         monostatic_sensor_rcs: float,
         id_provider: IdProvider,
         is_blue: bool,
@@ -196,7 +200,7 @@ class Dispositive(pydantic.BaseModel):
             id_provider,
             is_blue,
         )
-        mobile_controller = self.mobile_dispositive.to_controller()
+        mobile_controller = self.mobile_dispositive.to_controller(terrain)
         return ControllerGroup(controllers=[static_controller, mobile_controller])
 
     def update_id_provider(self, id_provider: IdProvider):
@@ -269,12 +273,16 @@ class ScenarioFactory(pydantic.BaseModel):
         # Ensure consistent IDs.
         self.update_id_provider(id_provider)
 
+        terrain = self.terrain_model.to_terrain()
+
         controller_blue = self.blue_dispositive.to_controller(
+            terrain,
             1.0,
             id_provider,
             True,
         )
         controller_red = self.red_dispositive.to_controller(
+            terrain,
             1.0,
             id_provider,
             False,
@@ -286,8 +294,6 @@ class ScenarioFactory(pydantic.BaseModel):
         if is_interactive:
             buffer = SituationalPictureBuffer()
             listener = CompositeSimulationListener([listener, buffer])
-
-        terrain = self.terrain_model.to_terrain()
 
         pcl_detector = PclDetector()
         pet_detector = PetDetector(terrain_model=terrain)
