@@ -524,9 +524,9 @@ class SituationalPictureBuffer(AbstractSimulationListener):
 
     def get_ground_truth_trajectories(self, is_blue: bool) -> list[Trajectory]:
         history = (
-            self._blue_ground_truth_history.values()
+            self._blue_ground_truth_history.copy().values()
             if is_blue
-            else self._red_ground_truth_history.values()
+            else self._red_ground_truth_history.copy().values()
         )
         trajectories = []
         for target_history in history:
