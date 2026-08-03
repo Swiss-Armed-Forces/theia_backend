@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime
 from enum import Enum
 from functools import cache
+import os
 from typing import Optional
 
 import numpy as np
@@ -14,7 +15,7 @@ import pydantic
 import shapely
 
 import theia
-from theia.config import FRONTEND_URL, SIDC
+from theia.config import FRONTEND_URL, SIDC, TERRAIN_HBV_DATA_DIR
 from theia.coordinates import CoordinateTransformations
 from theia.coverage import (
     calculate_coverage,
@@ -419,6 +420,12 @@ def create_app(
         lon2: float,
     ) -> float:
         return haversine(lon1, lat1, lon2, lat2)
+
+    @app.get("/terrain_models")
+    def get_terrain_models() -> list[str]:
+        files = os.listdir(TERRAIN_HBV_DATA_DIR)
+        model_names = [file.replace(".zip", "") for file in files]
+        return ["SRTM"] + model_names
 
     app.add_middleware(
         CORSMiddleware,
