@@ -17,3 +17,4 @@ bistatic_range_*.png
 output/
 **/__pycache__
 hgt/
+examples/ballistic_missile_defense/trajectory_2D.png
