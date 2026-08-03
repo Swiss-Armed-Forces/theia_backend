@@ -1,12 +1,11 @@
 from __future__ import annotations
-import copy
 import datetime
 import json
 from typing import Literal
 import numpy as np
 import pydantic
 
-from theia.config import TERRAIN_HBV_DATA_DIR
+from theia.config import SIDC, TERRAIN_HBV_DATA_DIR
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.effectors import DirectFireEffector
@@ -14,6 +13,12 @@ from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
+)
+from theia.simulation.controllers.static_direct_fire_controller import (
+    StaticDirectFireController,
+)
+from theia.simulation.controllers.static_direct_fire_coordinator import (
+    StaticDirectFireCoordinator,
 )
 from theia.simulation.damage_model import AbstractDamageModel, UniformDamageModel
 from theia.simulation.simulator import Simulator, TimeCriterion
@@ -71,16 +76,33 @@ class DirectFireEffectorFactory(pydantic.BaseModel):
     """Up to which distance a target can be fought [m]"""
     n_attacks_left: int
     """Number of attacks the effector has left"""
-    terrain: TerrainFactory
 
-    def to_effector(self) -> DirectFireEffector:
+    def to_effector(self, terrain: AbstractTerrainModel) -> DirectFireEffector:
         return DirectFireEffector(
             id=self.id,
             name=self.name,
             point=self.point,
             combat_range=self.combat_range,
             n_attacks_left=self.n_attacks_left,
-            terrain=self.terrain.to_terrain(),
+            terrain=terrain,
+        )
+
+
+class StaticDirectFireEffectorFactory(pydantic.BaseModel):
+    target_id: int
+    rcs: float
+    effector: DirectFireEffectorFactory
+
+    def to_controller(
+        self,
+        terrain: AbstractTerrainModel,
+        is_blue: bool,
+    ) -> StaticDirectFireController:
+        return StaticDirectFireController(
+            target_id=self.target_id,
+            sidc=SIDC.BLUE_AIR_DEFENCE if is_blue else SIDC.RED_AIR_DEFENCE,
+            rcs=self.rcs,
+            effector=self.effector.to_effector(terrain),
         )
 
 
@@ -91,7 +113,7 @@ class FixedPathOneWayDroneFactory(pydantic.BaseModel):
 
     def to_controller(self, terrain: AbstractTerrainModel) -> Controller:
         return FixedPathOneWayDrone(
-            effector=self.effector.to_effector(),
+            effector=self.effector.to_effector(terrain),
             trajectory=self.trajectory,
             assigned_goal=self.assigned_goal,
             terrain=terrain,
@@ -129,66 +151,89 @@ class MobileDispositive(pydantic.BaseModel):
             return None
         return max([drone.trajectory.times[-1] for drone in self.oneway_drones])
 
+    @staticmethod
+    def merge(
+        deployment1: MobileDispositive,
+        deployment2: MobileDispositive,
+    ) -> MobileDispositive:
+        id_provider = IdProvider()
+        deployment1.update_id_provider(id_provider)
+
+        oneway_drones = [d.model_copy() for d in deployment1.oneway_drones]
+        for d in deployment2.oneway_drones:
+            d = d.model_copy(deep=True)
+            d.effector.id += id_provider.increment(Entity.EFFECTOR)
+            d.trajectory.target_id += id_provider.increment(Entity.TARGET)
+            oneway_drones.append(d)
+
+        return MobileDispositive(oneway_drones=oneway_drones)
+
+
+class MonostaticSensorFactory(pydantic.BaseModel):
+    target_id: int
+    rcs: float
+    sensor: MonostaticSensor
+
+    def to_controller(self, is_blue: bool) -> MonostaticRadarController:
+        return MonostaticRadarController(
+            target_id=self.target_id,
+            radar=self.sensor,
+            is_blue=is_blue,
+            rcs_model=ConstantRcsModel(rcs=self.rcs),
+        )
+
 
 class StaticDispositive(pydantic.BaseModel):
-    monostatic_sensors: list[MonostaticSensor]
+    monostatic_sensors: list[MonostaticSensorFactory]
     pcl_sensors: list[PclSensor]
-    effectors: list[DirectFireEffector]
+    effectors: list[StaticDirectFireEffectorFactory]
 
     def to_controller(
         self,
-        monostatic_sensor_rcs: float,
-        id_provider: IdProvider,
+        terrain: AbstractTerrainModel,
         is_blue: bool,
     ) -> Controller:
         monostatic_controllers = [
-            MonostaticRadarController(
-                # TODO: Ensure that the target ID is still consistent after adding actual targets!
-                target_id=id_provider.increment(Entity.TARGET),
-                radar=sensor,
-                is_blue=is_blue,
-                rcs_model=ConstantRcsModel(rcs=monostatic_sensor_rcs),
-            )
-            for sensor in self.monostatic_sensors
+            s.to_controller(is_blue) for s in self.monostatic_sensors
         ]
 
         # TODO: Load PCL sensors.
-        # TODO: Load effectors.
-        pass
+        static_deployment_controller = StaticDirectFireCoordinator(
+            controllers=[e.to_controller(terrain) for e in self.effectors],
+            terrain=terrain,
+        )
 
-        return ControllerGroup(controllers=monostatic_controllers)
+        return ControllerGroup(
+            controllers=monostatic_controllers + [static_deployment_controller]
+        )
 
     @staticmethod
-    def from_file(static_dispositive_file: str) -> StaticDispositive:
+    def from_file(
+        static_dispositive_file: str,
+        terrain: AbstractTerrainModel,
+    ) -> StaticDispositive:
         with open(static_dispositive_file, "r") as file:
             data = json.load(file)
-            dispo = StaticDispositive(
-                monostatic_sensors=[
-                    MonostaticSensor.model_validate(s)
-                    for s in data["monostatic_sensors"]
-                ],
-                pcl_sensors=[PclSensor.model_validate(s) for s in data["pcl_sensors"]],
-                effectors=[
-                    DirectFireEffectorFactory.model_validate(e).to_effector()
-                    for e in data["effectors"]
-                ],
-            )
+            dispo = StaticDispositive.model_validate(data)
 
         return dispo
 
     def update_id_provider(self, id_provider: IdProvider):
-        for sensor in self.monostatic_sensors:
+        for detectable_sensor in self.monostatic_sensors:
+            sensor = detectable_sensor.sensor
             id_provider.register_entity(Entity.SENSOR, sensor.id)
             id_provider.register_entity(Entity.TRANSMITTER, sensor.transmitter.id)
             id_provider.register_entity(Entity.RECEIVER, sensor.receiver.id)
-        for sensor in self.pcl_sensors:
+        for detectable_sensor in self.pcl_sensors:
+            sensor = detectable_sensor.sensor
             if sensor.receiver.id in id_provider._used_ids[Entity.RECEIVER]:
                 raise ValueError(f"PCL Receiver ID duplicated: {sensor.receiver.id}")
             if sensor.transmitter.id in id_provider._used_ids[Entity.TRANSMITTER]:
                 raise ValueError(
                     f"PCL Transmitter ID duplicated: {sensor.transmitter.id}"
                 )
-        for sensor in self.pcl_sensors:
+        for detectable_sensor in self.pcl_sensors:
+            sensor = detectable_sensor.sensor
             id_provider.register_entity(Entity.SENSOR, sensor.id)
             # Receiver and Transmitter can be duplicated in PCL sensors.
             try:
@@ -199,7 +244,8 @@ class StaticDispositive(pydantic.BaseModel):
                 id_provider.register_entity(Entity.RECEIVER, sensor.receiver.id)
             except ValueError:
                 pass
-        for effector in self.effectors:
+        for detectable_effector in self.effectors:
+            effector = detectable_effector.effector
             id_provider.register_entity(Entity.EFFECTOR, effector.id)
 
     @staticmethod
@@ -214,28 +260,36 @@ class StaticDispositive(pydantic.BaseModel):
         pcl_sensors = [s.model_copy() for s in deployment1.pcl_sensors]
         effectors = [e.model_copy() for e in deployment1.effectors]
 
-        for sensor in deployment2.monostatic_sensors:
+        for detectable_sensor in deployment2.monostatic_sensors:
+            sensor = detectable_sensor.sensor
             sensor = sensor.model_copy()
             sensor.id += id_provider.increment(Entity.SENSOR)
             sensor.transmitter.id += id_provider.increment(Entity.TRANSMITTER)
             sensor.receiver.id += id_provider.increment(Entity.RECEIVER)
             monostatic_sensors.append(sensor)
-        for sensor in deployment2.pcl_sensors:
+        for detectable_sensor in deployment2.pcl_sensors:
+            sensor = detectable_sensor.sensor
             sensor = sensor.model_copy()
             sensor.id += id_provider.increment(Entity.SENSOR)
             sensor.transmitter.id += id_provider.increment(Entity.TRANSMITTER)
             sensor.receiver.id += id_provider.increment(Entity.RECEIVER)
             pcl_sensors.append(sensor)
-        for effector in deployment2.effectors:
-            effector = DirectFireEffector(
+        for detectable_effector in deployment2.effectors:
+            effector = detectable_effector.effector
+            effector = DirectFireEffectorFactory(
                 id=effector.id + id_provider.increment(Entity.EFFECTOR),
                 name=effector.name,
                 point=effector.point.model_copy(),
                 combat_range=effector.combat_range,
                 n_attacks_left=effector.n_attacks_left,
-                terrain=effector.terrain, # do not copy terrain!
             )
-            effectors.append(effector)
+            effectors.append(
+                StaticDirectFireEffectorFactory(
+                    target_id=detectable_effector.target_id,
+                    rcs=detectable_effector.rcs,
+                    effector=effector,
+                )
+            )
 
         return StaticDispositive(
             monostatic_sensors=monostatic_sensors,
@@ -251,13 +305,10 @@ class Dispositive(pydantic.BaseModel):
     def to_controller(
         self,
         terrain: AbstractTerrainModel,
-        monostatic_sensor_rcs: float,
-        id_provider: IdProvider,
         is_blue: bool,
     ) -> Controller:
         static_controller = self.static_dispositive.to_controller(
-            monostatic_sensor_rcs,
-            id_provider,
+            terrain,
             is_blue,
         )
         mobile_controller = self.mobile_dispositive.to_controller(terrain)
@@ -335,18 +386,8 @@ class ScenarioFactory(pydantic.BaseModel):
 
         terrain = self.terrain_model.to_terrain()
 
-        controller_blue = self.blue_dispositive.to_controller(
-            terrain,
-            1.0,
-            id_provider,
-            True,
-        )
-        controller_red = self.red_dispositive.to_controller(
-            terrain,
-            1.0,
-            id_provider,
-            False,
-        )
+        controller_blue = self.blue_dispositive.to_controller(terrain, True)
+        controller_red = self.red_dispositive.to_controller(terrain, False)
 
         buffer = None
         listener = FileLogger(path=output_path)
