@@ -38,6 +38,7 @@ if __name__ == "__main__":
     parser.add_argument("static_dispo_file_red", type=pathlib.Path)
     parser.add_argument("mobile_dispo_file_red", type=pathlib.Path)
     parser.add_argument("output_file", type=pathlib.Path)
+    parser.add_argument("--terrain_model", type=str, default="SRTM")
 
     args = parser.parse_args()
 
@@ -97,7 +98,7 @@ if __name__ == "__main__":
             tracker_name="pseudotracker",
             parameters=tracker_params,
         ),
-        terrain_model=TerrainFactory(terrain_name="SRTM"),
+        terrain_model=TerrainFactory(terrain_name=args.terrain_model),
         damage_model=DamageModelFactory(model_name="kill_always"),
         seed=39270507,
     )
