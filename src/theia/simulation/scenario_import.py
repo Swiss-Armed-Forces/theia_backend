@@ -11,6 +11,7 @@ from theia.detection.pet import PetDetector
 from theia.effectors import DirectFireEffector
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
+from theia.simulation.controllers.geojson_controller import GeoJsonController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
 )
@@ -35,6 +36,7 @@ from theia.types import (
     ConstantRcsModel,
     Controller,
     Entity,
+    GeoJSONFeature,
     IdProvider,
     MonostaticSensor,
     PclSensor,
@@ -187,10 +189,39 @@ class MonostaticSensorFactory(pydantic.BaseModel):
         )
 
 
+class MonostaticCoverageCalcSettings(pydantic.BaseModel):
+    targetAlt: float
+    targetRcs: float
+    probabilityThreshold: float
+    azimuthResolution: float
+    rangeOnly: bool
+
+
+class MonostaticCoverageCalculation(pydantic.BaseModel):
+    sensorId: int
+    settings: MonostaticCoverageCalcSettings
+    coverage: GeoJSONFeature
+
+
+class SimulationResults(pydantic.BaseModel):
+    monostaticCoverages: list[tuple[MonostaticCoverageCalculation, int]]
+    """calculation result, date of calculation [epochs]"""
+    # minDetectableRcsGrids: list[tuple[int, list[list[list[float]]], int]]
+    # """sensor_id, coverage polygon, date of calculation [epochs]"""
+
+    def to_geojson_dict(self) -> dict[str, GeoJSONFeature]:
+        result: dict[str, GeoJSONFeature] = {}
+        for calc, _ in self.monostaticCoverages:
+            tag = f"Monostatic #{calc.sensorId}, {calc.settings.targetAlt:0f} MASL, RCS={calc.settings.targetRcs:1f}m^2"
+            result[tag] = calc.coverage
+        return result
+
+
 class StaticDispositive(pydantic.BaseModel):
     monostatic_sensors: list[MonostaticSensorFactory]
     pcl_sensors: list[PclSensor]
     effectors: list[StaticDirectFireEffectorFactory]
+    simulationResults: SimulationResults
 
     def to_controller(
         self,
@@ -207,8 +238,11 @@ class StaticDispositive(pydantic.BaseModel):
             terrain=terrain,
         )
 
-        return ControllerGroup(
-            controllers=monostatic_controllers + [static_deployment_controller]
+        return GeoJsonController(
+            child=ControllerGroup(
+                controllers=monostatic_controllers + [static_deployment_controller]
+            ),
+            geojson_features=self.simulationResults.to_geojson_dict(),
         )
 
     @staticmethod
@@ -373,6 +407,10 @@ class ScenarioFactory(pydantic.BaseModel):
     terrain_model: TerrainFactory
     damage_model: DamageModelFactory
     seed: int
+    blue_geojson: dict[str, list[GeoJSONFeature]] = {}
+    """List of GeoJSON objects for BLUE that belong to the same tag."""
+    red_geojson: dict[str, list[GeoJSONFeature]] = {}
+    """List of GeoJSON objects for RED that belong to the same tag."""
 
     def update_id_provider(self, id_provider: IdProvider):
         self.blue_dispositive.update_id_provider(id_provider)
