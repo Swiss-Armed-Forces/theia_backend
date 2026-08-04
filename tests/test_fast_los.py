@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
+from theia.config import TERRAIN_HBV_DATA_DIR
 from theia.terrain import SrtmTerrainModel
 from theia.terrain_fast_los import (
     FastSrtmModel,
@@ -16,7 +17,6 @@ from theia.terrain_fast_los import (
     _num_nodes_to_depth,
     build_bounding_boxes,
     build_higher_level,
-    build_terrain_tree,
     load_srtm_bboxes,
 )
 from theia.types import Point
@@ -1066,14 +1066,12 @@ class TestLoadSrtmBboxes(unittest.TestCase):
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_returns_three_arrays(self, _mock):
-
         result = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 3)
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_output_shapes_are_square_power_of_two(self, _mock):
-
         lats, lons, data = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
         N = len(lats)
         self.assertEqual(len(lons), N)
@@ -1085,14 +1083,12 @@ class TestLoadSrtmBboxes(unittest.TestCase):
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_lats_and_lons_are_1d(self, _mock):
-
         lats, lons, data = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
         self.assertEqual(lats.ndim, 1)
         self.assertEqual(lons.ndim, 1)
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_data_is_2d(self, _mock):
-
         lats, lons, data = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
         self.assertEqual(data.ndim, 2)
 
@@ -1102,38 +1098,32 @@ class TestLoadSrtmBboxes(unittest.TestCase):
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_lats_start_at_floored_lat_start(self, _mock):
-
         lats, lons, _ = load_srtm_bboxes(47.3, 48.7, 11.0, 12.0)
         self.assertAlmostEqual(lats[0], 47.0)  # floor(47.3)
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_lons_start_at_floored_lon_start(self, _mock):
-
         lats, lons, _ = load_srtm_bboxes(47.0, 48.0, 11.2, 12.8)
         self.assertAlmostEqual(lons[0], 11.0)  # floor(11.2)
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_lats_are_monotonically_increasing(self, _mock):
-
         lats, _, _ = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
         self.assertTrue(np.all(np.diff(lats) > 0))
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_lons_are_monotonically_increasing(self, _mock):
-
         _, lons, _ = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
         self.assertTrue(np.all(np.diff(lons) > 0))
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_lats_are_uniformly_spaced(self, _mock):
-
         lats, _, _ = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
         diffs = np.diff(lats)
         self.assertTrue(np.allclose(diffs, diffs[0]), "Latitude spacing is not uniform")
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_lons_are_uniformly_spaced(self, _mock):
-
         _, lons, _ = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
         diffs = np.diff(lons)
         self.assertTrue(
@@ -1220,7 +1210,6 @@ class TestLoadSrtmBboxes(unittest.TestCase):
         side_effect=lambda lat, lon: make_hgt_tile(lat, lon, 0.0),
     )
     def test_flat_terrain_returns_zero_data(self, _mock):
-
         _, _, data = load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
         self.assertTrue(np.all(data == 0.0))
 
@@ -1230,7 +1219,6 @@ class TestLoadSrtmBboxes(unittest.TestCase):
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_no_assertion_error_single_tile(self, _mock):
-
         try:
             load_srtm_bboxes(47.0, 48.0, 11.0, 12.0)
         except AssertionError as exc:
@@ -1238,7 +1226,6 @@ class TestLoadSrtmBboxes(unittest.TestCase):
 
     @patch("theia.terrain.load_hgt_file", side_effect=make_hgt_tile)
     def test_no_assertion_error_multi_tile(self, _mock):
-
         try:
             load_srtm_bboxes(47.0, 49.0, 11.0, 13.0)
         except AssertionError as exc:
@@ -1603,7 +1590,9 @@ class TestHasLineOfSightDeepTrees(unittest.TestCase):
 
 class TestSaveLoad(unittest.TestCase):
     def setUp(self):
-        self.tree = HbvTree.from_leaf_bboxes(_unit_leaf_grid(4), Point(lat=0, lon=0, alt=0))
+        self.tree = HbvTree.from_leaf_bboxes(
+            _unit_leaf_grid(4), Point(lat=0, lon=0, alt=0)
+        )
         tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
         tmp.close()
         self.path = tmp.name
@@ -1638,10 +1627,11 @@ class TestSaveLoad(unittest.TestCase):
 
 
 class TerrainTest(unittest.TestCase):
-
     def test_real_case(self):
         srtm = SrtmTerrainModel()
-        tree = HbvTree.load("tree_lat46:47_lon7:9_subsamplestride2.zip")
+        tree = HbvTree.load(
+            f"{TERRAIN_HBV_DATA_DIR}/tree_lat46:47_lon7:9_subsamplestride2.zip"
+        )
         # tree = build_terrain_tree(46, 47, 7, 9)
         # tree.save("tree_lat46:47_lon7:9.zip")
         fast = FastSrtmModel(tree=tree, srtm_model=srtm)
