@@ -1,5 +1,8 @@
 import argparse
+import datetime
 import pathlib
+
+import numpy as np
 
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.simulation.scenario_import import (
@@ -79,6 +82,11 @@ if __name__ == "__main__":
 
     if t_min is None or t_max is None:
         raise ValueError("No mobile parts in the simulation!")
+
+    t_max = datetime.datetime.fromtimestamp(
+        np.ceil(t_max.timestamp()),
+        datetime.UTC,
+    )
 
     tracker_params = PseudoTrackerParams(
         removal_patience=10,
