@@ -61,7 +61,7 @@ class TimeCriterion(TerminationCriterion):
         self._end_time = end_time
 
     def is_terminated(self, snapshot: Snapshot) -> bool:
-        return snapshot.time >= self._end_time
+        return snapshot.time > self._end_time
 
 
 class NeverCriterion(TerminationCriterion):

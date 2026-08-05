@@ -13,8 +13,8 @@ class SimulationDirector:
         self._is_paused = False
 
         def runner():
-            while not self._is_paused:
-                self._simulator.advance()
+            while not self._is_paused and self._simulator.advance():
+                pass
 
         sim_thread = threading.Thread(
             target=runner,

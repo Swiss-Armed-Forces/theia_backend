@@ -102,16 +102,16 @@ class FileLogger(AbstractSimulationListener):
         self.events.extend(events)
 
     def on_end(self):
+        text = json.dumps(
+            {
+                # "situational_pictures": self.situational_pictures,
+                "snapshots": self.snapshots,
+                "detections": self.detections,
+                "events": [e.model_dump(mode="json") for e in self.events],
+            },
+        )
         with open(self._path, "a" if not self._override else "w") as file:
-            json.dump(
-                {
-                    # "situational_pictures": self.situational_pictures,
-                    "snapshots": self.snapshots,
-                    "detections": self.detections,
-                    "events": [e.model_dump(mode="json") for e in self.events],
-                },
-                file,
-            )
+            file.write(text)
 
 
 class PrintLogger(AbstractSimulationListener):

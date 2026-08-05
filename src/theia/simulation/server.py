@@ -104,11 +104,7 @@ def create_app(
 
     @app.get("/time")
     def get_time() -> datetime.datetime:
-        # We assume that the red and blue situational pictures share the same time.
-        # This is consistent with the implementation of the main simulation loop.
-        # The differences would be negligible, anyway.
-        return buffer.get_situational_picture(True).time
-
+        return buffer.get_simulator()._t
     @app.post("/situational_picture/{which}")
     def get_situational_picture(
         which: Team, times: list[datetime.datetime]
