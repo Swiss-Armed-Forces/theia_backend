@@ -7,7 +7,7 @@ import pathlib
 ELEVATION_DATA_DIR = os.environ.get("THEIA_ELEVATION_DATA_DIR")
 TERRAIN_HBV_DATA_DIR = os.environ.get(
     "THEIA_HBV_TERRAIN_DATA_DIR",
-    pathlib.Path(__file__).parent.parent.parent, # repo root
+    pathlib.Path(__file__).parent.parent.parent,  # repo root
 )
 
 # Negative value means no Doppler thresholding, which is necessary for aircraft-mounted RAD
@@ -57,6 +57,12 @@ class SIDC(enum.Enum):
     BLUE_MISSILE = "10230200001100000000"
     RED_MISSILE = "10260200001100000000"
     UNKNOWN = "10211000000000000000"
+
+    @staticmethod
+    def damaged(sidc: str) -> str:
+        sidc = list(sidc)
+        sidc[6] = "3"
+        return "".join(sidc)
 
 
 UNKNOWN_ID = -1
