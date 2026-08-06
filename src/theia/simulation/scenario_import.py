@@ -18,6 +18,7 @@ from theia.grids import LatLonHeightGrid
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
 from theia.simulation.controllers.geojson_controller import GeoJsonController
+from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
 )
@@ -110,12 +111,13 @@ class StaticDirectFireEffectorFactory(pydantic.BaseModel):
         terrain: AbstractTerrainModel,
         is_blue: bool,
     ) -> StaticDirectFireController:
-        return StaticDirectFireController(
+        c = StaticDirectFireController(
             target_id=self.target_id,
             sidc=SIDC.BLUE_AIR_DEFENCE if is_blue else SIDC.RED_AIR_DEFENCE,
             rcs=self.rcs,
             effector=self.effector.to_effector(terrain),
         )
+        return c
 
 
 class FixedPathOneWayDroneFactory(pydantic.BaseModel):
@@ -124,12 +126,13 @@ class FixedPathOneWayDroneFactory(pydantic.BaseModel):
     assigned_goal: Point
 
     def to_controller(self, terrain: AbstractTerrainModel) -> Controller:
-        return FixedPathOneWayDrone(
+        drone = FixedPathOneWayDrone(
             effector=self.effector.to_effector(terrain),
             trajectory=self.trajectory,
             assigned_goal=self.assigned_goal,
             terrain=terrain,
         )
+        return LivingController(child=drone, target_id=drone.trajectory.target_id)
 
 
 class MonostaticSensorFactory(pydantic.BaseModel):
@@ -138,12 +141,13 @@ class MonostaticSensorFactory(pydantic.BaseModel):
     sensor: MonostaticSensor
 
     def to_controller(self, is_blue: bool) -> MonostaticRadarController:
-        return MonostaticRadarController(
+        c = MonostaticRadarController(
             target_id=self.target_id,
             radar=self.sensor,
             is_blue=is_blue,
             rcs_model=ConstantRcsModel(rcs=self.rcs),
         )
+        return LivingController(child=c, target_id=self.target_id)
 
 
 class MonostaticCoverageCalcSettings(pydantic.BaseModel):
@@ -164,6 +168,8 @@ class PclSensorFactory(pydantic.BaseModel):
     target_id: int
     rcs: float
     sensor: PclSensor
+
+    # TODO: Build a controller from this!
 
 
 class PclMinDetectableRcsCalcSettings(pydantic.BaseModel):
@@ -239,11 +245,20 @@ class OrderOfBattle(pydantic.BaseModel):
             s.to_controller(is_blue) for s in self.monostatic_sensors
         ]
 
+        ##########################
         # TODO: Load PCL sensors.
-        static_deployment_controller = StaticDirectFireCoordinator(
-            controllers=[e.to_controller(terrain) for e in self.effectors],
-            terrain=terrain,
-        )
+        ##########################
+
+        static_deployment_controllers = [
+            LivingController(
+                child=StaticDirectFireCoordinator(
+                    controllers=[e.to_controller(terrain, is_blue)],
+                    terrain=terrain,
+                ),
+                target_id=e.target_id,
+            )
+            for e in self.effectors
+        ]
 
         oneway_drone_controllers = [
             drone.to_controller(terrain) for drone in self.oneway_drones
@@ -253,7 +268,7 @@ class OrderOfBattle(pydantic.BaseModel):
         return GeoJsonController(
             child=ControllerGroup(
                 controllers=monostatic_controllers
-                + [static_deployment_controller]
+                + static_deployment_controllers
                 + oneway_drone_controllers
                 + bm_controllers
             ),
@@ -528,7 +543,7 @@ class BallisticMissileFactory(pydantic.BaseModel):
         )
 
     def to_controller(self, is_blue: bool) -> FixedPathOneWayDrone:
-        return FixedPathOneWayDrone(
+        bm = FixedPathOneWayDrone(
             effector=DirectFireEffector(
                 id=self.effector_id,
                 name="ballistic missile",
@@ -541,6 +556,7 @@ class BallisticMissileFactory(pydantic.BaseModel):
             assigned_goal=self.p_stop,
             terrain=self.terrain.to_terrain(),
         )
+        return LivingController(child=bm, target_id=bm.trajectory.target_id)
 
     def get_trajectory(self, is_blue: bool) -> Trajectory:
         points = _convert_to_geodetic(self.p_start, self.p_stop, self._trajectory_data)
