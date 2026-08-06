@@ -1431,7 +1431,7 @@ class IdProvider:
 
     def register_entity(self, entity: Entity, id: int):
         if id in self._used_ids[entity]:
-            raise ValueError(f"Duplicate {entity.value} ID: {id}")
+            raise ValueError(f"Duplicate {entity.name} ID: {id}")
         self._used_ids[entity].add(id)
         self._free_ids[entity] = max(self._free_ids[entity], id + 1)
 
