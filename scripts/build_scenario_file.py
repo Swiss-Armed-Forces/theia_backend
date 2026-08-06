@@ -7,29 +7,13 @@ import numpy as np
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.simulation.scenario_import import (
     DamageModelFactory,
-    Dispositive,
-    MobileDispositive,
+    OrderOfBattle,
     PseudoTrackerParams,
     ScenarioFactory,
-    StaticDispositive,
     TerrainFactory,
     TrackerFactory,
 )
-from theia.terrain import AbstractTerrainModel
 from theia.types import IdProvider, Point
-
-
-def load_dispositive(
-    static_controller_file: str,
-    mobile_controller_file: str,
-    terrain: AbstractTerrainModel,
-) -> Dispositive:
-    static_dispo = StaticDispositive.from_file(static_controller_file, terrain)
-    mobile_dispo = MobileDispositive.from_file(mobile_controller_file)
-    return Dispositive(
-        static_dispositive=static_dispo,
-        mobile_dispositive=mobile_dispo,
-    )
 
 
 if __name__ == "__main__":
@@ -38,10 +22,8 @@ if __name__ == "__main__":
         description="Merge dispositive files for BLUE and RED forces into a single scenario file",
     )
     parser.add_argument("scenario_name", type=str)
-    parser.add_argument("static_dispo_file_blue", type=pathlib.Path)
-    parser.add_argument("mobile_dispo_file_blue", type=pathlib.Path)
-    parser.add_argument("static_dispo_file_red", type=pathlib.Path)
-    parser.add_argument("mobile_dispo_file_red", type=pathlib.Path)
+    parser.add_argument("orbat_file_blue", type=pathlib.Path)
+    parser.add_argument("orbat_file_red", type=pathlib.Path)
     parser.add_argument("output_file", type=pathlib.Path)
     parser.add_argument("--terrain_model", type=str, default="SRTM")
 
@@ -52,33 +34,17 @@ if __name__ == "__main__":
 
     id_provider = IdProvider()
 
-    dispo_blue = load_dispositive(
-        args.static_dispo_file_blue,
-        args.mobile_dispo_file_blue,
-        terrain,
-    )
-    dispo_red = load_dispositive(
-        args.static_dispo_file_red,
-        args.mobile_dispo_file_red,
-        terrain,
-    )
+    orbat_blue = OrderOfBattle.from_file(args.orbat_file_blue)
+    orbat_red = OrderOfBattle.from_file(args.orbat_file_red)
 
     t_min = None
     t_max = None
-    if dispo_blue.mobile_dispositive.t_min is not None:
-        t_min = dispo_blue.mobile_dispositive.t_min
-        t_max = dispo_blue.mobile_dispositive.t_max
-    if dispo_red.mobile_dispositive.t_min is not None:
-        t_min = (
-            dispo_red.mobile_dispositive.t_min
-            if t_min is None
-            else min(t_min, dispo_red.mobile_dispositive.t_min)
-        )
-        t_max = (
-            dispo_red.mobile_dispositive.t_max
-            if t_max is None
-            else max(t_max, dispo_red.mobile_dispositive.t_max)
-        )
+    if orbat_blue.t_min is not None:
+        t_min = orbat_blue.t_min
+        t_max = orbat_blue.t_max
+    if orbat_red.t_min is not None:
+        t_min = orbat_red.t_min if t_min is None else min(t_min, orbat_red.t_min)
+        t_max = orbat_red.t_max if t_max is None else max(t_max, orbat_red.t_max)
 
     if t_min is None or t_max is None:
         raise ValueError("No mobile parts in the simulation!")
@@ -103,8 +69,8 @@ if __name__ == "__main__":
         start_time=t_min,
         stop_time=t_max,
         time_step=1,
-        blue_dispositive=dispo_blue,
-        red_dispositive=dispo_red,
+        blue_orbat=orbat_blue,
+        red_orbat=orbat_red,
         blue_tracker=TrackerFactory(
             tracker_name="pseudotracker",
             parameters=tracker_params,

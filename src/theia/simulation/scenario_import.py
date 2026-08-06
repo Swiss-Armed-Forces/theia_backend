@@ -14,6 +14,7 @@ from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.distance import line_of_sight_distance
 from theia.effectors import DirectFireEffector
+from theia.grids import LatLonHeightGrid
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
 from theia.simulation.controllers.geojson_controller import GeoJsonController
@@ -131,63 +132,6 @@ class FixedPathOneWayDroneFactory(pydantic.BaseModel):
         )
 
 
-class MobileDispositive(pydantic.BaseModel):
-    oneway_drones: list[FixedPathOneWayDroneFactory]
-    ballistic_missiles: list[BallisticMissileFactory]
-
-    def to_controller(self, terrain: AbstractTerrainModel, is_blue: bool) -> Controller:
-        oneway_drone_controllers = [
-            drone.to_controller(terrain) for drone in self.oneway_drones
-        ]
-        bm_controllers = [bm.to_controller(is_blue) for bm in self.ballistic_missiles]
-        return ControllerGroup(controllers=oneway_drone_controllers + bm_controllers)
-
-    @staticmethod
-    def from_file(file: str) -> MobileDispositive:
-        with open(file, "r") as file:
-            return MobileDispositive.model_validate_json(file.read())
-
-    def update_id_provider(self, id_provider: IdProvider):
-        for drone in self.oneway_drones:
-            id_provider.register_entity(Entity.EFFECTOR, drone.effector.id)
-            id_provider.register_entity(Entity.TARGET, drone.trajectory.target_id)
-
-    @property
-    def t_min(self) -> datetime.datetime | None:
-        if len(self.oneway_drones) == 0 and len(self.ballistic_missiles) == 0:
-            return None
-        return min(
-            [drone.trajectory.times[0] for drone in self.oneway_drones]
-            + [bm.get_trajectory(True).times[0] for bm in self.ballistic_missiles]
-        )
-
-    @property
-    def t_max(self) -> datetime.datetime:
-        if len(self.oneway_drones) == 0 and len(self.ballistic_missiles) == 0:
-            return None
-        return max(
-            [drone.trajectory.times[-1] for drone in self.oneway_drones]
-            + [bm.get_trajectory(True).times[-1] for bm in self.ballistic_missiles]
-        )
-
-    @staticmethod
-    def merge(
-        deployment1: MobileDispositive,
-        deployment2: MobileDispositive,
-    ) -> MobileDispositive:
-        id_provider = IdProvider()
-        deployment1.update_id_provider(id_provider)
-
-        oneway_drones = [d.model_copy() for d in deployment1.oneway_drones]
-        for d in deployment2.oneway_drones:
-            d = d.model_copy(deep=True)
-            d.effector.id += id_provider.increment(Entity.EFFECTOR)
-            d.trajectory.target_id += id_provider.increment(Entity.TARGET)
-            oneway_drones.append(d)
-
-        return MobileDispositive(oneway_drones=oneway_drones)
-
-
 class MonostaticSensorFactory(pydantic.BaseModel):
     target_id: int
     rcs: float
@@ -216,25 +160,75 @@ class MonostaticCoverageCalculation(pydantic.BaseModel):
     coverage: GeoJSONFeature
 
 
+class PclSensorFactory(pydantic.BaseModel):
+    target_id: int
+    rcs: float
+    sensor: PclSensor
+
+
+class PclMinDetectableRcsCalcSettings(pydantic.BaseModel):
+    grid: LatLonHeightGrid
+    snr_threshold: float
+    """SNR theshold [dB]"""
+    doppler_threshold: float
+    """Doppler theshold [Hz]"""
+    delay_threshold: float
+    """Delay theshold [us]"""
+
+
+class PclMinDetectableRcsCalculation(pydantic.BaseModel):
+    sensor_id: int
+    settings: PclMinDetectableRcsCalcSettings
+    values: list[list[list[float]]]
+
+
 class SimulationResults(pydantic.BaseModel):
-    monostaticCoverages: list[tuple[MonostaticCoverageCalculation, int]]
+    monostaticCoverages: list[tuple[MonostaticCoverageCalculation, datetime.datetime]]
     """calculation result, date of calculation [epochs]"""
-    # minDetectableRcsGrids: list[tuple[int, list[list[list[float]]], int]]
-    # """sensor_id, coverage polygon, date of calculation [epochs]"""
+    pclMinDetectableRcsGrids: list[
+        tuple[PclMinDetectableRcsCalculation, datetime.datetime]
+    ]
+    """calculation result, date of calculation [epochs]"""
 
     def to_geojson_dict(self) -> dict[str, GeoJSONFeature]:
         result: dict[str, GeoJSONFeature] = {}
         for calc, _ in self.monostaticCoverages:
-            tag = f"Monostatic #{calc.sensorId}, {calc.settings.targetAlt:0f} MASL, RCS={calc.settings.targetRcs:1f}m^2"
+            tag = f"Monostatic #{calc.sensorId}, {calc.settings.targetAlt:.0f} MASL, RCS={calc.settings.targetRcs:.1f}m^2"
             result[tag] = calc.coverage
         return result
 
 
-class StaticDispositive(pydantic.BaseModel):
+class OrderOfBattle(pydantic.BaseModel):
     monostatic_sensors: list[MonostaticSensorFactory]
-    pcl_sensors: list[PclSensor]
+    pcl_sensors: list[PclSensorFactory]
     effectors: list[StaticDirectFireEffectorFactory]
     simulationResults: SimulationResults
+    oneway_drones: list[FixedPathOneWayDroneFactory]
+    ballistic_missiles: list[BallisticMissileFactory]
+    unused_id_sensor: int
+    unused_id_receiver: int
+    unused_id_transmitter: int
+    unused_id_effector: int
+    unused_target_id: int
+
+    @staticmethod
+    def from_file(orbat_file: str) -> OrderOfBattle:
+        with open(orbat_file, "r") as file:
+            data = json.load(file)
+            orbat = OrderOfBattle.model_validate(data)
+        # Validate IDs.
+        id_provider = IdProvider()
+        orbat.update_id_provider(id_provider)
+        consistent_ids = (
+            orbat.unused_id_sensor >= id_provider._free_ids[Entity.SENSOR]
+            and orbat.unused_id_receiver >= id_provider._free_ids[Entity.RECEIVER]
+            and orbat.unused_id_transmitter >= id_provider._free_ids[Entity.TRANSMITTER]
+            and orbat.unused_id_effector >= id_provider._free_ids[Entity.EFFECTOR]
+            and orbat.unused_target_id >= id_provider._free_ids[Entity.TARGET]
+        )
+        if not consistent_ids:
+            raise ValueError("ORBAT file is inconsistent: Unused IDs are used")
+        return orbat
 
     def to_controller(
         self,
@@ -251,23 +245,20 @@ class StaticDispositive(pydantic.BaseModel):
             terrain=terrain,
         )
 
+        oneway_drone_controllers = [
+            drone.to_controller(terrain) for drone in self.oneway_drones
+        ]
+        bm_controllers = [bm.to_controller(is_blue) for bm in self.ballistic_missiles]
+
         return GeoJsonController(
             child=ControllerGroup(
-                controllers=monostatic_controllers + [static_deployment_controller]
+                controllers=monostatic_controllers
+                + [static_deployment_controller]
+                + oneway_drone_controllers
+                + bm_controllers
             ),
             geojson_features=self.simulationResults.to_geojson_dict(),
         )
-
-    @staticmethod
-    def from_file(
-        static_dispositive_file: str,
-        terrain: AbstractTerrainModel,
-    ) -> StaticDispositive:
-        with open(static_dispositive_file, "r") as file:
-            data = json.load(file)
-            dispo = StaticDispositive.model_validate(data)
-
-        return dispo
 
     def update_id_provider(self, id_provider: IdProvider):
         for detectable_sensor in self.monostatic_sensors:
@@ -298,34 +289,61 @@ class StaticDispositive(pydantic.BaseModel):
         for detectable_effector in self.effectors:
             effector = detectable_effector.effector
             id_provider.register_entity(Entity.EFFECTOR, effector.id)
+        for drone in self.oneway_drones:
+            id_provider.register_entity(Entity.EFFECTOR, drone.effector.id)
+            id_provider.register_entity(Entity.TARGET, drone.trajectory.target_id)
+        for missile in self.ballistic_missiles:
+            id_provider.register_entity(Entity.EFFECTOR, missile.effector_id)
+            id_provider.register_entity(Entity.TARGET, missile.target_id)
+
+    @property
+    def t_min(self) -> datetime.datetime | None:
+        if len(self.oneway_drones) == 0 and len(self.ballistic_missiles) == 0:
+            return None
+        return min(
+            [drone.trajectory.times[0] for drone in self.oneway_drones]
+            + [bm.get_trajectory(True).times[0] for bm in self.ballistic_missiles]
+        )
+
+    @property
+    def t_max(self) -> datetime.datetime:
+        if len(self.oneway_drones) == 0 and len(self.ballistic_missiles) == 0:
+            return None
+        return max(
+            [drone.trajectory.times[-1] for drone in self.oneway_drones]
+            + [bm.get_trajectory(True).times[-1] for bm in self.ballistic_missiles]
+        )
 
     @staticmethod
     def merge(
-        deployment1: StaticDispositive,
-        deployment2: StaticDispositive,
-    ) -> StaticDispositive:
+        orbat1: OrderOfBattle,
+        orbat2: OrderOfBattle,
+    ) -> OrderOfBattle:
         id_provider = IdProvider()
-        deployment1.update_id_provider(id_provider)
+        orbat1.update_id_provider(id_provider)
 
-        monostatic_sensors = [s.model_copy() for s in deployment1.monostatic_sensors]
-        pcl_sensors = [s.model_copy() for s in deployment1.pcl_sensors]
-        effectors = [e.model_copy() for e in deployment1.effectors]
+        monostatic_sensors = [s.model_copy() for s in orbat1.monostatic_sensors]
+        pcl_sensors = [s.model_copy() for s in orbat1.pcl_sensors]
+        effectors = [e.model_copy() for e in orbat1.effectors]
 
-        for detectable_sensor in deployment2.monostatic_sensors:
+        sensor_id_map: dict[int, int] = {}
+        for detectable_sensor in orbat2.monostatic_sensors:
             sensor = detectable_sensor.sensor
             sensor = sensor.model_copy()
-            sensor.id += id_provider.increment(Entity.SENSOR)
+            new_id = sensor.id + id_provider.increment(Entity.SENSOR)
+            sensor_id_map[sensor.id] = new_id
+            sensor.id = new_id
             sensor.transmitter.id += id_provider.increment(Entity.TRANSMITTER)
             sensor.receiver.id += id_provider.increment(Entity.RECEIVER)
             monostatic_sensors.append(sensor)
-        for detectable_sensor in deployment2.pcl_sensors:
+        for detectable_sensor in orbat2.pcl_sensors:
             sensor = detectable_sensor.sensor
             sensor = sensor.model_copy()
             sensor.id += id_provider.increment(Entity.SENSOR)
             sensor.transmitter.id += id_provider.increment(Entity.TRANSMITTER)
             sensor.receiver.id += id_provider.increment(Entity.RECEIVER)
             pcl_sensors.append(sensor)
-        for detectable_effector in deployment2.effectors:
+        for detectable_effector in orbat2.effectors:
             effector = detectable_effector.effector
             effector = DirectFireEffectorFactory(
                 id=effector.id + id_provider.increment(Entity.EFFECTOR),
@@ -341,36 +359,46 @@ class StaticDispositive(pydantic.BaseModel):
                     effector=effector,
                 )
             )
+        # TODO: Merge simulation results!!!
+        oneway_drones = [d.model_copy() for d in orbat1.oneway_drones]
+        for d in orbat2.oneway_drones:
+            d = d.model_copy(deep=True)
+            d.effector.id += id_provider.increment(Entity.EFFECTOR)
+            d.trajectory.target_id += id_provider.increment(Entity.TARGET)
+            oneway_drones.append(d)
+        ballistic_missiles = [m.model_copy() for m in orbat1.ballistic_missiles]
+        for m in orbat2.ballistic_missiles:
+            m = m.model_copy(deep=True)
+            m.effector_id += id_provider.increment(Entity.EFFECTOR)
+            m.target_id += id_provider.increment(Entity.TARGET)
+            ballistic_missiles.append(m)
 
-        return StaticDispositive(
+        return OrderOfBattle(
             monostatic_sensors=monostatic_sensors,
             pcl_sensors=pcl_sensors,
             effectors=effectors,
+            simulationResults=orbat1.simulationResults,  # TODO: Merge sim results of orbat2!!!
+            oneway_drones=oneway_drones,
+            ballistic_missiles=ballistic_missiles,
         )
 
-
-class Dispositive(pydantic.BaseModel):
-    static_dispositive: StaticDispositive
-    mobile_dispositive: MobileDispositive
-
-    def to_controller(
-        self,
-        terrain: AbstractTerrainModel,
-        is_blue: bool,
-    ) -> Controller:
-        static_controller = self.static_dispositive.to_controller(
-            terrain,
-            is_blue,
+    @staticmethod
+    def to_openapi_schema() -> dict:
+        schema = OrderOfBattle.model_json_schema(
+            ref_template="#/components/schemas/{model}"
         )
-        mobile_controller = self.mobile_dispositive.to_controller(
-            terrain,
-            is_blue,
-        )
-        return ControllerGroup(controllers=[static_controller, mobile_controller])
-
-    def update_id_provider(self, id_provider: IdProvider):
-        self.static_dispositive.update_id_provider(id_provider)
-        self.mobile_dispositive.update_id_provider(id_provider)
+        defs = schema.pop("$defs", {})
+        return {
+            "openapi": "3.1.0",
+            "info": {"title": "Theia", "version": "0.0.0"},
+            "paths": {},
+            "components": {
+                "schemas": {
+                    "OrderOfBattle": schema,
+                    **defs,
+                },
+            },
+        }
 
 
 class PseudoTrackerParams(pydantic.BaseModel):
@@ -416,8 +444,8 @@ class ScenarioFactory(pydantic.BaseModel):
     """Start time of the scenario"""
     time_step: int
     """Time step per iteration [s]"""
-    blue_dispositive: Dispositive
-    red_dispositive: Dispositive
+    blue_orbat: OrderOfBattle
+    red_orbat: OrderOfBattle
     blue_tracker: TrackerFactory
     red_tracker: TrackerFactory
     terrain_model: TerrainFactory
@@ -429,8 +457,8 @@ class ScenarioFactory(pydantic.BaseModel):
     """List of GeoJSON objects for RED that belong to the same tag."""
 
     def update_id_provider(self, id_provider: IdProvider):
-        self.blue_dispositive.update_id_provider(id_provider)
-        self.red_dispositive.update_id_provider(id_provider)
+        self.blue_orbat.update_id_provider(id_provider)
+        self.red_orbat.update_id_provider(id_provider)
 
     def to_simulator(
         self,
@@ -444,8 +472,8 @@ class ScenarioFactory(pydantic.BaseModel):
 
         terrain = self.terrain_model.to_terrain()
 
-        controller_blue = self.blue_dispositive.to_controller(terrain, True)
-        controller_red = self.red_dispositive.to_controller(terrain, False)
+        controller_blue = self.blue_orbat.to_controller(terrain, True)
+        controller_red = self.red_orbat.to_controller(terrain, False)
 
         buffer = None
         listener = FileLogger(path=output_path)
