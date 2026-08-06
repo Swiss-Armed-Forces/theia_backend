@@ -266,6 +266,7 @@ class OrderOfBattle(pydantic.BaseModel):
             id_provider.register_entity(Entity.SENSOR, sensor.id)
             id_provider.register_entity(Entity.TRANSMITTER, sensor.transmitter.id)
             id_provider.register_entity(Entity.RECEIVER, sensor.receiver.id)
+            id_provider.register_entity(Entity.TARGET, detectable_sensor.target_id)
         for detectable_sensor in self.pcl_sensors:
             sensor = detectable_sensor.sensor
             if sensor.receiver.id in id_provider._used_ids[Entity.RECEIVER]:
@@ -289,12 +290,52 @@ class OrderOfBattle(pydantic.BaseModel):
         for detectable_effector in self.effectors:
             effector = detectable_effector.effector
             id_provider.register_entity(Entity.EFFECTOR, effector.id)
+            id_provider.register_entity(Entity.TARGET, detectable_effector.target_id)
         for drone in self.oneway_drones:
             id_provider.register_entity(Entity.EFFECTOR, drone.effector.id)
             id_provider.register_entity(Entity.TARGET, drone.trajectory.target_id)
         for missile in self.ballistic_missiles:
             id_provider.register_entity(Entity.EFFECTOR, missile.effector_id)
             id_provider.register_entity(Entity.TARGET, missile.target_id)
+
+    def reindex(self, id_provider: IdProvider):
+        sensor_id_mapping: dict[int, int] = {}
+        for detectable_sensor in self.monostatic_sensors:
+            s = detectable_sensor.sensor
+            sensor_id_mapping[s.id] = id_provider.increment(Entity.SENSOR)
+            s.id = sensor_id_mapping[s.id]
+            s.transmitter.id = id_provider.increment(Entity.TRANSMITTER)
+            s.receiver.id = id_provider.increment(Entity.RECEIVER)
+        pcl_receiver_id_mapping: dict[int, int] = {}
+        for detectable_sensor in self.pcl_sensors:
+            s = detectable_sensor.sensor
+            sensor_id_mapping[s.id] = id_provider.increment(Entity.SENSOR)
+            s.id = sensor_id_mapping[s.id]
+            s.transmitter.id = id_provider.increment(Entity.TRANSMITTER)
+
+            # Make sure that the receiver ID is only updated once and kept consistent.
+            if s.receiver.id in pcl_receiver_id_mapping:
+                s.receiver.id = pcl_receiver_id_mapping[s.receiver.id]
+            else:
+                new_id = id_provider.increment(Entity.RECEIVER)
+                pcl_receiver_id_mapping[s.receiver.id] = new_id
+                s.receiver.id = new_id
+        for detectable_effector in self.effectors:
+            detectable_effector.effector.id = id_provider.increment(Entity.EFFECTOR)
+        for calc, t in self.simulationResults.monostaticCoverages:
+            calc.sensorId = sensor_id_mapping[calc.sensorId]
+        for calc, t in self.simulationResults.pclMinDetectableRcsGrids:
+            calc.sensor_id = sensor_id_mapping[calc.sensor_id]
+        for drone in self.oneway_drones:
+            drone.effector.id = id_provider.increment(Entity.EFFECTOR)
+            new_id = id_provider.increment(Entity.TARGET)
+            print(
+                f"Update trajectory targe_id {drone.trajectory.target_id} -> {new_id}"
+            )
+            drone.trajectory.target_id = new_id
+        for missile in self.ballistic_missiles:
+            missile.effector_id = id_provider.increment(Entity.EFFECTOR)
+            missile.target_id = id_provider.increment(Entity.TARGET)
 
     @property
     def t_min(self) -> datetime.datetime | None:
@@ -321,77 +362,15 @@ class OrderOfBattle(pydantic.BaseModel):
     ) -> OrderOfBattle:
         id_provider = IdProvider()
         orbat1.update_id_provider(id_provider)
-
-        monostatic_sensors = [s.model_copy() for s in orbat1.monostatic_sensors]
-        pcl_sensors = [s.model_copy() for s in orbat1.pcl_sensors]
-        effectors = [e.model_copy() for e in orbat1.effectors]
-
-        sensor_id_map: dict[int, int] = {}
-        for detectable_sensor in orbat2.monostatic_sensors:
-            sensor = detectable_sensor.sensor
-            sensor = sensor.model_copy()
-            new_id = sensor.id + id_provider.increment(Entity.SENSOR)
-            sensor_id_map[sensor.id] = new_id
-            sensor.id = new_id
-            sensor.transmitter.id += id_provider.increment(Entity.TRANSMITTER)
-            sensor.receiver.id += id_provider.increment(Entity.RECEIVER)
-            detectable_sensor.sensor = sensor
-            monostatic_sensors.append(detectable_sensor)
-        for detectable_sensor in orbat2.pcl_sensors:
-            sensor = detectable_sensor.sensor
-            sensor = sensor.model_copy()
-            sensor.id += id_provider.increment(Entity.SENSOR)
-            sensor.transmitter.id += id_provider.increment(Entity.TRANSMITTER)
-            sensor.receiver.id += id_provider.increment(Entity.RECEIVER)
-            detectable_sensor.sensor = sensor
-            pcl_sensors.append(detectable_sensor)
-        for detectable_effector in orbat2.effectors:
-            effector = detectable_effector.effector
-            effector = DirectFireEffectorFactory(
-                id=effector.id + id_provider.increment(Entity.EFFECTOR),
-                name=effector.name,
-                point=effector.point.model_copy(),
-                combat_range=effector.combat_range,
-                n_attacks_left=effector.n_attacks_left,
-            )
-            effectors.append(
-                StaticDirectFireEffectorFactory(
-                    target_id=detectable_effector.target_id,
-                    rcs=detectable_effector.rcs,
-                    effector=effector,
-                )
-            )
-        # Merge simulation results. Be careful to adjust the sensor IDs.
-        simulationResults = orbat1.simulationResults.model_copy()
-        for calc, t in orbat2.simulationResults.monostaticCoverages:
-            calc = calc.model_copy()
-            calc.sensorId = sensor_id_map[calc.sensorId]
-            simulationResults.monostaticCoverages.append((calc, t))
-        for calc, t in orbat2.simulationResults.pclMinDetectableRcsGrids:
-            calc = calc.model_copy()
-            calc.sensor_id = sensor_id_map[calc.sensor_id]
-            simulationResults.pclMinDetectableRcsGrids.append((calc, t))
-
-        oneway_drones = [d.model_copy() for d in orbat1.oneway_drones]
-        for d in orbat2.oneway_drones:
-            d = d.model_copy(deep=True)
-            d.effector.id += id_provider.increment(Entity.EFFECTOR)
-            d.trajectory.target_id += id_provider.increment(Entity.TARGET)
-            oneway_drones.append(d)
-        ballistic_missiles = [m.model_copy() for m in orbat1.ballistic_missiles]
-        for m in orbat2.ballistic_missiles:
-            m = m.model_copy(deep=True)
-            m.effector_id += id_provider.increment(Entity.EFFECTOR)
-            m.target_id += id_provider.increment(Entity.TARGET)
-            ballistic_missiles.append(m)
+        orbat2.reindex(id_provider)
 
         return OrderOfBattle(
-            monostatic_sensors=monostatic_sensors,
-            pcl_sensors=pcl_sensors,
-            effectors=effectors,
-            simulationResults=simulationResults,
-            oneway_drones=oneway_drones,
-            ballistic_missiles=ballistic_missiles,
+            monostatic_sensors=orbat1.monostatic_sensors + orbat2.monostatic_sensors,
+            pcl_sensors=orbat1 + orbat2.pcl_sensors,
+            effectors=orbat1.effectors + orbat2.effectors,
+            simulationResults=orbat1.simulationResults + orbat2.simulationResults,
+            oneway_drones=orbat1.oneway_drones + orbat2.oneway_drones,
+            ballistic_missiles=orbat1.ballistic_missiles + orbat2.oneway_drones,
             unused_id_sensor=id_provider.increment(Entity.SENSOR),
             unused_id_receiver=id_provider.increment(Entity.RECEIVER),
             unused_id_transmitter=id_provider.increment(Entity.TRANSMITTER),
