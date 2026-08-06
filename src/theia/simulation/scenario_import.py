@@ -335,14 +335,16 @@ class OrderOfBattle(pydantic.BaseModel):
             sensor.id = new_id
             sensor.transmitter.id += id_provider.increment(Entity.TRANSMITTER)
             sensor.receiver.id += id_provider.increment(Entity.RECEIVER)
-            monostatic_sensors.append(sensor)
+            detectable_sensor.sensor = sensor
+            monostatic_sensors.append(detectable_sensor)
         for detectable_sensor in orbat2.pcl_sensors:
             sensor = detectable_sensor.sensor
             sensor = sensor.model_copy()
             sensor.id += id_provider.increment(Entity.SENSOR)
             sensor.transmitter.id += id_provider.increment(Entity.TRANSMITTER)
             sensor.receiver.id += id_provider.increment(Entity.RECEIVER)
-            pcl_sensors.append(sensor)
+            detectable_sensor.sensor = sensor
+            pcl_sensors.append(detectable_sensor)
         for detectable_effector in orbat2.effectors:
             effector = detectable_effector.effector
             effector = DirectFireEffectorFactory(
@@ -359,7 +361,17 @@ class OrderOfBattle(pydantic.BaseModel):
                     effector=effector,
                 )
             )
-        # TODO: Merge simulation results!!!
+        # Merge simulation results. Be careful to adjust the sensor IDs.
+        simulationResults = orbat1.simulationResults.model_copy()
+        for calc, t in orbat2.simulationResults.monostaticCoverages:
+            calc = calc.model_copy()
+            calc.sensorId = sensor_id_map[calc.sensorId]
+            simulationResults.monostaticCoverages.append((calc, t))
+        for calc, t in orbat2.simulationResults.pclMinDetectableRcsGrids:
+            calc = calc.model_copy()
+            calc.sensor_id = sensor_id_map[calc.sensor_id]
+            simulationResults.pclMinDetectableRcsGrids.append((calc, t))
+
         oneway_drones = [d.model_copy() for d in orbat1.oneway_drones]
         for d in orbat2.oneway_drones:
             d = d.model_copy(deep=True)
@@ -377,9 +389,14 @@ class OrderOfBattle(pydantic.BaseModel):
             monostatic_sensors=monostatic_sensors,
             pcl_sensors=pcl_sensors,
             effectors=effectors,
-            simulationResults=orbat1.simulationResults,  # TODO: Merge sim results of orbat2!!!
+            simulationResults=simulationResults,
             oneway_drones=oneway_drones,
             ballistic_missiles=ballistic_missiles,
+            unused_id_sensor=id_provider.increment(Entity.SENSOR),
+            unused_id_receiver=id_provider.increment(Entity.RECEIVER),
+            unused_id_transmitter=id_provider.increment(Entity.TRANSMITTER),
+            unused_id_effector=id_provider.increment(Entity.EFFECTOR),
+            unused_target_id=id_provider.increment(Entity.TARGET),
         )
 
     @staticmethod
