@@ -85,7 +85,7 @@ class StaticDirectFireController(Controller):
                 name=self.target_name,
                 sidc=self.sidc
                 if self.effector.n_attacks_left > 0
-                else self.sidc.UNKNOWN,
+                else SIDC.damaged(self.sidc.value),
                 point=self.effector.point,
                 cross_section_model=ConstantRcsModel(rcs=self.rcs),
                 velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
