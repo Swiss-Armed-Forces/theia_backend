@@ -32,10 +32,12 @@ if __name__ == "__main__":
     terrain_factory = TerrainFactory(terrain_name=args.terrain_model)
     terrain = terrain_factory.to_terrain()
 
-    id_provider = IdProvider()
-
     orbat_blue = OrderOfBattle.from_file(args.orbat_file_blue)
     orbat_red = OrderOfBattle.from_file(args.orbat_file_red)
+
+    id_provider = IdProvider()
+    orbat_blue.update_id_provider(id_provider)
+    orbat_red.reindex(id_provider)
 
     t_min = None
     t_max = None
