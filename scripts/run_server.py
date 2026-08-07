@@ -3,9 +3,11 @@ import datetime
 import numpy as np
 import uvicorn
 
+from theia.config import DEFAULT_TERRAIN
 from theia.detection.pcl import PclDetector
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.damage_model import UniformDamageModel
+from theia.simulation.scenario_import import TerrainFactory
 from theia.simulation.server import create_app
 from theia.simulation.simulation_director import SimulationDirector
 from theia.simulation.simulator import (
@@ -15,7 +17,6 @@ from theia.simulation.simulator import (
 )
 from theia.simulation.theia_logging import SituationalPictureBuffer
 from theia.simulation.trackers.pseudo_tracker import PseudoTracker
-from theia.terrain import SrtmTerrainModel
 
 
 class DummySimulationDirector(SimulationDirector, AbstractSimulationListener):
@@ -27,7 +28,7 @@ class DummySimulationDirector(SimulationDirector, AbstractSimulationListener):
     def __init__(self):
         t0 = datetime.datetime.fromtimestamp(0, tz=datetime.UTC)
         rng = np.random.default_rng(seed=847980)
-        terrain = SrtmTerrainModel()
+        terrain = TerrainFactory(terrain_name=DEFAULT_TERRAIN).to_terrain()
         simulator = Simulator(
             pcl_detector=PclDetector(),
             pet_detector=PclDetector(),
