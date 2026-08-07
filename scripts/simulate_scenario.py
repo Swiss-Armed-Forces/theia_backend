@@ -18,6 +18,7 @@ if __name__ == "__main__":
         description="Simulate a scenario using Theia",
     )
     parser.add_argument("scenario_file", type=pathlib.Path)
+    parser.add_argument("output_file", type=pathlib.Path)
     parser.add_argument("--interactive", action="store_true")
     parser.add_argument("--profile", action="store_true")
     args = parser.parse_args()
@@ -28,7 +29,7 @@ if __name__ == "__main__":
     with open(args.scenario_file, "r") as file:
         scenario = ScenarioFactory.model_validate_json(file.read())
 
-    simulator, buffer = scenario.to_simulator("test.json", args.interactive)
+    simulator, buffer = scenario.to_simulator(args.output_file, args.interactive)
 
     if args.interactive:
         app = create_app(buffer, SimulationDirector(simulator))
@@ -45,8 +46,8 @@ if __name__ == "__main__":
             profiler = cProfile.Profile()
             profiler.enable()
 
-        for _ in tqdm(range(n_iterations + 1)):
-            simulator.advance()
+        while simulator.advance():
+            pass
 
         if args.profile:
             profiler.disable()
