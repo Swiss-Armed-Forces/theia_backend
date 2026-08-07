@@ -4,6 +4,7 @@ import json
 
 import numpy as np
 import pandas as pd
+from pydantic import TypeAdapter
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 
 from theia.coordinates import CoordinateTransformations
@@ -18,9 +19,11 @@ from theia.types import (
     PclDetection,
     PclSensor,
     PetDetection,
+    Shot,
     SituationalPicture,
     Snapshot,
     Target,
+    TrackInitEvent,
     Trajectory,
 )
 
@@ -207,6 +210,9 @@ class InMemoryLogger(AbstractSimulationListener):
         pass
 
 
+
+
+
 class LogLoader:
     """Load JSON file written by FileLogger."""
 
@@ -219,6 +225,7 @@ class LogLoader:
         self._load_target_ground_truth(is_blue=False)
         self._load_detections(is_blue=True)
         self._load_detections(is_blue=False)
+        self._load_events()
 
     @property
     def blue_monostatic_radars(self) -> list[MonostaticSensor]:
@@ -255,6 +262,22 @@ class LogLoader:
     @property
     def red_target_ground_truth(self) -> dict[int, GroundTruthPath]:
         return self._red_target_ground_truth
+
+    @property
+    def track_init_events(self) -> list[TrackInitEvent]:
+        return [e for e in self._events if type(e) is TrackInitEvent]
+
+    @property
+    def shots(self) -> list[Shot]:
+        return [e for e in self._events if isinstance(e, Shot)]
+
+    @property
+    def kill_events(self) -> list[KillEvent]:
+        return [e for e in self._events if type(e) is KillEvent]
+
+    @property
+    def t_max(self) -> datetime.datetime:
+        return self._snapshots[-1].time
 
     def _load_snapshots(self):
         self._snapshots = [Snapshot.model_validate(d) for d in self._data["snapshots"]]
@@ -352,6 +375,11 @@ class LogLoader:
             self._blue_pcl_detections = pcl_detections
         else:
             self._red_pcl_detections = pcl_detections
+
+    def _load_events(self):
+        self._events = TypeAdapter(
+            list[TrackInitEvent | Shot | KillEvent]
+        ).validate_python(self._data["events"])
 
 
 class CompositeSimulationListener(AbstractSimulationListener):
