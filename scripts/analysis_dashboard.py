@@ -5,6 +5,7 @@ from flask_caching import Cache
 
 from theia.grids import LatLonHeightGrid
 from theia.simulation.analysis import Analysis, death_map_to_grid
+from theia.simulation.scenario_import import ScenarioFactory
 from theia.simulation.theia_logging import LogLoader
 
 skull_svg = """
@@ -97,7 +98,36 @@ def n_kills_overlay(
     return cells
 
 
+def build_map(analysis: Analysis, skull_svg: str) -> dl.Map:
+    return dl.Map(
+        [
+            dl.TileLayer(),
+            # dl.LayerGroup(n_kills_overlay(values, grid)),
+            *[
+                dl.DivMarker(
+                    position=(p.lat, p.lon),
+                    iconOptions=dict(
+                        html=skull_svg.replace("<svg ", "<svg style='fill:red;' "),
+                        # html=f'<div style="color: red;">{skull_svg}</div>',
+                        className="",
+                        iconSize=[28, 28],
+                        iconAnchor=[14, 28],
+                    ),
+                    children=dl.Tooltip(f"RED target #{id}\n† {t}"),
+                )
+                for id, t, p in analysis.red_death_map
+            ],
+        ],
+        center=[47.45270, 8.56068],
+        zoom=10,
+        style={"width": "100%", "height": "100%"},
+    )
+
+
 path = "/home/user/Documents/theia_backend/scenarios/fest_mw_drones/result_full_sensors.json"
+scenario_path = (
+    "/home/user/Documents/theia_backend/scenarios/fest_mw_drones/full_sensors.json"
+)
 
 
 app = Dash()
@@ -111,12 +141,15 @@ cache = Cache(
 
 
 @cache.memoize(timeout=3600)
-def load_log_file(path: str):
-    return LogLoader(path)
+def load_log_file(path: str) -> tuple[LogLoader, ScenarioFactory]:
+    loader = LogLoader(path)
+    with open(scenario_path, "r") as file:
+        scenario = ScenarioFactory.model_validate_json(file.read())
+    return loader, scenario
 
 
 # Prepare data.
-loader = load_log_file(path)
+loader, scenario = load_log_file(path)
 analysis = Analysis(log_file=loader)
 
 grid, values = death_map_to_grid(analysis.red_death_map)
@@ -158,31 +191,7 @@ app.layout = html.Div(
         ),
         # Columns 2-6, both rows: Map
         html.Div(
-            dl.Map(
-                [
-                    dl.TileLayer(),
-                    # dl.LayerGroup(n_kills_overlay(values, grid)),
-                    *[
-                        dl.DivMarker(
-                            position=(p.lat, p.lon),
-                            iconOptions=dict(
-                                html=skull_svg.replace(
-                                    "<svg ", "<svg style='fill:red;' "
-                                ),
-                                # html=f'<div style="color: red;">{skull_svg}</div>',
-                                className="",
-                                iconSize=[28, 28],
-                                iconAnchor=[14, 28],
-                            ),
-                            children=dl.Tooltip(f"RED target #{id}\n† {t}"),
-                        )
-                        for id, t, p in analysis.red_death_map
-                    ],
-                ],
-                center=[47.45270, 8.56068],
-                zoom=10,
-                style={"width": "100%", "height": "100%"},
-            ),
+            build_map(analysis, skull_svg),
             style={
                 "gridColumn": "3 / 7",
                 "gridRow": "1 / 3",
