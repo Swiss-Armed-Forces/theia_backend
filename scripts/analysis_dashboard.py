@@ -11,6 +11,9 @@ from theia.simulation.theia_logging import LogLoader
 skull_svg = """
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M480 491.4C538.5 447.4 576 379.8 576 304C576 171.5 461.4 64 320 64C178.6 64 64 171.5 64 304C64 379.8 101.5 447.4 160 491.4L160 528C160 554.5 181.5 576 208 576L240 576L240 536C240 522.7 250.7 512 264 512C277.3 512 288 522.7 288 536L288 576L352 576L352 536C352 522.7 362.7 512 376 512C389.3 512 400 522.7 400 536L400 576L432 576C458.5 576 480 554.5 480 528L480 491.4zM160 320C160 284.7 188.7 256 224 256C259.3 256 288 284.7 288 320C288 355.3 259.3 384 224 384C188.7 384 160 355.3 160 320zM416 256C451.3 256 480 284.7 480 320C480 355.3 451.3 384 416 384C380.7 384 352 355.3 352 320C352 284.7 380.7 256 416 256z"/></svg>
 """
+blue_gbad = """
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" viewBox="21 46 158 108"><path d="M25,50 l150,0 0,100 -150,0 z" stroke-width="4" stroke="black" fill="rgb(128,224,255)" fill-opacity="1" ></path><path d="M25,150 C25,110 175,110 175,150" stroke-width="4" stroke="black" fill="none" ></path></svg>
+"""
 
 skull_icon = dict(
     html=skull_svg,
@@ -99,10 +102,47 @@ def n_kills_overlay(
 
 
 def build_map(analysis: Analysis, skull_svg: str) -> dl.Map:
+    effector_markers = []
+    for e in scenario.blue_orbat.effectors:
+        n = analysis.n_shots_per_effector[e.effector.id]
+        color = "rgb(128, 224, 255)" if n > 0 else "gray"
+        position = (e.effector.point.lat, e.effector.point.lon)
+        m = dl.DivMarker(
+            position=position,
+            iconOptions=dict(
+                html=blue_gbad.replace('fill="rgb(128,224,255)"', f'fill="{color}"'),
+                className="",
+                iconSize=[28, 28],
+                iconAnchor=[14, 28],
+            ),
+            children=dl.Tooltip(
+                html.Div(
+                    [
+                        f"Effector #{e.effector.id}",
+                        html.Br(),
+                        f"No. shots: {n}",
+                    ]
+                )
+            ),
+        )
+        effector_markers.append(m)
+        effector_markers.append(
+            dl.Circle(
+                center=position,
+                radius=e.effector.combat_range,
+                pathOptions=dict(
+                    fill=False,
+                    color="blue",
+                    dashArray="4, 4",
+                ),
+            )
+        )
+
     return dl.Map(
         [
             dl.TileLayer(),
             # dl.LayerGroup(n_kills_overlay(values, grid)),
+            dl.ScaleControl(position="bottomleft"),
             *[
                 dl.DivMarker(
                     position=(p.lat, p.lon),
@@ -117,6 +157,7 @@ def build_map(analysis: Analysis, skull_svg: str) -> dl.Map:
                 )
                 for id, t, p in analysis.red_death_map
             ],
+            *effector_markers,
         ],
         center=[47.45270, 8.56068],
         zoom=10,
