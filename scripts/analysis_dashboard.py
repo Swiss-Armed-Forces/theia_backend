@@ -3,6 +3,7 @@ import numpy as np
 from dash import Dash, dcc, html
 from flask_caching import Cache
 
+from theia.coordinates import CoordinateTransformations
 from theia.grids import LatLonHeightGrid
 from theia.simulation.analysis import Analysis, death_map_to_grid
 from theia.simulation.scenario_import import ScenarioFactory
@@ -138,6 +139,23 @@ def build_map(analysis: Analysis, skull_svg: str) -> dl.Map:
             )
         )
 
+    # RED aircraft trajectories.
+    red_trajectories = []
+    for target_id, t in loader.red_target_ground_truth.items():
+        points = [
+            CoordinateTransformations.cartesian_to_geodetic(
+                *state.state_vector[[0, 2, 4]]
+            )[:2]
+            for state in t.states
+        ]
+        red_trajectories.append(
+            dl.Polyline(
+                positions=points,
+                children=[dl.Tooltip(f"Target ID #{target_id}")],
+                color="gray" if target_id in analysis.times_of_death else "red",
+            )
+        )
+
     return dl.Map(
         [
             dl.TileLayer(),
@@ -151,13 +169,22 @@ def build_map(analysis: Analysis, skull_svg: str) -> dl.Map:
                         # html=f'<div style="color: red;">{skull_svg}</div>',
                         className="",
                         iconSize=[28, 28],
-                        iconAnchor=[14, 28],
+                        iconAnchor=[14, 14],
                     ),
-                    children=dl.Tooltip(f"RED target #{id}\n† {t}"),
+                    children=dl.Tooltip(
+                        html.Div(
+                            [
+                                f"RED target #{id}",
+                                html.Br(),
+                                f"† {t}",
+                            ]
+                        )
+                    ),
                 )
                 for id, t, p in analysis.red_death_map
             ],
             *effector_markers,
+            *red_trajectories,
         ],
         center=[47.45270, 8.56068],
         zoom=10,
