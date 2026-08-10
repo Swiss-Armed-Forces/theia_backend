@@ -23,6 +23,7 @@ from theia.types import (
     SituationalPicture,
     Snapshot,
     Target,
+    TextEvent,
     TrackInitEvent,
     Trajectory,
 )
@@ -57,9 +58,15 @@ class NoLogger(AbstractSimulationListener):
 
 
 class FileLogger(AbstractSimulationListener):
-    def __init__(self, path: str, override: bool = True):
+    def __init__(
+        self,
+        path: str,
+        override: bool = True,
+        log_situational_picture: bool = False,
+    ):
         self._path = path
         self._override = override
+        self._log_situational_picture = log_situational_picture
         self.snapshots = []
         self.situational_pictures = []
         self.detections = []
@@ -105,14 +112,14 @@ class FileLogger(AbstractSimulationListener):
         self.events.extend(events)
 
     def on_end(self):
-        text = json.dumps(
-            {
-                # "situational_pictures": self.situational_pictures,
-                "snapshots": self.snapshots,
-                "detections": self.detections,
-                "events": [e.model_dump(mode="json") for e in self.events],
-            },
-        )
+        data = {
+            "snapshots": self.snapshots,
+            "detections": self.detections,
+            "events": [e.model_dump(mode="json") for e in self.events],
+        }
+        if self._log_situational_picture:
+            data["situational_pictures"] = self.situational_pictures
+        text = json.dumps(data)
         with open(self._path, "a" if not self._override else "w") as file:
             file.write(text)
 
@@ -210,9 +217,6 @@ class InMemoryLogger(AbstractSimulationListener):
         pass
 
 
-
-
-
 class LogLoader:
     """Load JSON file written by FileLogger."""
 
@@ -226,6 +230,7 @@ class LogLoader:
         self._load_detections(is_blue=True)
         self._load_detections(is_blue=False)
         self._load_events()
+        self._load_situational_pictures()
 
     @property
     def blue_monostatic_radars(self) -> list[MonostaticSensor]:
@@ -252,6 +257,14 @@ class LogLoader:
         return self._blue_pcl_detections
 
     @property
+    def blue_situational_pictures(self) -> list[SituationalPicture]:
+        return self._blue_situational_pictures
+
+    @property
+    def red_situational_pictures(self) -> list[SituationalPicture]:
+        return self._red_situational_pictures
+
+    @property
     def red_monostatic_radar_detections(self) -> list[MonostaticRadarDetection]:
         return self._red_monostatic_radar_detections
 
@@ -272,6 +285,10 @@ class LogLoader:
         return [e for e in self._events if isinstance(e, Shot)]
 
     @property
+    def text_events(self) -> list[TextEvent]:
+        return [e for e in self._events if isinstance(e, TextEvent)]
+
+    @property
     def kill_events(self) -> list[KillEvent]:
         return [e for e in self._events if type(e) is KillEvent]
 
@@ -281,6 +298,21 @@ class LogLoader:
 
     def _load_snapshots(self):
         self._snapshots = [Snapshot.model_validate(d) for d in self._data["snapshots"]]
+
+    def _load_situational_pictures(self):
+        # Situational pictures are only logged if debugging is enabled to keep
+        # output file small.
+        if "situational_pictures" in self._data:
+            self._blue_situational_pictures = [
+                SituationalPicture.model_validate(p["situational_picture"])
+                for p in self._data["situational_pictures"]
+                if p["team"] == "blue"
+            ]
+            self._red_situational_pictures = [
+                SituationalPicture.model_validate(p["situational_picture"])
+                for p in self._data["situational_pictures"]
+                if p["team"] == "red"
+            ]
 
     def _load_sensors(self, is_blue: bool):
         monostatic_sensors: dict[int, MonostaticSensor] = {}
@@ -378,7 +410,7 @@ class LogLoader:
 
     def _load_events(self):
         self._events = TypeAdapter(
-            list[TrackInitEvent | Shot | KillEvent]
+            list[TrackInitEvent | Shot | KillEvent | TextEvent]
         ).validate_python(self._data["events"])
 
 

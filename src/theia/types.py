@@ -600,14 +600,16 @@ class Trajectory(pydantic.BaseModel):
             cross_section_model=target.cross_section_model,
         )
 
-    def sample_in_time(self, dt: datetime.timedelta) -> list[Target]:
+    def sample_in_time(
+        self, dt: datetime.timedelta
+    ) -> list[tuple[datetime.datetime, Target]]:
         timestamps = np.arange(
             self.times[0].timestamp(),
             self.times[-1].timestamp(),
             dt.seconds,
         )
-        times = [datetime.datetime.fromtimestamp(t) for t in timestamps]
-        return [self(t) for t in times]
+        times = [datetime.datetime.fromtimestamp(t, datetime.UTC) for t in timestamps]
+        return [(t, self(t)) for t in times]
 
 
 class MonostaticRadarDetection(pydantic.BaseModel):
@@ -1121,6 +1123,10 @@ class Event(pydantic.BaseModel):
     """Time at which the event happens"""
 
 
+class TextEvent(Event):
+    text: str
+
+
 class TrackInitEvent(Event):
     """Fired when a new track is initialized."""
 
@@ -1341,7 +1347,7 @@ class Track(pydantic.BaseModel):
     Coordinate order:
     x, vx, y, vy, z, vz
     """
-    inactive_time: datetime.timedelta = datetime.timedelta(seconds=30)
+    inactive_time: datetime.timedelta
 
     _times: list[float] = pydantic.PrivateAttr()
     _y: np.ndarray = pydantic.PrivateAttr()
@@ -1352,13 +1358,19 @@ class Track(pydantic.BaseModel):
         id: str,
         sidc: str,
         states: list[tuple[datetime.datetime, np.ndarray]],
+        inactive_time: datetime.timedelta = datetime.timedelta(seconds=30),
     ):
-        super().__init__(id=id, sidc=sidc, states=states)
+        super().__init__(
+            id=id,
+            sidc=sidc,
+            states=states,
+            inactive_time=inactive_time,
+        )
 
         self._times = []
-        self._y = np.empty((len(states), 6), dtype=np.float64)
+        self._y = np.empty((len(self.states), 6), dtype=np.float64)
 
-        for i, (time, state) in enumerate(states):
+        for i, (time, state) in enumerate(self.states):
             self._times.append(time.timestamp())
             self._y[i, :] = state
 
