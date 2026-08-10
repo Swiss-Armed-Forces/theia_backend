@@ -1,84 +1,133 @@
+from collections import Counter, defaultdict
+from dataclasses import dataclass
 import datetime
 
 import numpy as np
 import plotly.graph_objects as go
 
 from theia.grids import LatLonHeightGrid
+from theia.simulation.theia_logging import LogLoader
 from theia.types import Point
 
 
-def plot_lifespan(
-    time_of_birth: dict[int, datetime.datetime],
-    time_of_death: dict[int, datetime.datetime],
-    t_max: datetime.datetime,
-):
-    red_target_ids = sorted(
-        list(time_of_birth.keys()),
-        key=lambda id: time_of_birth[id],
-    )
+@dataclass
+class Analysis:
+    log_file: LogLoader
 
-    forest_green = "rgb(46, 111, 64)"
-    coral = "rgb(248, 131, 121)"
-
-    fig = go.Figure()
-
-    for i, id in enumerate(red_target_ids):
-        start = time_of_birth[id]
-        end = time_of_death.get(id, t_max)
-
-        start = time_of_birth[id]
-        end = time_of_death.get(id, t_max)
-
-        is_killed = id in time_of_death
-
-        xs = [
-            datetime.datetime.fromtimestamp(t, datetime.UTC)
-            for t in np.arange(start.timestamp(), end.timestamp(), 10)
-        ]
-        ys = [i] * len(xs)
-
-        # lifeline
-        fig.add_trace(
-            go.Scatter(
-                x=xs,
-                y=ys,
-                mode="lines",
-                line=dict(color=coral if is_killed else forest_green, width=3),
-                showlegend=False,
-                hovertemplate=f"Target ID {id}<extra></extra>",
+    def __post_init__(self):
+        red_death_map: list[tuple[int, datetime.datetime, Point]] = []
+        blue_death_map: list[tuple[int, datetime.datetime, Point]] = []
+        for event in self.log_file.kill_events:
+            snapshot = next(
+                (s for s in self.log_file._snapshots if s.time == event.time)
             )
+            target = next(
+                (t for t in snapshot.red_targets if t.id == event.target_id),
+                None,
+            )
+            if target is not None:
+                red_death_map.append((event.target_id, event.time, target.point))
+                continue
+            target = next(
+                (t for t in snapshot.blue_targets if t.id == event.target_id),
+                None,
+            )
+            if target is not None:
+                blue_death_map.append((event.target_id, event.time, target.point))
+                continue
+            raise RuntimeError(
+                "What exactly dies here? Target is neither blue nor red...",
+                event,
+            )
+        self._red_death_map = red_death_map
+        self._blue_death_map = blue_death_map
+
+    def times_of_birth(self, is_blue: bool) -> dict[int, datetime.datetime]:
+        if is_blue:
+            raise NotImplementedError()
+        ground_truth = self.log_file.red_target_ground_truth
+        return {
+            target_id: trajectory.states[0].timestamp
+            for target_id, trajectory in ground_truth.items()
+        }
+
+    @property
+    def times_of_death(self) -> dict[int, datetime.datetime]:
+        return {e.target_id: e.time for e in self.log_file.kill_events}
+
+    @property
+    def n_shots_per_effector(self) -> defaultdict[int, int]:
+        return defaultdict(lambda: 0) | dict(
+            Counter([shot.shooter.id for shot in self.log_file.shots])
         )
 
-        # skull marker at time of death, centered on the line
-        if is_killed:
+    @property
+    def red_death_map(self) -> list[tuple[int, datetime.datetime, Point]]:
+        return self._red_death_map
+
+    @property
+    def blue_death_map(self) -> list[tuple[int, datetime.datetime, Point]]:
+        return self._blue_death_map
+
+    def plot_lifespan(self, is_blue: bool):
+        red_target_ids = sorted(
+            list(self.times_of_birth(is_blue)),
+            key=lambda id: self.times_of_birth(is_blue)[id],
+        )
+
+        forest_green = "rgb(46, 111, 64)"
+        coral = "rgb(248, 131, 121)"
+
+        fig = go.Figure()
+
+        for i, id in enumerate(red_target_ids):
+            start = self.times_of_birth(is_blue)[id]
+            end = self.times_of_death.get(id, self.log_file.t_max)
+
+            is_killed = id in self.times_of_death
+
+            xs = [
+                datetime.datetime.fromtimestamp(t, datetime.UTC)
+                for t in np.arange(start.timestamp(), end.timestamp(), 10)
+            ]
+            ys = [i] * len(xs)
+
+            # lifeline
             fig.add_trace(
                 go.Scatter(
-                    x=[time_of_death[id]],
-                    y=[i],
-                    mode="text",
-                    text=["☠"],
-                    textfont=dict(size=20),
-                    textposition="middle center",
+                    x=xs,
+                    y=ys,
+                    mode="lines",
+                    line=dict(color=coral if is_killed else forest_green, width=3),
                     showlegend=False,
+                    hovertemplate=f"Target ID {id}<extra></extra>",
                 )
             )
 
-    fig.update_layout(
-        # width=800,
-        # height=int(2 * 4.5 * 100),  # match matplotlib figsize scaling
-        # yaxis=dict(
-        #     tickmode="array",
-        #     tickvals=red_target_ids,
-        #     title="Target ID",
-        # ),
-        margin=dict(l=30, r=10, t=30, b=30),  # left, right, top, bottom in pixels
-        autosize=True,
-        xaxis=dict(title="Time"),
-        # template="plotly_white",
-        title=dict(text="RED target lifetimes", xanchor="center"),
-    )
+            # skull marker at time of death, centered on the line
+            if is_killed:
+                fig.add_trace(
+                    go.Scatter(
+                        x=[self.times_of_death[id]],
+                        y=[i],
+                        mode="text",
+                        text=["☠"],
+                        textfont=dict(size=20),
+                        textposition="middle center",
+                        showlegend=False,
+                    )
+                )
 
-    return fig
+        fig.update_layout(
+            # left, right, top, bottom in pixels
+            margin=dict(l=30, r=10, t=30, b=30),
+            autosize=True,
+            xaxis=dict(title="Time"),
+            # template="plotly_white",
+            title=dict(text="RED target lifetimes", xanchor="center"),
+        )
+
+        return fig
 
 
 def death_map_to_grid(
