@@ -44,6 +44,7 @@ from theia.types import (
     SituationalPicture,
     Snapshot,
     Target,
+    TextEvent,
     Trigger,
     VisualDetection,
     VisualSensor,
@@ -126,7 +127,7 @@ class Simulator(Trigger, AbstractEventListener):
             Visual line-of-sight detector
         simulate_clutter: bool, default True
             Whether to simulate clutter detections
-        shot_association_tolerance: float, default 1000.0
+        shot_association_tolerance: float, default 250.0
             Tolerance [m] for matching track positions to actual targets for direct shots
         """
         super().__init__()
@@ -496,10 +497,31 @@ class Simulator(Trigger, AbstractEventListener):
                     self._events.append(shot)
                     self._broadcast_event(shot)
                 except NoLosException:
+                    self._broadcast_event(
+                        TextEvent(
+                            id=-1,
+                            time=self.t,
+                            text=f"No LOS between effector #{effector.id} and target #{target.id}",
+                        )
+                    )
                     continue
                 except OutOfRangeException:
+                    self._broadcast_event(
+                        TextEvent(
+                            id=-1,
+                            time=self.t,
+                            text=f"Out of range between effector #{effector.id} and target #{target.id}",
+                        )
+                    )
                     continue
                 except OutOfAttacksException:
+                    self._broadcast_event(
+                        TextEvent(
+                            id=-1,
+                            time=self.t,
+                            text=f"Out of ammo effector #{effector.id} and target #{target.id}",
+                        )
+                    )
                     continue
 
                 if self._damage_model.is_lethal(shot):

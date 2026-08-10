@@ -475,6 +475,7 @@ class ScenarioFactory(pydantic.BaseModel):
         self,
         output_path: str,
         is_interactive: bool,
+        debugging: bool,
     ) -> tuple[Simulator, SituationalPictureBuffer | None]:
         id_provider = IdProvider()
 
@@ -487,7 +488,10 @@ class ScenarioFactory(pydantic.BaseModel):
         controller_red = self.red_orbat.to_controller(terrain, False)
 
         buffer = None
-        listener = FileLogger(path=output_path)
+        listener = FileLogger(
+            path=output_path,
+            log_situational_picture=debugging,
+        )
 
         if is_interactive:
             buffer = SituationalPictureBuffer()

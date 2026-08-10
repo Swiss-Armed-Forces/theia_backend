@@ -21,6 +21,7 @@ if __name__ == "__main__":
     parser.add_argument("output_file", type=pathlib.Path)
     parser.add_argument("--interactive", action="store_true")
     parser.add_argument("--profile", action="store_true")
+    parser.add_argument("--debugging", action="store_true")
     args = parser.parse_args()
 
     if args.interactive and args.profile:
@@ -29,7 +30,11 @@ if __name__ == "__main__":
     with open(args.scenario_file, "r") as file:
         scenario = ScenarioFactory.model_validate_json(file.read())
 
-    simulator, buffer = scenario.to_simulator(args.output_file, args.interactive)
+    simulator, buffer = scenario.to_simulator(
+        args.output_file,
+        args.interactive,
+        args.debugging,
+    )
 
     if args.interactive:
         app = create_app(buffer, SimulationDirector(simulator))
