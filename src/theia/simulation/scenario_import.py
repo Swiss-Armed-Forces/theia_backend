@@ -104,6 +104,7 @@ class DirectFireEffectorFactory(pydantic.BaseModel):
 class StaticDirectFireEffectorFactory(pydantic.BaseModel):
     target_id: int
     rcs: float
+    cadence: float
     effector: DirectFireEffectorFactory
 
     def to_controller(
@@ -116,6 +117,7 @@ class StaticDirectFireEffectorFactory(pydantic.BaseModel):
             sidc=SIDC.BLUE_AIR_DEFENCE if is_blue else SIDC.RED_AIR_DEFENCE,
             rcs=self.rcs,
             effector=self.effector.to_effector(terrain),
+            cadence=self.cadence,
         )
         return c
 

@@ -509,7 +509,7 @@ class Simulator(Trigger, AbstractEventListener):
                     self._broadcast_event(
                         TextEvent(
                             id=-1,
-                            time=self.t,
+                            time=self._t,
                             text=f"Out of range between effector #{effector.id} and target #{target.id}",
                         )
                     )
@@ -518,7 +518,7 @@ class Simulator(Trigger, AbstractEventListener):
                     self._broadcast_event(
                         TextEvent(
                             id=-1,
-                            time=self.t,
+                            time=self._t,
                             text=f"Out of ammo effector #{effector.id} and target #{target.id}",
                         )
                     )

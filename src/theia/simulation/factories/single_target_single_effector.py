@@ -104,6 +104,7 @@ class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
                 n_attacks_left=1,
                 terrain=self._terrain,
             ),
+            cadence=1.0,
             assigned_track_id="0",
         )
 

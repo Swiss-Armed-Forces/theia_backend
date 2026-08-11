@@ -46,14 +46,14 @@ class StaticDirectFireController(Controller):
     rcs: float
     """Radar cross section [m^2]"""
     effector: DirectFireEffector
+    cadence: float
+    """Number of attacks per second"""
+    time_of_last_shot: Optional[datetime.datetime] = None
     assigned_track_id: Optional[str] = None
     """
     Track ID of the track to be fought. No track is fought if ``None``.
     """
     target_name: str = ""
-    cadence: float
-    """Number of attacks per second"""
-    time_of_last_shot: Optional[datetime.datetime] = None
     geojson_range_altitudes: list[float] = field(default_factory=list)
 
     def __post_init__(self):
@@ -134,7 +134,7 @@ class StaticDirectFireController(Controller):
         if self.effector.terrain.has_line_of_sight(
             self.effector.point, target_position
         ):
-            self.time_of_last_shot = situational_picture + dt
+            self.time_of_last_shot = situational_picture.time + dt
             return [(self.effector, target_position)]
         else:
             return []
