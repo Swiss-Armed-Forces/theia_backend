@@ -45,14 +45,14 @@ if __name__ == "__main__":
     else:
         n_iterations = math.ceil(
             (scenario.stop_time - scenario.start_time).seconds / scenario.time_step
-        )
+        ) + 1
 
         if args.profile:
             profiler = cProfile.Profile()
             profiler.enable()
 
-        while simulator.advance():
-            pass
+        for _ in tqdm(range(n_iterations)):
+            simulator.advance()
 
         if args.profile:
             profiler.disable()

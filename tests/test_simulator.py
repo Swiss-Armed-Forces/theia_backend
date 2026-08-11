@@ -134,7 +134,7 @@ class SimulatorTest(unittest.TestCase):
         )
         n_iterations = int(
             np.ceil((stop_time - start_time).seconds / time_step.seconds)
-        )
+        ) + 1
 
         # Simulate until the end.
         for _ in tqdm(range(n_iterations)):

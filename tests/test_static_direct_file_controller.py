@@ -60,6 +60,7 @@ def get_controller(assigned_track_id: str | None) -> StaticDirectFireController:
         sidc=SIDC.BLUE_AIR_DEFENCE,
         rcs=1.5,
         effector=get_effector(),
+        cadence=1.0,
         assigned_track_id=assigned_track_id,
     )
 
