@@ -86,3 +86,13 @@ You will find the HTML documentation at `doc/build/html/index.html`.
 ```bash
 python -m unittest discover tests
 ```
+
+# Publishing a new release
+
+The package version is inferred from the git tags. We use semantic versioning.
+
+1. ``git tag v1.2.3`` (insert your version!)
+2. ``git push; git push --tags``
+3. ``poetry install``
+
+You can test whether the correct version is picked up using ``poetry version``.
