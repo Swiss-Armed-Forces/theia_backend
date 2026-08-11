@@ -8,6 +8,7 @@ import matplotlib
 import numpy as np
 import pydantic
 
+import theia
 from theia.config import SIDC, TERRAIN_HBV_DATA_DIR
 from theia.coordinates import CoordinateTransformations
 from theia.detection.pcl import PclDetector
@@ -403,7 +404,7 @@ class OrderOfBattle(pydantic.BaseModel):
         defs = schema.pop("$defs", {})
         return {
             "openapi": "3.1.0",
-            "info": {"title": "Theia", "version": "0.0.0"},
+            "info": {"title": "Theia", "version": theia.__version__},
             "paths": {},
             "components": {
                 "schemas": {
