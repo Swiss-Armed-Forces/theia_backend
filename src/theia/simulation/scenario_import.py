@@ -138,6 +138,105 @@ class FixedPathOneWayDroneFactory(pydantic.BaseModel):
         return LivingController(child=drone, target_id=drone.trajectory.target_id)
 
 
+class DroneSwarmFactory(pydantic.BaseModel):
+    swarm_trajectory: Trajectory
+    """The trajectory that represents the entire swarm."""
+    n_drones: int
+    """Number of drones in the swarm"""
+    lateral_max_deviation: float
+    """
+    Maximum one-sided deviation from the swarm trajectory
+    in north and east directions [m]
+    """
+    up_max_deviation: float
+    """
+    Maximum one-sided deviation from the swarm trajectory
+    in up direction [m]
+    """
+    effector_range: float
+    """Range of the effector [m] (corresponds e. g. to detonation range)"""
+    terrain: TerrainFactory
+
+    def to_controller(
+        self,
+        id_provider: IdProvider,
+        rng: np.random.Generator,
+    ) -> Controller:
+        trajectories = self.build_trajectories(id_provider, rng)
+        drones: list[FixedPathOneWayDrone] = []
+        for trajectory in trajectories:
+            effector_id = id_provider.increment(Entity.EFFECTOR)
+            factory = FixedPathOneWayDroneFactory(
+                effector=DirectFireEffectorFactory(
+                    id=effector_id,
+                    name=f"Drone swarm effector #{effector_id}",
+                    point=trajectory(trajectory.times[0]).point,
+                    combat_range=self.effector_range,
+                    n_attacks_left=1,
+                ),
+                trajectory=trajectory,
+                assigned_goal=trajectory(trajectory.times[-1]).point,
+            )
+            drones.append(factory.to_controller(self.terrain.to_terrain()))
+        return ControllerGroup(controllers=drones)
+
+    def build_trajectories(
+        self,
+        id_provider: IdProvider,
+        rng: np.random.Generator,
+    ) -> list[Trajectory]:
+        """
+        Build a drone swarm.
+
+        The swarm is assigned a random formation that is constant in time.
+        This means each drone is assigned an offset to the swarm trajectory that
+        is controlled by the parameter ``max_deviation``.
+        """
+        rng = np.random.Generator(np.random.PCG64)
+        lateral_offsets = rng.uniform(
+            -self.lateral_max_deviation,
+            self.lateral_max_deviation,
+            (self.n_drones, 2),
+        )
+        up_offsets = rng.uniform(
+            -self.up_max_deviation,
+            self.up_max_deviation,
+            (self.n_drones,),
+        )
+        swarm_points = np.array(
+            [
+                CoordinateTransformations.geodetic_to_cartesian(lat, lon, alt)
+                for lat, lon, alt in zip(
+                    self.swarm_trajectory.lats,
+                    self.swarm_trajectory.lons,
+                    self.swarm_trajectory.alts,
+                )
+            ]
+        )
+        results: list[Trajectory] = []
+        for lateral_offset, up_offset in zip(lateral_offsets, up_offsets, strict=True):
+            offset = np.array((lateral_offset[0], lateral_offset[1], up_offset))
+            points = swarm_points + offset
+            points_geodetic = [
+                CoordinateTransformations.cartesian_to_geodetic(*p) for p in points
+            ]
+            results.append(
+                Trajectory(
+                    target_id=id_provider.increment(Entity.TARGET),
+                    target_sidc=SIDC.RED_FIXED_WING,
+                    times=self.swarm_trajectory.times,
+                    lats=[p[0] for p in points_geodetic],
+                    lons=[p[1] for p in points_geodetic],
+                    alts=[p[2] for p in points_geodetic],
+                    vxs=self.swarm_trajectory.vxs,
+                    vys=self.swarm_trajectory.vys,
+                    vzs=self.swarm_trajectory.vzs,
+                    cross_section_model=self.swarm_trajectory.cross_section_model,
+                )
+            )
+        return results
+
+
 class MonostaticSensorFactory(pydantic.BaseModel):
     target_id: int
     rcs: float
@@ -214,6 +313,7 @@ class OrderOfBattle(pydantic.BaseModel):
     simulationResults: SimulationResults
     oneway_drones: list[FixedPathOneWayDroneFactory]
     ballistic_missiles: list[BallisticMissileFactory]
+    drone_swarms: list[DroneSwarmFactory]
     unused_id_sensor: int
     unused_id_receiver: int
     unused_id_transmitter: int
@@ -266,6 +366,9 @@ class OrderOfBattle(pydantic.BaseModel):
         oneway_drone_controllers = [
             drone.to_controller(terrain) for drone in self.oneway_drones
         ]
+
+        # TODO: Drone swarm controllers.
+
         bm_controllers = [bm.to_controller(is_blue) for bm in self.ballistic_missiles]
 
         return GeoJsonController(
@@ -279,6 +382,7 @@ class OrderOfBattle(pydantic.BaseModel):
         )
 
     def update_id_provider(self, id_provider: IdProvider):
+        # TODO: Consider drone swarms.
         for detectable_sensor in self.monostatic_sensors:
             sensor = detectable_sensor.sensor
             id_provider.register_entity(Entity.SENSOR, sensor.id)
@@ -317,6 +421,7 @@ class OrderOfBattle(pydantic.BaseModel):
             id_provider.register_entity(Entity.TARGET, missile.target_id)
 
     def reindex(self, id_provider: IdProvider):
+        # TODO: Consider drone swarms
         sensor_id_mapping: dict[int, int] = {}
         for detectable_sensor in self.monostatic_sensors:
             s = detectable_sensor.sensor
@@ -357,6 +462,7 @@ class OrderOfBattle(pydantic.BaseModel):
 
     @property
     def t_min(self) -> datetime.datetime | None:
+        # TODO: Consider drone swarms
         if len(self.oneway_drones) == 0 and len(self.ballistic_missiles) == 0:
             return None
         return min(
@@ -366,6 +472,7 @@ class OrderOfBattle(pydantic.BaseModel):
 
     @property
     def t_max(self) -> datetime.datetime:
+        # TODO: Consider drone swarms
         if len(self.oneway_drones) == 0 and len(self.ballistic_missiles) == 0:
             return None
         return max(
@@ -378,6 +485,7 @@ class OrderOfBattle(pydantic.BaseModel):
         orbat1: OrderOfBattle,
         orbat2: OrderOfBattle,
     ) -> OrderOfBattle:
+        # TODO: Consider drone swarms
         id_provider = IdProvider()
         orbat1.update_id_provider(id_provider)
         orbat2.reindex(id_provider)
