@@ -8,7 +8,7 @@ from theia.coordinates import CoordinateTransformations
 from theia.distance import line_of_sight_distance
 from theia.doppler import calculate_doppler_shift
 from theia.measurement import MonostaticMeasurementTransformations
-from theia.snr import calculate_snr
+from theia.snr import calculate_antenna_pattern_gain, calculate_snr
 from theia.terrain import AbstractTerrainModel
 from theia.types import (
     MonostaticRadarDetection,
@@ -195,8 +195,14 @@ def calculate_monostatic_snr(
         L_a=get_clear_sky_attenuation(radar.transmitter.frequency) * 2 * dist / 1000.0,
         # TODO: Should we include these factors?
         polarization_factor=0.0,
-        antenna_pattern_gain_receiver=0.0,
-        antenna_pattern_gain_transmitter=0.0,
+        antenna_pattern_gain_receiver=calculate_antenna_pattern_gain(
+            radar.receiver,
+            target.point,
+        ),
+        antenna_pattern_gain_transmitter=calculate_antenna_pattern_gain(
+            radar.transmitter,
+            target.point,
+        ),
         is_one_way=False,
     )
     return snr_dB
