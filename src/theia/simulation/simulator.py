@@ -262,7 +262,6 @@ class Simulator(Trigger, AbstractEventListener):
         )
         targets = self._red_targets if is_scanner_blue else self._blue_targets
         for radar in sensors:
-            max_range = calculate_maximum_monostatic_range(radar)
             time_of_last_detection = self._time_of_last_detection.get(
                 radar.id,
                 datetime.datetime(
@@ -293,6 +292,7 @@ class Simulator(Trigger, AbstractEventListener):
             self._time_of_last_detection[radar.receiver.id] = self._t
             # Simulate clutter.
             if self._simulate_clutter:
+                max_range = calculate_maximum_monostatic_range(radar)
                 clutter_detections = radar.error_model.sample_clutter(
                     radar,
                     self._rng,

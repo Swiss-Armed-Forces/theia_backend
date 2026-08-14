@@ -55,20 +55,23 @@ class FastSrtmModel(AbstractTerrainModel):
                 p1.alt,
             )
         )
-        p1_enu = np.array(p_start)
-        p2_enu = np.array(
-            self.tree.transformer.ecef_to_enu(
-                theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
-                    p2.lat,
-                    p2.lon,
-                    p2.alt,
-                )
+        p1_enu = p_start
+        p2_enu = self.tree.transformer.ecef_to_enu(
+            theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
+                p2.lat,
+                p2.lon,
+                p2.alt,
             )
         )
-        direction = p2_enu - p1_enu
-        norm = np.linalg.norm(direction)
-        direction = direction / norm
-        ray = Ray(p_start=p1_enu, direction=tuple(direction), t_max=norm)
+
+        direction = (
+            p2_enu[0] - p1_enu[0],
+            p2_enu[1] - p1_enu[1],
+            p2_enu[2] - p1_enu[2],
+        )
+        norm = math.sqrt(direction[0] ** 2 + direction[1] ** 2 + direction[2] ** 2)
+        direction = (direction[0] / norm, direction[1] / norm, direction[2] / norm)
+        ray = Ray(p_start=p1_enu, direction=direction, t_max=norm)
         return self.tree.has_line_of_sight(ray, t_min=self.t_min)
 
 
@@ -250,7 +253,7 @@ class Ray:
     """
 
     def __post_init__(self):
-        if np.allclose(self.direction, 0):
+        if self.direction[0] == 0 and self.direction[1] == 0 and self.direction[2] == 0:
             raise ValueError("Ray direction must not be zero!")
 
 
