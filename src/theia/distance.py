@@ -104,7 +104,7 @@ def line_of_sight_distance(
     """
     p1 = CoordinateTransformations.geodetic_to_cartesian(lat1, lon1, h1)
     p2 = CoordinateTransformations.geodetic_to_cartesian(lat2, lon2, h2)
-    dist = np.linalg.norm(np.array(p1) - np.array(p2))
+    dist = math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2 + (p1[2] - p2[2]) ** 2)
     return dist
 
 
