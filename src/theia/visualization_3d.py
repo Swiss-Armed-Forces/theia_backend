@@ -17,6 +17,7 @@ def visualize_hbv_tree(
     depth: int,
     los_points: Optional[tuple[Point, Point]] = None,
     vertical_exaggeration: float = 1.0,
+    show_tree: bool = False,
 ) -> go.Figure:
     """
     Visualise the terrain and a level of the HBV tree in ENU coordinates.
@@ -37,6 +38,8 @@ def visualize_hbv_tree(
         Visual stretch factor for the Up axis.  A value of 2 makes 1 m
         vertically occupy twice as much canvas space as 1 m horizontally.
         Axis tick labels are not affected — only the visual proportions change.
+    show_tree: bool, default False
+        Whether to show the bounding boxes of the terrain HBV tree
 
     Returns
     -------
@@ -94,28 +97,29 @@ def visualize_hbv_tree(
     roi_xmin, roi_xmax = roi_enu[:, 0].min(), roi_enu[:, 0].max()
     roi_ymin, roi_ymax = roi_enu[:, 1].min(), roi_enu[:, 1].max()
 
-    # ------------------------------------------------------------------ #
-    # Tree nodes at the requested depth
-    # ------------------------------------------------------------------ #
-    max_depth = _num_nodes_to_depth(tree._data.shape[0])
-    actual_depth = int(np.clip(depth, 1, max_depth))
+    if show_tree:
+        # ------------------------------------------------------------------ #
+        # Tree nodes at the requested depth
+        # ------------------------------------------------------------------ #
+        max_depth = _num_nodes_to_depth(tree._data.shape[0])
+        actual_depth = int(np.clip(depth, 1, max_depth))
 
-    node_start = _depth_to_num_nodes(actual_depth - 1)
-    node_end = min(_depth_to_num_nodes(actual_depth), tree._data.shape[0])
-    nodes = tree._data[node_start:node_end]  # (M, 6) in ENU space
+        node_start = _depth_to_num_nodes(actual_depth - 1)
+        node_end = min(_depth_to_num_nodes(actual_depth), tree._data.shape[0])
+        nodes = tree._data[node_start:node_end]  # (M, 6) in ENU space
 
-    # Keep only nodes whose XY footprint overlaps the ROI
-    overlap_mask = (
-        (nodes[:, 0] < roi_xmax)
-        & (nodes[:, 3] > roi_xmin)
-        & (nodes[:, 1] < roi_ymax)
-        & (nodes[:, 4] > roi_ymin)
-    )
-    visible = nodes[overlap_mask]
+        # Keep only nodes whose XY footprint overlaps the ROI
+        overlap_mask = (
+            (nodes[:, 0] < roi_xmax)
+            & (nodes[:, 3] > roi_xmin)
+            & (nodes[:, 1] < roi_ymax)
+            & (nodes[:, 4] > roi_ymin)
+        )
+        visible = nodes[overlap_mask]
 
-    if len(visible) > 0:
-        fig.add_trace(_bbox_faces(visible, actual_depth))
-        fig.add_trace(_bbox_edges(visible, actual_depth))
+        if len(visible) > 0:
+            fig.add_trace(_bbox_faces(visible, actual_depth))
+            fig.add_trace(_bbox_edges(visible, actual_depth))
 
     # ------------------------------------------------------------------ #
     # Optional line-of-sight
@@ -159,7 +163,9 @@ def visualize_hbv_tree(
             aspectratio=dict(x=ar_x, y=ar_y, z=ar_z),
         ),
         title=f"HBV tree – depth {actual_depth} / {max_depth} "
-        f"({len(visible)} visible nodes)",
+        f"({len(visible)} visible nodes)"
+        if show_tree
+        else "Terrain",
         legend=dict(itemsizing="constant"),
     )
 
@@ -172,21 +178,36 @@ def visualize_hbv_tree(
 
 _BOX_TRIS = np.array(
     [
-        [0, 1, 2], [1, 3, 2],  # bottom  (z = zmin)
-        [4, 5, 6], [5, 7, 6],  # top     (z = zmax)
-        [0, 1, 4], [1, 5, 4],  # front   (y = ymin)
-        [2, 3, 6], [3, 7, 6],  # back    (y = ymax)
-        [0, 2, 4], [2, 6, 4],  # left    (x = xmin)
-        [1, 3, 5], [3, 7, 5],  # right   (x = xmax)
+        [0, 1, 2],
+        [1, 3, 2],  # bottom  (z = zmin)
+        [4, 5, 6],
+        [5, 7, 6],  # top     (z = zmax)
+        [0, 1, 4],
+        [1, 5, 4],  # front   (y = ymin)
+        [2, 3, 6],
+        [3, 7, 6],  # back    (y = ymax)
+        [0, 2, 4],
+        [2, 6, 4],  # left    (x = xmin)
+        [1, 3, 5],
+        [3, 7, 5],  # right   (x = xmax)
     ],
     dtype=np.int64,
 )
 
 _BOX_EDGE_PAIRS = np.array(
     [
-        [0, 1], [1, 3], [3, 2], [2, 0],  # bottom loop
-        [4, 5], [5, 7], [7, 6], [6, 4],  # top loop
-        [0, 4], [1, 5], [2, 6], [3, 7],  # verticals
+        [0, 1],
+        [1, 3],
+        [3, 2],
+        [2, 0],  # bottom loop
+        [4, 5],
+        [5, 7],
+        [7, 6],
+        [6, 4],  # top loop
+        [0, 4],
+        [1, 5],
+        [2, 6],
+        [3, 7],  # verticals
     ],
     dtype=np.int64,
 )
@@ -213,8 +234,8 @@ def _bbox_faces(nodes: np.ndarray, depth: int) -> go.Mesh3d:
     """Build a single semi-transparent Mesh3d for all bounding boxes."""
     n = len(nodes)
     verts = np.concatenate([_box_corners(b) for b in nodes], axis=0)  # (8n, 3)
-    offsets = np.arange(n, dtype=np.int64)[:, None] * 8            # (n, 1)
-    tris = (_BOX_TRIS[None] + offsets[:, None]).reshape(-1, 3)      # (12n, 3)
+    offsets = np.arange(n, dtype=np.int64)[:, None] * 8  # (n, 1)
+    tris = (_BOX_TRIS[None] + offsets[:, None]).reshape(-1, 3)  # (12n, 3)
 
     return go.Mesh3d(
         x=verts[:, 0],
