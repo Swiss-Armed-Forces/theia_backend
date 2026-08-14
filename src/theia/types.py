@@ -611,6 +611,32 @@ class Trajectory(pydantic.BaseModel):
         times = [datetime.datetime.fromtimestamp(t, datetime.UTC) for t in timestamps]
         return [(t, self(t)) for t in times]
 
+    def select_subset(
+        self,
+        t_min: datetime.datetime | None = None,
+        t_max: datetime.datetime | None = None,
+    ) -> Trajectory:
+        i_start = 0
+        if t_min is not None:
+            i_start = next((i for i, t in enumerate(self.times) if t >= t_min), -1)
+        i_stop = len(self.times) - 1
+        if t_max is not None:
+            i_stop = next((i for i, t in enumerate(self.times) if t >= t_max), -1)
+        if i_start == -1 or i_stop == -1:
+            raise ValueError("Invalid time interval")
+        return Trajectory(
+            target_id=self.target_id,
+            target_sidc=self.target_sidc,
+            times=self.times[i_start:i_stop],
+            lats=self.lats[i_start:i_stop],
+            lons=self.lons[i_start:i_stop],
+            alts=self.alts[i_start:i_stop],
+            vxs=self.vxs[i_start:i_stop],
+            vys=self.vys[i_start:i_stop],
+            vzs=self.vzs[i_start:i_stop],
+            cross_section_model=self.cross_section_model,
+        )
+
 
 class MonostaticRadarDetection(pydantic.BaseModel):
     detection_id: int
