@@ -81,8 +81,8 @@ class PetDetector(pydantic.BaseModel):
             L_a=get_clear_sky_attenuation(sensor.transmitter.frequency) * dist / 1000.0,
             # TODO: Should we include these factors?
             polarization_factor=0.0,
-            pattern_propagation_factor_receiver=0.0,
-            pattern_propagation_factor_transmitter=0.0,
+            antenna_pattern_gain_receiver=0.0,
+            antenna_pattern_gain_transmitter=0.0,
             is_one_way=True,
         )
 
