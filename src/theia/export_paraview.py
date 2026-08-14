@@ -445,8 +445,7 @@ class ParaviewExporter:
         color/representation settings so the scene is ready to use immediately.
 
         Run it in ParaView via:
-            Tools → Macro → Add Macro  (interactive)
-            pvpython <script>.py        (headless / batch)
+            paraview --script=<script>.py
 
         Parameters
         ----------
