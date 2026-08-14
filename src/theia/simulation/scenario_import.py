@@ -41,6 +41,7 @@ from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
 from theia.terrain_fast_los import FastSrtmModel, HbvTree
 from theia.types import (
     AbstractTracker,
+    AttenuationModel,
     ConstantRcsModel,
     Controller,
     Entity,
@@ -49,8 +50,10 @@ from theia.types import (
     MonostaticSensor,
     PclSensor,
     Point,
+    Polarization,
     Trajectory,
 )
+from theia.util import to_dB
 
 
 class TerrainFactory(pydantic.BaseModel):
@@ -138,15 +141,49 @@ class FixedPathOneWayDroneFactory(pydantic.BaseModel):
         return LivingController(child=drone, target_id=drone.trajectory.target_id)
 
 
+class AntennaDiagramFactory(pydantic.BaseModel):
+    name: Literal["none", "csc_2deg"]
+
+    def to_attenuation_model(self) -> AttenuationModel | None:
+        if self.name == "none":
+            return None
+
+        if self.name == "csc_2deg":
+
+            def cosecant(x):
+                return 1 / (np.sin(x) + 1e-12)
+
+            def antenna_diagram(x, x0):
+                return (x <= x0) * 1 + (x > x0) * (cosecant(x) / cosecant(x0)) ** 2
+
+            angles = np.linspace(0, 2 * np.pi, 720)
+
+            return AttenuationModel(
+                attenuation_table_angles=angles,
+                # Minus sign: We need attenuation values, not gain.
+                attenuation_table_values=list(
+                    -to_dB(antenna_diagram(angles, np.deg2rad(2)))
+                ),
+                polarization=Polarization.VERTICAL,
+            )
+
+        raise ValueError(f"Unknown antenna diagram {self.name}")
+
+
 class MonostaticSensorFactory(pydantic.BaseModel):
     target_id: int
     rcs: float
     sensor: MonostaticSensor
+    vertical_antenna_diagram: AntennaDiagramFactory = AntennaDiagramFactory(name="none")
 
     def to_controller(self, is_blue: bool) -> MonostaticRadarController:
+        attenuation_model = self.vertical_antenna_diagram.to_attenuation_model()
+        sensor = self.sensor.model_copy(deep=True)
+        sensor.transmitter.vertical_attenuation = attenuation_model
+        sensor.receiver.vertical_attenuation = attenuation_model
         c = MonostaticRadarController(
             target_id=self.target_id,
-            radar=self.sensor,
+            radar=sensor,
             is_blue=is_blue,
             rcs_model=ConstantRcsModel(rcs=self.rcs),
         )
