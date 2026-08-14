@@ -2,6 +2,9 @@ import numba
 import numpy as np
 import scipy.constants as sc
 
+from theia.coordinates import calculate_azimuth_angle, calculate_elevation_angle
+from theia.types import Point, Receiver, Transmitter
+
 
 # Active radar and PCL.
 @numba.njit
@@ -21,8 +24,8 @@ def calculate_snr(
     L_r: float,
     L_a: float,
     polarization_factor: float,
-    pattern_propagation_factor_transmitter: float,
-    pattern_propagation_factor_receiver: float,
+    antenna_pattern_gain_transmitter: float,
+    antenna_pattern_gain_receiver: float,
     is_one_way: bool,
 ) -> float:
     r"""
@@ -60,12 +63,10 @@ def calculate_snr(
         Atmospheric and precipitation attenuation [dB]
     polarization_factor: float
         Polarization factor [dB]
-    pattern_propagation_factor_transmitter: float
-        Pattern propagation factor for the path from the transmitter
-        to the target [dB]
+    antenna_pattern_gain_transmitter: float
+        Antenna pattern gain for the transmitter [dB]
     pattern_propagation_factor_receiver: float
-        Pattern propagation factor for the path from the target
-        to the receiver [dB]
+        Antenna pattern gain for the receiver [dB]
     is_one_way: bool
         Whether the SNR calculation is for a signal travelling one-way
         (e. g. monostatic, PCL) or two-way (e. g. PET)
@@ -107,8 +108,8 @@ def calculate_snr(
         + lambda_sq_dB
         + rcs_dB
         + 2 * polarization_factor
-        + pattern_propagation_factor_transmitter
-        + pattern_propagation_factor_receiver
+        + antenna_pattern_gain_transmitter
+        + antenna_pattern_gain_receiver
         - four_pi_dB
         - ktb
         - bw_dB
@@ -139,3 +140,38 @@ def calculate_snr(
     # print(f"SNR                       = {snr:.3f} dB")
 
     return snr
+
+
+def calculate_antenna_pattern_gain(
+    transmitter_or_receiver: Transmitter | Receiver,
+    point_of_interest: Point,
+) -> float:
+    """
+    Calculate antenna pattern attenuation [dB] for the given geometry.
+    """
+    p = Point(
+        lat=transmitter_or_receiver.lat,
+        lon=transmitter_or_receiver.lon,
+        alt=transmitter_or_receiver.alt + transmitter_or_receiver.antenna_height,
+    )
+    theta_bearing = calculate_azimuth_angle(
+        p_observer=p,
+        p_target=point_of_interest,
+    )
+    theta_vert = calculate_elevation_angle(
+        p_observer=p,
+        p_target=point_of_interest,
+    )
+
+    horiz_att = (
+        transmitter_or_receiver.horizontal_attenuation(theta_bearing)
+        if transmitter_or_receiver.horizontal_attenuation is not None
+        else 0.0
+    )
+    vert_att = (
+        transmitter_or_receiver.vertical_attenuation(theta_vert)
+        if transmitter_or_receiver.vertical_attenuation is not None
+        else 0.0
+    )
+
+    return -horiz_att - vert_att

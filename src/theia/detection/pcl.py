@@ -5,14 +5,13 @@ import pydantic
 import scipy.constants as sc
 
 import theia.config
-from theia.coordinates import calculate_azimuth_angle, calculate_elevation_angle
 from theia.distance import (
     get_2d_distance_between_locs_heights,
     get_bistatic_range,
 )
 from theia.doppler import calculate_doppler_shift
 from theia.grids import LatLonHeightGrid
-from theia.snr import calculate_snr
+from theia.snr import calculate_antenna_pattern_gain, calculate_snr
 from theia.types import (
     ConstantRcsModel,
     PclDetection,
@@ -171,18 +170,20 @@ class PclDetector(pydantic.BaseModel):
             distance_receiver_target=r_r,
             transmission_power=tx.power,
             bandwidth=rx.bandwidth,
-            pulse_width=1/rx.bandwidth, # Needed so that pulse compression gain = 0dB
+            pulse_width=1 / rx.bandwidth,  # Needed so that pulse compression gain = 0dB
             cpi_pulses=rx.cpi_pulses,
             equivalent_temperature=rx.noise_temperature,
             L_t=0.0,
             L_r=rx.noise_figure,
             L_a=get_clear_sky_attenuation(tx.frequency) * (r_r + r_t) / 1000.0,
             polarization_factor=0,
-            pattern_propagation_factor_transmitter=calculate_antenna_pattern(
-                tx, tgt.point
+            antenna_pattern_gain_transmitter=calculate_antenna_pattern_gain(
+                tx,
+                tgt.point,
             ),
-            pattern_propagation_factor_receiver=calculate_antenna_pattern(
-                rx, tgt.point
+            antenna_pattern_gain_receiver=calculate_antenna_pattern_gain(
+                rx,
+                tgt.point,
             ),
             is_one_way=False,
         )
@@ -376,41 +377,6 @@ def calculate_minimum_detectable_rcs(
     """
     rcs = 10.0 ** ((snr_threshold - snr_over_rcs) / 10.0)
     return float(rcs)
-
-
-def calculate_antenna_pattern(
-    transmitter_or_receiver: Transmitter | Receiver,
-    point_of_interest: Point,
-) -> float:
-    """
-    Calculate antenna pattern attenuation [dB] for the given geometry.
-    """
-    p = Point(
-        lat=transmitter_or_receiver.lat,
-        lon=transmitter_or_receiver.lon,
-        alt=transmitter_or_receiver.alt + transmitter_or_receiver.antenna_height,
-    )
-    theta_bearing = calculate_azimuth_angle(
-        p_observer=p,
-        p_target=point_of_interest,
-    )
-    theta_vert = calculate_elevation_angle(
-        p_observer=p,
-        p_target=point_of_interest,
-    )
-
-    horiz_att = (
-        transmitter_or_receiver.horizontal_attenuation(theta_bearing)
-        if transmitter_or_receiver.horizontal_attenuation is not None
-        else 0.0
-    )
-    vert_att = (
-        transmitter_or_receiver.vertical_attenuation(theta_vert)
-        if transmitter_or_receiver.vertical_attenuation is not None
-        else 0.0
-    )
-
-    return -horiz_att - vert_att
 
 
 def pcl_track_init_update_masks(

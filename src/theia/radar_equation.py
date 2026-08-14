@@ -114,8 +114,8 @@ def _calculate_maximum_monostatic_range(
             L_a=atmospheric_loss_per_distance * r,
             # TODO: Should we include these factors?
             polarization_factor=0.0,
-            pattern_propagation_factor_receiver=0.0,
-            pattern_propagation_factor_transmitter=0.0,
+            antenna_pattern_gain_receiver=0.0,
+            antenna_pattern_gain_transmitter=0.0,
             is_one_way=is_one_way,
         )
         p = calculate_probability_of_detection(snr, pfa)
