@@ -45,7 +45,7 @@ if __name__ == "__main__":
     else:
         n_iterations = math.ceil(
             (scenario.stop_time - scenario.start_time).seconds / scenario.time_step
-        ) + 1
+        ) + 2
 
         if args.profile:
             profiler = cProfile.Profile()
