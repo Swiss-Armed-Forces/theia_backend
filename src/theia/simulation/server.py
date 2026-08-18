@@ -15,7 +15,7 @@ import pydantic
 import shapely
 
 import theia
-from theia.config import FRONTEND_URL, SIDC, TERRAIN_HBV_DATA_DIR
+from theia.config import FRONTEND_URL, TERRAIN_HBV_DATA_DIR
 from theia.coordinates import CoordinateTransformations
 from theia.coverage import (
     calculate_coverage,
@@ -105,6 +105,7 @@ def create_app(
     @app.get("/time")
     def get_time() -> datetime.datetime:
         return buffer.get_simulator()._t
+
     @app.post("/situational_picture/{which}")
     def get_situational_picture(
         which: Team, times: list[datetime.datetime]
@@ -153,36 +154,28 @@ def create_app(
     def get_ground_truth(
         which: Team, times: list[datetime.datetime]
     ) -> list[ExtrapolatedGroundtruth]:
-        trajectories = buffer.get_ground_truth_trajectories(which == Team.blue)
-        results = []
-        for trajectory in trajectories:
-            points = []
-            sidc = SIDC.UNKNOWN
-            for time in times:
-                target = trajectory(time)
-                if target is None:
-                    continue
-                points.append(
-                    TrackPoint(
-                        time=time,
-                        lat=target.lat,
-                        lon=target.lon,
-                        alt=target.alt,
-                        # TODO: Implement velocity conversion ECEF -> ENU
-                        v_east=0.0,
-                        v_north=0.0,
-                        v_up=0.0,
-                    )
+        # TODO: Fix this cleanly. We needed a quick fix due to a deadline, so
+        # we left the API as is and mostly simply ignored the times parameter.
+        targets = buffer.get_ground_truth_state(which == Team.blue, times[0])
+        results: list[ExtrapolatedGroundtruth] = []
+        for target in targets:
+            results.append(
+                ExtrapolatedGroundtruth(
+                    target_id=target.id,
+                    points=[
+                        TrackPoint(
+                            time=times[0],
+                            lat=target.lat,
+                            lon=target.lon,
+                            alt=target.alt,
+                            v_east=0,
+                            v_north=0,
+                            v_up=0,
+                        )
+                    ],
+                    sidc=target.sidc,
                 )
-                sidc = target.sidc
-            if len(points) > 0:
-                results.append(
-                    ExtrapolatedGroundtruth(
-                        target_id=trajectory.target_id,
-                        points=points,
-                        sidc=sidc,
-                    )
-                )
+            )
         return results
 
     @app.post("/calculate_monostatic_coverage")

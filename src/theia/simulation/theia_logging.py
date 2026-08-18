@@ -582,50 +582,30 @@ class SituationalPictureBuffer(AbstractSimulationListener):
     def on_end(self):
         self._has_completed = True
 
-    def get_ground_truth_trajectories(self, is_blue: bool) -> list[Trajectory]:
+    def get_ground_truth_state(
+        self,
+        is_blue: bool,
+        time: datetime.datetime,
+    ) -> list[Target]:
         history = (
-            self._blue_ground_truth_history.copy().values()
+            self._blue_ground_truth_history
             if is_blue
-            else self._red_ground_truth_history.copy().values()
+            else self._red_ground_truth_history
         )
-        trajectories = []
-        for target_history in history:
-            times = []
-            lats = []
-            lons = []
-            alts = []
-            vxs = []
-            vys = []
-            vzs = []
-            if len(target_history) < 2:
-                continue
-            for time, target in target_history:
-                if target.id in self._death_times:
+        targets = []
+        for target_history in history.values():
+            target = None
+            target_time = None
+            for t, trg in target_history:
+                if trg.id in self._death_times or t > time:
                     # Do not return dead targets.
                     break
-                times.append(time)
-                lats.append(target.lat)
-                lons.append(target.lon)
-                alts.append(target.alt)
-                vxs.append(target.velocity.vx)
-                vys.append(target.velocity.vy)
-                vzs.append(target.velocity.vz)
-            if len(times) >= 2:
-                trajectories.append(
-                    Trajectory(
-                        target_id=target.id,
-                        target_sidc=target.sidc,
-                        times=times,
-                        lats=lats,
-                        lons=lons,
-                        alts=alts,
-                        vxs=vxs,
-                        vys=vys,
-                        vzs=vzs,
-                        cross_section_model=ConstantRcsModel(rcs=np.nan),
-                    )
-                )
-        return trajectories
+                if target is None or t > target_time:
+                    target_time = t
+                    target = trg
+            if target is not None:
+                targets.append(target)
+        return targets
 
     def get_situational_picture(self, is_blue: bool) -> SituationalPicture:
         if is_blue:
