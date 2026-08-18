@@ -25,6 +25,7 @@ if __name__ == "__main__":
     parser.add_argument("orbat_file_blue", type=pathlib.Path)
     parser.add_argument("orbat_file_red", type=pathlib.Path)
     parser.add_argument("output_file", type=pathlib.Path)
+    parser.add_argument("seed", type=int)
     parser.add_argument("--terrain_model", type=str, default="SRTM")
 
     args = parser.parse_args()
@@ -83,7 +84,7 @@ if __name__ == "__main__":
         ),
         terrain_model=terrain_factory,
         damage_model=DamageModelFactory(model_name="kill_always"),
-        seed=39270507,
+        seed=args.seed,
     )
 
     with open(args.output_file, "w") as file:

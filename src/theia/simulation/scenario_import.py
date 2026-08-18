@@ -421,7 +421,7 @@ class OrderOfBattle(pydantic.BaseModel):
 
         return OrderOfBattle(
             monostatic_sensors=orbat1.monostatic_sensors + orbat2.monostatic_sensors,
-            pcl_sensors=orbat1 + orbat2.pcl_sensors,
+            pcl_sensors=orbat1.pcl_sensors + orbat2.pcl_sensors,
             effectors=orbat1.effectors + orbat2.effectors,
             simulationResults=orbat1.simulationResults + orbat2.simulationResults,
             oneway_drones=orbat1.oneway_drones + orbat2.oneway_drones,
