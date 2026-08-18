@@ -1,3 +1,9 @@
+from collections import deque
+import functools
+import logging
+import pstats
+import time
+
 import numpy as np
 from scipy import integrate, special
 import scipy.constants as sc
@@ -176,3 +182,39 @@ def normal_pdf(mean: float, sigma: float, x: float) -> float:
         prob = 0.0
 
     return prob
+
+
+class TimingStats:
+    def __init__(self, name, window=200):
+        self.name = name
+        self.samples = deque(maxlen=window)
+        self.call_count = 0
+
+    def record(self, elapsed):
+        self.samples.append(elapsed)
+        self.call_count += 1
+        if self.call_count % 10 == 0:
+            s = sorted(self.samples)
+            n = len(s)
+            logging.warning(
+                f"[{self.name}] n={n} "
+                f"p50={s[n // 2] * 1000:.2f}ms "
+                f"p90={s[int(n * 0.9)] * 1000:.2f}ms "
+                f"max={s[-1] * 1000:.2f}ms",
+            )
+
+
+def timed(name):
+    stats = TimingStats(name)
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            t0 = time.perf_counter()
+            result = func(*args, **kwargs)
+            stats.record(time.perf_counter() - t0)
+            return result
+
+        return wrapper
+
+    return decorator
