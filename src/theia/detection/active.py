@@ -171,7 +171,7 @@ def calculate_monostatic_snr(
     )
 
     if not los_ok:
-        return 0.0
+        return -1000
 
     wavelength = sc.speed_of_light / (radar.transmitter.frequency * 1e6)
     snr_dB = calculate_snr(
