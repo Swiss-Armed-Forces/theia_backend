@@ -1,3 +1,4 @@
+from __future__ import annotations
 import datetime
 import math
 from typing import Optional
@@ -208,7 +209,46 @@ def calculate_monostatic_snr(
     return snr_dB
 
 
+class FastPd:
+    """Store a lookup table for the SNR to p_detect conversion"""
+
+    _pd_tables: dict[float, FastPd] = {}
+
+    def __init__(self, snr_min, snr_max, n_points, pfa):
+        self.snr_min = snr_min
+        self.step = (snr_max - snr_min) / (n_points - 1)
+        self.inv_step = 1.0 / self.step
+        self.n = n_points
+        snr_grid = np.linspace(snr_min, snr_max, n_points)
+        self.pd = [_calculate_probability_of_detection(snr, pfa) for snr in snr_grid]
+        if not self.pd[1] - self.pd[0] <= 1e-4 or not np.isclose(self.pd[-1], 1):
+            raise ValueError(f"SNR lookup-table not saturated! (low: {self.pd[0]}, high: {self.pd[-1]})")
+
+    def __call__(self, snr):
+        if snr <= self.snr_min:
+            return self.pd[0]
+        idx_f = (snr - self.snr_min) * self.inv_step
+        idx = int(idx_f)
+        if idx >= self.n - 1:
+            return self.pd[-1]
+        frac = idx_f - idx
+        return self.pd[idx] + frac * (self.pd[idx + 1] - self.pd[idx])
+
+    @classmethod
+    def get_table(cls, pfa: float) -> FastPd:
+        if pfa in cls._pd_tables:
+            return cls._pd_tables[pfa]
+        else:
+            table = FastPd(-30, 20, 501, pfa)
+            cls._pd_tables[pfa] = table
+            return table
+
+
 def calculate_probability_of_detection(snr: float, pfa: float) -> float:
+    return FastPd.get_table(pfa)(snr)
+
+
+def _calculate_probability_of_detection(snr: float, pfa: float) -> float:
     """
     Calculate the probability of detection.
 
