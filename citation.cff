@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Bellotti"
+  given-names: "Renato"
+  orcid: "https://orcid.org/0000-0002-2702-0437"
+- family-names: "Mathews"
+  given-names: "Zenon"
+  orcid: "https://orcid.org/0000-0002-6562-5584"
+title: "theia_backend"
+version: 0.1.0
+url: "https://github.com/Swiss-Armed-Forces/theia_backend"
