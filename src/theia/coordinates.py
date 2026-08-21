@@ -352,35 +352,41 @@ def calculate_azimuth_angle(p_observer: Point, p_target: Point) -> float:
     https://geographiclib.sourceforge.io/2009-03/geodesic.html
 
     """
-    tgt_ecef = np.array(
-        CoordinateTransformations.geodetic_to_cartesian(*p_target.as_tuple())
-    )
+    tgt_ecef = CoordinateTransformations.geodetic_to_cartesian(*p_target.as_tuple())
     transformer = EcefToEnuTransformer(p_observer)
     east, north, up = transformer.ecef_to_enu(tgt_ecef)
-    return np.arctan2(east, north) % (2 * np.pi)
+    return math.atan2(east, north) % (2 * math.pi)
 
 
 # The following function was generated using Claude AI Sonnet 4.5
 # and adapted by the author.
 @numba.njit
 def calculate_elevation_angle_ecef(
-    p_observer: np.array,
-    p_target: np.array,
+    ox: float,
+    oy: float,
+    oz: float,
+    tx: float,
+    ty: float,
+    tz: float,
 ) -> float:
-    delta = p_target - p_observer
+    dx = tx - ox
+    dy = ty - oy
+    dz = tz - oz
 
-    # Local "up" vector at p1 (radial direction from Earth's center).
-    # This is simply the normalized position vector of p1.
-    up = p_observer / np.linalg.norm(p_observer)
+    # Local "up" vector at the observer (radial direction from Earth's
+    # center): the normalized observer position vector. dot(up, delta) is
+    # then dot(observer, delta) / |observer|, folded directly into the
+    # asin argument below rather than computed as a separate step.
+    norm_observer = math.sqrt(ox * ox + oy * oy + oz * oz)
+    norm_delta = math.sqrt(dx * dx + dy * dy + dz * dz)
+    dot_observer_delta = ox * dx + oy * dy + oz * dz
 
     # The elevation angle is 90° minus the angle between los and "up"
     # Or equivalently: arcsin(dot_product / los_magnitude)
-    elevation_angle_rad = np.asin(np.dot(up, delta) / np.linalg.norm(delta))
-
-    return elevation_angle_rad
+    return math.asin(dot_observer_delta / (norm_observer * norm_delta))
 
 
-def calculate_elevation_angle(p_observer: Point, p_target: Point):
+def calculate_elevation_angle(p_observer: Point, p_target: Point) -> float:
     """
     Calculate the elevation angle from observer to target [rad].
 
@@ -400,14 +406,12 @@ def calculate_elevation_angle(p_observer: Point, p_target: Point):
         Positive elevation means that the target is above the observer's horizon.
         Negative elevation means that the target is below the observer's horizon.
     """
-    p1_xyz = np.asarray(
-        CoordinateTransformations.geodetic_to_cartesian(*p_observer.as_tuple())
+    ox, oy, oz = CoordinateTransformations.geodetic_to_cartesian(
+        *p_observer.as_tuple()
     )
-    p2_xyz = np.asarray(
-        CoordinateTransformations.geodetic_to_cartesian(*p_target.as_tuple())
-    )
+    tx, ty, tz = CoordinateTransformations.geodetic_to_cartesian(*p_target.as_tuple())
 
-    return calculate_elevation_angle_ecef(p1_xyz, p2_xyz)
+    return calculate_elevation_angle_ecef(ox, oy, oz, tx, ty, tz)
 
 
 def latitude_direction(p: Point) -> np.ndarray:
