@@ -12,7 +12,7 @@ import shapely
 from theia.config import ELEVATION_DATA_DIR
 from theia.coordinates import CoordinateTransformations
 from theia.distance import R_EARTH, haversine
-from theia.types import GeoJSONFeature, Point
+from theia.types import GeoJSONFeature, Point, Trajectory
 
 
 @functools.cache
@@ -380,3 +380,18 @@ class DummyTerrain(AbstractTerrainModel):
 
     def has_line_of_sight(self, p1, p2):
         return self.has_los
+
+
+def trajectory_intersects_terrain(
+    trajectory: Trajectory,
+    terrain: AbstractTerrainModel,
+) -> bool:
+    for lat, lon, alt in zip(
+        trajectory.lats,
+        trajectory.lons,
+        trajectory.alts,
+        strict=True,
+    ):
+        if terrain.elevationAt(lat, lon) >= alt:
+            return True
+    return False
