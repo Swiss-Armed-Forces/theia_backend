@@ -1,8 +1,9 @@
+import math
+
 import numba
 import numpy as np
-import pyproj
-from theia.types import Point, Velocity
 
+from theia.types import Point, Velocity
 
 LATLON_BOUNDS = {
     "CH": {"lat": [45.7, 45.9], "lon": [5.7, 10.6]},
@@ -13,19 +14,83 @@ POSITIONS_OF_INTEREST = {
     "Uetliberg": {"lat": 47.349491, "lon": 8.492063, "alt": 856.2037851199802},
 }
 
+# WGS84 ellipsoid parameters.
+_WGS84_A = 6378137.0
+"""Semi-major axis [m]"""
+_WGS84_F = 1.0 / 298.257223563
+"""Flattening"""
+_WGS84_B = _WGS84_A * (1.0 - _WGS84_F)
+"""Semi-minor axis [m]"""
+_WGS84_E2 = _WGS84_F * (2.0 - _WGS84_F)
+"""First eccentricity squared"""
+
+
+@numba.njit
+def _geodetic_to_cartesian_impl(
+    lat: float, lon: float, alt: float
+) -> tuple[float, float, float]:
+    lat_rad = math.radians(lat)
+    lon_rad = math.radians(lon)
+    sin_lat = math.sin(lat_rad)
+    cos_lat = math.cos(lat_rad)
+
+    # Radius of curvature in the prime vertical.
+    N = _WGS84_A / math.sqrt(1.0 - _WGS84_E2 * sin_lat * sin_lat)
+
+    x = (N + alt) * cos_lat * math.cos(lon_rad)
+    y = (N + alt) * cos_lat * math.sin(lon_rad)
+    z = (N * (1.0 - _WGS84_E2) + alt) * sin_lat
+    return x, y, z
+
+
+@numba.njit
+def _cartesian_to_geodetic_impl(
+    x: float, y: float, z: float
+) -> tuple[float, float, float]:
+    p = math.sqrt(x * x + y * y)
+
+    if p < 1e-9:
+        # On (or numerically indistinguishable from) the polar axis:
+        # longitude is undefined and latitude is exactly +/-90 deg, so the
+        # general iterative solution below (which divides by cos(lat) and
+        # p) would blow up. Altitude reduces to a 1-D expression along the
+        # semi-minor axis.
+        lat = math.pi / 2.0 if z >= 0.0 else -math.pi / 2.0
+        alt = abs(z) - _WGS84_B
+        return math.degrees(lat), 0.0, alt
+
+    lon = math.atan2(y, x)
+
+    # Bowring's iterative method (1976): converges to sub-nanometer altitude
+    # accuracy within a handful of Newton-Raphson-like iterations on the
+    # geodetic latitude, for any latitude/altitude. A fixed iteration count
+    # is used (rather than a convergence-check loop) since it's cheap
+    # relative to the trig calls and keeps the function branch-free after
+    # the pole check above. 4 iterations is the minimum that keeps a
+    # comfortable margin against
+    # tests/test_coordinate_transformations_pyproj_reference.py (verified: 4
+    # passes with ~2-5x margin on every tolerance there, 3 fails).
+    lat = math.atan2(z, p * (1.0 - _WGS84_E2))
+    for _ in range(4):
+        sin_lat = math.sin(lat)
+        N = _WGS84_A / math.sqrt(1.0 - _WGS84_E2 * sin_lat * sin_lat)
+        alt = p / math.cos(lat) - N
+        lat = math.atan2(z, p * (1.0 - _WGS84_E2 * N / (N + alt)))
+
+    # Recompute alt against the final converged lat (the alt computed inside
+    # the last loop iteration used the pre-update lat's N).
+    sin_lat = math.sin(lat)
+    N = _WGS84_A / math.sqrt(1.0 - _WGS84_E2 * sin_lat * sin_lat)
+    alt = p / math.cos(lat) - N
+    return math.degrees(lat), math.degrees(lon), alt
+
 
 class CoordinateTransformations:
-    t = pyproj.Transformer.from_proj(
-        pyproj.Proj(proj="latlong", ellps="WGS84", datum="WGS84"),
-        pyproj.Proj(proj="geocent", ellps="WGS84", datum="WGS84"),
-    )
-
     @classmethod
     def geodetic_to_cartesian(
         cls, lat: float, lon: float, alt: float
     ) -> tuple[float, float, float]:
-        # the parameter sequence should be lon, lat, alt!
-        x, y, z = cls.t.transform(lon, lat, alt, radians=False)
+        x, y, z = _geodetic_to_cartesian_impl(lat, lon, alt)
         return float(x), float(y), float(z)
 
     @classmethod
@@ -36,7 +101,7 @@ class CoordinateTransformations:
         z: float,
     ) -> tuple[float, float, float]:
         """Convert (x, y, z) to (lat, lon, alt)."""
-        lon, lat, alt = cls.t.transform(x, y, z, radians=False, direction="INVERSE")
+        lat, lon, alt = _cartesian_to_geodetic_impl(x, y, z)
         return float(lat), float(lon), float(alt)
 
     @staticmethod
