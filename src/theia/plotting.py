@@ -6,7 +6,7 @@ from theia.coordinates import CoordinateTransformations
 from theia.distance import line_of_sight_distance, linspace
 from theia.ellipsoid import Ellipsoid
 from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
-from theia.types import Point
+from theia.types import Point, Trajectory
 
 
 def plot_profile(
@@ -95,3 +95,28 @@ def detection_ellipse(
     points_at_target_alt = hull.points[hull.vertices]
     ellipse = shapely.geometry.LineString([(p[1], p[0]) for p in points_at_target_alt])
     return ellipse
+
+
+def plot_altitude_profile(
+    trajectory: Trajectory,
+    terrain: AbstractTerrainModel | None = None,
+) -> tuple[plt.Figure, plt.Axes]:
+    fig, ax = plt.subplots()
+
+    ax.plot(trajectory.times, trajectory.alts, label="Trajectory")
+    if terrain is not None:
+        terrain_alts = [
+            terrain.elevationAt(lat, lon)
+            for lat, lon in zip(trajectory.lats, trajectory.lons, strict=True)
+        ]
+        ax.plot(trajectory.times, terrain_alts, label="Earth surface")
+
+    ax.tick_params(axis="x", rotation=90)
+    ax.legend()
+    ax.set_xlabel("Time", fontsize=16)
+    ax.set_ylabel("Elevation [m above sea level]", fontsize=16)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
+
+    return fig, ax
