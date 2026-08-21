@@ -151,17 +151,39 @@ class EcefToEnuTransformer:
             Reference point in geodetic coordinates at which the
             ENU-frame is defined. Typically the observer (radar) position.
         """
-        self._R = _ecef_to_enu_rotation_matrix(
-            reference_point.lat,
-            reference_point.lon,
+        # Rotation matrix and center stored as plain scalars (not numpy
+        # arrays) so that construction and single-point ecef_to_enu/
+        # enu_to_ecef -- the hot path when a fresh transformer is built per
+        # call, e.g. MonostaticMeasurementTransformations -- don't pay for
+        # array allocation or matmul dispatch on 3x3 data. The numpy-array
+        # form is only built lazily, on first use, for the batched
+        # ecef_to_enu_multiple path where it's actually worth it.
+        (
+            self._r00,
+            self._r01,
+            self._r02,
+            self._r10,
+            self._r11,
+            self._r12,
+            self._r20,
+            self._r21,
+            self._r22,
+        ) = _ecef_to_enu_rotation_scalars(reference_point.lat, reference_point.lon)
+        self._cx, self._cy, self._cz = CoordinateTransformations.geodetic_to_cartesian(
+            *reference_point.as_tuple(),
         )
-        self._RT = np.array(self._R.T)
-        reference_point_xyz = np.array(
-            CoordinateTransformations.geodetic_to_cartesian(
-                *reference_point.as_tuple(),
+        self._RT: np.ndarray | None = None
+
+    def _rt_array(self) -> np.ndarray:
+        if self._RT is None:
+            self._RT = np.array(
+                [
+                    [self._r00, self._r10, self._r20],
+                    [self._r01, self._r11, self._r21],
+                    [self._r02, self._r12, self._r22],
+                ]
             )
-        )
-        self._center = np.array(reference_point_xyz)
+        return self._RT
 
     def ecef_to_enu(
         self,
@@ -186,9 +208,13 @@ class EcefToEnuTransformer:
         Formula according to Wikipedia:
         https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
         """
-        p_ecef = np.array(p_ecef)
-        p_enu = self._R @ (p_ecef - self._center)
-        return (float(p_enu[0]), float(p_enu[1]), float(p_enu[2]))
+        dx = p_ecef[0] - self._cx
+        dy = p_ecef[1] - self._cy
+        dz = p_ecef[2] - self._cz
+        east = self._r00 * dx + self._r01 * dy + self._r02 * dz
+        north = self._r10 * dx + self._r11 * dy + self._r12 * dz
+        up = self._r20 * dx + self._r21 * dy + self._r22 * dz
+        return (float(east), float(north), float(up))
 
     def ecef_to_enu_multiple(
         self,
@@ -214,7 +240,8 @@ class EcefToEnuTransformer:
         https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_ENU
         """
         points = np.array(points_ecef)
-        p_enu = (points - self._center) @ self._RT
+        center = np.array([self._cx, self._cy, self._cz])
+        p_enu = (points - center) @ self._rt_array()
         return p_enu
 
     def enu_to_ecef(
@@ -240,12 +267,13 @@ class EcefToEnuTransformer:
         Formula according to Wikipedia:
         https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ENU_to_ECEF
         """
-        R_enu_to_ecef = self._RT
-
-        reference_point_xyz = np.array(self._center)
-        p_enu = np.array(p_enu)
-        p_ecef = R_enu_to_ecef @ p_enu + reference_point_xyz
-        return (float(p_ecef[0]), float(p_ecef[1]), float(p_ecef[2]))
+        e, n, u = p_enu
+        # R^T (ENU -> ECEF) is the transpose of R (ECEF -> ENU), so its rows
+        # are R's columns: row i of R^T is (r_{0i}, r_{1i}, r_{2i}).
+        x = self._r00 * e + self._r10 * n + self._r20 * u + self._cx
+        y = self._r01 * e + self._r11 * n + self._r21 * u + self._cy
+        z = self._r02 * e + self._r12 * n + self._r22 * u + self._cz
+        return (float(x), float(y), float(z))
 
 
 @numba.njit
@@ -275,6 +303,28 @@ def _ecef_to_enu_rotation_matrix(lat: float, lon: float) -> np.array:
     R_ecef_to_enu[2, :] = ( np.cos(lat) * np.cos(lon),  np.cos(lat) * np.sin(lon), np.sin(lat))
     # fmt: on
     return R_ecef_to_enu
+
+
+def _ecef_to_enu_rotation_scalars(
+    lat: float, lon: float
+) -> tuple[float, float, float, float, float, float, float, float, float]:
+    """
+    Same rotation matrix as _ecef_to_enu_rotation_matrix, as 9 plain floats
+    (row-major) instead of a numpy array -- for EcefToEnuTransformer's
+    single-point path, which would otherwise pay for an array allocation on
+    every construction for a 3x3 of data.
+    """
+    lon_rad = math.radians(lon)
+    lat_rad = math.radians(lat)
+    sin_lon = math.sin(lon_rad)
+    cos_lon = math.cos(lon_rad)
+    sin_lat = math.sin(lat_rad)
+    cos_lat = math.cos(lat_rad)
+    return (
+        -sin_lon, cos_lon, 0.0,
+        -sin_lat * cos_lon, -sin_lat * sin_lon, cos_lat,
+        cos_lat * cos_lon, cos_lat * sin_lon, sin_lat,
+    )  # fmt: skip
 
 
 # The following function is taken from openBURST.
