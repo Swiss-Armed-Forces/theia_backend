@@ -1,9 +1,11 @@
 from collections import deque
 import functools
 import logging
-import pstats
 import time
+import uuid
 
+import folium
+from folium.map import CustomPane
 import numpy as np
 from scipy import integrate, special
 import scipy.constants as sc
@@ -218,3 +220,75 @@ def timed(name):
         return wrapper
 
     return decorator
+
+
+def add_blurred_tile_layer(
+    m: folium.Map,
+    tiles: str,
+    attr: str = None,
+    blur_amount: float = 8,
+    grayscale: bool = False,
+    z_index: int = 200,
+    name: str = None,
+    **tile_layer_kwargs,
+) -> folium.TileLayer:
+    """
+    Add a TileLayer to a folium Map whose tiles are visually blurred via CSS.
+
+    Useful for scrambling plots for conferences.
+
+    Parameters
+    ----------
+    m : folium.Map
+        The map to add the layer to.
+    tiles : str
+        Tile URL template or named tileset, same as folium.TileLayer(tiles=...).
+    attr : str, optional
+        Attribution string (Leaflet requires this for custom tile URLs).
+    blur_amount : float
+        Blur radius in pixels. Default 8.
+    grayscale : bool
+        Also desaturate the tiles. Default False.
+    z_index : int
+        Pane z-index. Default 200 (Leaflet's default tile-pane tier).
+    name : str, optional
+        Layer name shown in LayerControl.
+    **tile_layer_kwargs
+        Passed through to folium.TileLayer (e.g. opacity, overlay, show).
+
+    Returns
+    -------
+    folium.TileLayer
+        The tile layer that was added (already attached to `m`).
+    """
+    pane_id = uuid.uuid4().hex[:8]
+    pane_name = f"blurred{pane_id}"
+
+    # Create the dedicated pane.
+    pane = CustomPane(pane_name, z_index=z_index, pointer_events=False)
+    pane.add_to(m)
+
+    # Apply the blur via CSS. Leaflet's createPane gives the pane div the
+    # class `leaflet-<name>-pane`, so we target that class directly.
+    filters = [f"blur({blur_amount}px)"]
+    if grayscale:
+        filters.append("grayscale(1)")
+    css = f"""
+    <style>
+        .leaflet-{pane_name}-pane {{
+            filter: {" ".join(filters)};
+        }}
+    </style>
+    """
+    m.get_root().header.add_child(folium.Element(css))
+
+    # Attach the tile layer to that pane so only these tiles are blurred.
+    layer = folium.TileLayer(
+        tiles=tiles,
+        attr=attr,
+        name=name,
+        pane=pane_name,
+        **tile_layer_kwargs,
+    )
+    layer.add_to(m)
+    return layer
