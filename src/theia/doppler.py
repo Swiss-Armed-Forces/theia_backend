@@ -1,4 +1,5 @@
-import numpy as np
+import math
+
 import scipy.constants as sc
 
 from theia.coordinates import CoordinateTransformations
@@ -43,30 +44,52 @@ def calculate_doppler_shift(
     to calculate the Doppler shift.
     """
     # Convert positions to Cartesian space.
-    rx_xyz = np.asarray(
-        CoordinateTransformations.geodetic_to_cartesian(
-            rx.lat, rx.lon, rx.alt + rx.antenna_height
-        )
+    rx_xyz = CoordinateTransformations.geodetic_to_cartesian(
+        rx.lat,
+        rx.lon,
+        rx.alt + rx.antenna_height,
     )
-    tx_xyz = np.asarray(
-        CoordinateTransformations.geodetic_to_cartesian(
-            tx.lat, tx.lon, tx.alt + tx.antenna_height
-        )
+    tx_xyz = CoordinateTransformations.geodetic_to_cartesian(
+        tx.lat,
+        tx.lon,
+        tx.alt + tx.antenna_height,
     )
-    target_xyz = np.asarray(
-        CoordinateTransformations.geodetic_to_cartesian(*tgt.point.as_tuple())
+    target_xyz = CoordinateTransformations.geodetic_to_cartesian(
+        tgt.point.lat,
+        tgt.point.lon,
+        tgt.point.alt,
     )
 
     # Calculate target position at time + dt in the future.
-    target_xyz_future = target_xyz + np.asarray(tgt.velocity.as_tuple()) * dt
+    target_xyz_future = (
+        target_xyz[0] + tgt.velocity.vx * dt,
+        target_xyz[1] + tgt.velocity.vy * dt,
+        target_xyz[2] + tgt.velocity.vz * dt,
+    )
 
     # Calculate difference in signal path length now and at time + dt in the future.
-    signal_path = np.linalg.norm(target_xyz - rx_xyz) + np.linalg.norm(
-        target_xyz - tx_xyz
+    d_rx_target = math.sqrt(
+        (target_xyz[0] - rx_xyz[0]) ** 2
+        + (target_xyz[1] - rx_xyz[1]) ** 2
+        + (target_xyz[2] - rx_xyz[2]) ** 2
     )
-    signal_path_future = np.linalg.norm(target_xyz_future - rx_xyz) + np.linalg.norm(
-        target_xyz_future - tx_xyz
+    d_tx_target = math.sqrt(
+        (target_xyz[0] - tx_xyz[0]) ** 2
+        + (target_xyz[1] - tx_xyz[1]) ** 2
+        + (target_xyz[2] - tx_xyz[2]) ** 2
     )
+    d_rx_target_future = math.sqrt(
+        (target_xyz_future[0] - rx_xyz[0]) ** 2
+        + (target_xyz_future[1] - rx_xyz[1]) ** 2
+        + (target_xyz_future[2] - rx_xyz[2]) ** 2
+    )
+    d_tx_target_future = math.sqrt(
+        (target_xyz_future[0] - tx_xyz[0]) ** 2
+        + (target_xyz_future[1] - tx_xyz[1]) ** 2
+        + (target_xyz_future[2] - tx_xyz[2]) ** 2
+    )
+    signal_path = d_rx_target + d_tx_target
+    signal_path_future = d_rx_target_future + d_tx_target_future
 
     diff = signal_path_future - signal_path
 
