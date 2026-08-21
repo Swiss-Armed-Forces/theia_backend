@@ -16,9 +16,17 @@ echo "=== tests/test_coordinate_transformations_pyproj_reference.py ==="
 "$PYTHON" -m unittest tests.test_coordinate_transformations_pyproj_reference -v
 
 echo
+echo "=== tests/test_ecef_to_enu_pyproj_reference.py ==="
+"$PYTHON" -m unittest tests.test_ecef_to_enu_pyproj_reference -v
+
+echo
 echo "=== tests/test_coordinate_tansformations.py ==="
 "$PYTHON" -m unittest tests.test_coordinate_tansformations -v
 
 echo
 echo "=== scripts/benchmark_coordinate_transformations.py ==="
 "$PYTHON" scripts/benchmark_coordinate_transformations.py
+
+echo
+echo "=== scripts/benchmark_ecef_to_enu.py ==="
+"$PYTHON" scripts/benchmark_ecef_to_enu.py
