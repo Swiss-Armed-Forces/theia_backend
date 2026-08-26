@@ -5,6 +5,7 @@ import datetime
 from enum import Enum
 from functools import cache
 import os
+import pathlib
 from typing import Optional
 
 import numpy as np
@@ -92,6 +93,12 @@ class ExtrapolatedGroundtruth(pydantic.BaseModel):
     target_id: int
     points: list[TrackPoint]
     sidc: str
+
+
+class DefaultMonostaticSensorConfiguration(pydantic.BaseModel):
+    name: str
+    description: str
+    sensor: MonostaticSensor
 
 
 def create_app(
@@ -415,6 +422,25 @@ def create_app(
         files = os.listdir(TERRAIN_HBV_DATA_DIR)
         model_names = [file.replace(".zip", "") for file in files]
         return ["SRTM"] + model_names
+
+    @app.get("/default_monostatic_sensor_configurations")
+    def get_default_monostatic_sensor_configurations() -> list[
+        DefaultMonostaticSensorConfiguration
+    ]:
+        config_dir = (
+            pathlib.Path(__file__).parent.parent.parent.parent
+            / "data"
+            / "default_configurations"
+        )
+        results: list[DefaultMonostaticSensorConfiguration] = []
+        for filename in os.listdir(config_dir.absolute()):
+            with open((config_dir / filename).absolute(), "r") as file:
+                results.append(
+                    DefaultMonostaticSensorConfiguration.model_validate_json(
+                        file.read()
+                    )
+                )
+        return results
 
     app.add_middleware(
         CORSMiddleware,
