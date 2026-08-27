@@ -292,3 +292,55 @@ def add_blurred_tile_layer(
     )
     layer.add_to(m)
     return layer
+
+
+def angle_in_interval(
+    angle: float | np.typing.ArrayLike,
+    low: float | np.typing.ArrayLike,
+    high: float | np.typing.ArrayLike,
+    is_rad: bool = False,
+) -> bool | np.typing.NDArray[np.bool_]:
+    """
+    Check whether `angle` lies within [low, high], handling wraparound.
+ 
+    Parameters
+    ----------
+    angle : float or array-like
+        Angle(s) to test.
+    low : float
+        Lower bound of the interval.
+    high : float
+        Upper bound of the interval. May be numerically smaller than
+        `low` to express an interval that wraps around (e.g. [270, 90]).
+    is_rad : bool, default False
+        If True, angles/bounds are interpreted in radians (period 2*pi).
+        If False (default), they are interpreted in degrees (period 360).
+ 
+    Returns
+    -------
+    bool or numpy.ndarray of bool
+        Whether each angle lies within [low, high].
+ 
+    Notes
+    -----
+    Special case: if `high - low` is a nonzero multiple of the period
+    (e.g. low=0, high=360), the interval is treated as a full circle and
+    matches every angle. A genuine zero-width interval (low == high
+    exactly) still matches only that single angle.
+    """
+    period = 2 * np.pi if is_rad else 360
+ 
+    span = high - low
+ 
+    # Full-circle case: distinguish from a zero-width point by looking at
+    # the *raw* span before reducing it mod period. [0, 360] has span=360
+    # (full circle); [30, 30] has span=0 (single point).
+    if span != 0 and span % period == 0:
+        if np.ndim(angle) > 0:
+            return np.ones(np.shape(angle), dtype=bool)
+        return True
+ 
+    width = span % period
+    offset = (np.asarray(angle) - low) % period
+    result = offset <= width
+    return result if np.ndim(angle) > 0 else bool(result)
