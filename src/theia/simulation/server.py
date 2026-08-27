@@ -1,26 +1,25 @@
 """Provide a fastapi server for exposing the latest simulation state to external consumers."""
 
 from __future__ import annotations
+
 import datetime
-from enum import Enum
-from functools import cache
 import os
 import pathlib
+from enum import Enum
+from functools import cache
 from typing import Optional
 
 import numpy as np
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 import pydantic
 import shapely
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 import theia
 from theia.config import FRONTEND_URL, TERRAIN_HBV_DATA_DIR
 from theia.coordinates import CoordinateTransformations
 from theia.coverage import (
     calculate_coverage,
-    calculate_range_polygon,
     pcl_track_init_update_masks_parallel,
 )
 from theia.data_loading import load_bakom_ukw_transmitters
@@ -28,8 +27,8 @@ from theia.detection.pcl import PclDetector
 from theia.distance import haversine, line_of_sight_distance
 from theia.grids import LatLonHeightGrid
 from theia.radar_equation import calculate_maximum_monostatic_range
-from theia.simulation.theia_logging import SituationalPictureBuffer
 from theia.simulation.simulation_director import SimulationDirector
+from theia.simulation.theia_logging import SituationalPictureBuffer
 from theia.types import (
     Event,
     GeoJSONFeature,
@@ -37,7 +36,6 @@ from theia.types import (
     GeoJSONPolygon,
     MonostaticSensor,
     PclSensor,
-    Point,
     Receiver,
     Sensor,
     Transmitter,
@@ -189,53 +187,28 @@ def create_app(
     def calculate_monostatic_coverage(
         radar: MonostaticSensor,
         target_alt: float,
-        rcs: float,
+        target_rcs: float,
         probability_threshold: float,
-        azimuth_resolution_degree: float,
-        range_only: bool = False,
-    ) -> GeoJSONFeature:
+        lat_res: float,
+        lon_res: float,
+    ) -> list[GeoJSONFeature]:
         max_dist = calculate_maximum_monostatic_range(
             radar=radar,
-            target_rcs=rcs,
+            target_rcs=target_rcs,
             probability_threshold=probability_threshold,
         )
-        if range_only:
-            polygon = calculate_range_polygon(
-                radar.receiver.point,
-                max_dist,
-                target_alt,
-                azimuth_resolution_degree,
-            )
-        else:
-            polygon = calculate_coverage(
-                director._simulator._terrain_model,
-                radar.receiver.point,
-                max_dist,
-                target_alt,
-                d_theta=azimuth_resolution_degree,
-            )
-        return GeoJSONFeature(
-            geometry=GeoJSONPolygon.from_shapely(polygon),
-            properties={"name": "my polygon"},
-        )
-
-    @app.post("/calculate_monostatic_coverage")
-    def calculate_line_of_sight(
-        center: Point,
-        target_alt: float,
-        max_range: float,
-        azimuth_resolution_degree: float,
-    ) -> GeoJSONFeature:
-        polygon = calculate_range_polygon(
-            center,
-            max_range,
+        polygons = calculate_coverage(
+            director._simulator._terrain_model,
+            radar.receiver.point,
+            max_dist,
             target_alt,
-            azimuth_resolution_degree,
+            lat_res,
+            lon_res,
         )
-        return GeoJSONFeature(
-            geometry=GeoJSONPolygon.from_shapely(polygon),
-            properties={"name": "my polygon"},
-        )
+        return [GeoJSONFeature(
+            geometry=GeoJSONPolygon.from_shapely(p),
+            properties={"name": f"coverage (dlat={lat_res}, dlon={lon_res})"},
+        ) for p in polygons]
 
     @app.post("/calculate_min_detectable_rcs")
     def calculate_min_detectable_rcs(

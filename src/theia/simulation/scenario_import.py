@@ -194,14 +194,14 @@ class MonostaticCoverageCalcSettings(pydantic.BaseModel):
     targetAlt: float
     targetRcs: float
     probabilityThreshold: float
-    azimuthResolution: float
-    rangeOnly: bool
+    latRes: float
+    lonRes: float
 
 
 class MonostaticCoverageCalculation(pydantic.BaseModel):
     sensorId: int
     settings: MonostaticCoverageCalcSettings
-    coverage: GeoJSONFeature
+    coverage: list[GeoJSONFeature]
 
 
 class PclSensorFactory(pydantic.BaseModel):

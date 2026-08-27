@@ -1,9 +1,9 @@
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 import geopandas as gpd
-from pyproj import Transformer
 import shapely
+from pyproj import Transformer
 
 from theia.coverage import calculate_coverage
 from theia.terrain import SrtmTerrainModel
@@ -36,13 +36,16 @@ class CoverageTest(unittest.TestCase):
         # From openBURST.
         max_dist = 16500.001
 
-        coverage = calculate_coverage(
+        coverages = calculate_coverage(
             terrain_model,
             start,
             max_dist,
             target_flight_height,
-            d_theta=0.1,
+            0.001,
+            0.001,
         )
+        self.assertTrue(len(coverages) == 1)
+        coverage = coverages[0]
 
         # Convert to cartesian coordinates and calculate Dice simularity metric.
         transformer = Transformer.from_crs("EPSG:4326", "EPSG:32633", always_xy=True)

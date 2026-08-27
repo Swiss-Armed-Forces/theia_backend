@@ -18,7 +18,7 @@ from theia.types import (
     RcsModel,
     Target,
 )
-from theia.util import get_clear_sky_attenuation, marcum_q_function
+from theia.util import angle_in_interval, get_clear_sky_attenuation, marcum_q_function
 
 
 def calculate_monostatic_detection(
@@ -87,6 +87,17 @@ def calculate_monostatic_detection(
                 target_position_cartesian,
             )
         )
+        # Geometric check: Is the target within the field-of-vision?
+        if not angle_in_interval(
+            elevation,
+            radar.receiver.min_elevation,
+            radar.receiver.max_elevation,
+        ) or not angle_in_interval(
+            azimuth,
+            radar.receiver.min_azimuth,
+            radar.receiver.max_azimuth,
+        ):
+            return None
         sigma_range = 0.0
         sigma_elevation = 0.0
         sigma_azimuth = 0.0
@@ -222,7 +233,9 @@ class FastPd:
         snr_grid = np.linspace(snr_min, snr_max, n_points)
         self.pd = [_calculate_probability_of_detection(snr, pfa) for snr in snr_grid]
         if not self.pd[1] - self.pd[0] <= 1e-4 or not np.isclose(self.pd[-1], 1):
-            raise ValueError(f"SNR lookup-table not saturated! (low: {self.pd[0]}, high: {self.pd[-1]})")
+            raise ValueError(
+                f"SNR lookup-table not saturated! (low: {self.pd[0]}, high: {self.pd[-1]})"
+            )
 
     def __call__(self, snr):
         if snr <= self.snr_min:

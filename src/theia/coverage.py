@@ -1,67 +1,77 @@
 import functools
-import json
 from multiprocessing import Pool
-import tempfile
+
 import numpy as np
-import geopandas as gpd
 import shapely
+from scipy.ndimage import binary_dilation, binary_erosion
+
 from theia.detection.pcl import PclDetector
-from theia.distance import burstvincentydistance
+from theia.distance import burstvincentydistance, line_of_sight_distance
 from theia.grids import LatLonHeightGrid
-from theia.line_of_sight import line_of_sight_along_ray
 from theia.terrain import AbstractTerrainModel
 from theia.types import PclSensor, Point
+from theia.util import mask_to_polygon
 
 
 def calculate_coverage(
-    terrain_model: AbstractTerrainModel,
-    start: Point,
-    max_dist: float,
+    terrain: AbstractTerrainModel,
+    point: Point,
+    d_max: float,
     target_alt: float,
-    dist_res: float = 30.0,
-    d_theta: float = 0.5,
-    n_workers: int = 1,
-) -> shapely.geometry.polygon.Polygon:
-    thetas = np.arange(0.0, 360.0, d_theta)
+    dlat: float = 0.01,
+    dlon: float = 0.025,
+):
+    p = (point.lat, point.lon)
+    north = burstvincentydistance(p, d_max, 0, target_alt)
+    east = burstvincentydistance(p, d_max, 90, target_alt)
+    south = burstvincentydistance(p, d_max, 180, target_alt)
+    west = burstvincentydistance(p, d_max, 270, target_alt)
+    grid = LatLonHeightGrid(
+        lat_start=south.lat,
+        lat_stop=north.lat + dlat,
+        lat_res=dlat,
+        lon_start=west.lon,
+        lon_stop=east.lon + dlon,
+        lon_res=dlon,
+        height_start=target_alt,
+        height_stop=target_alt,
+        height_res=1,
+    )
 
-    if n_workers == 1:
-        # Do not parallelize.
-        visible_points = [
-            line_of_sight_along_ray(
-                start,
-                theta,
-                target_alt=target_alt,
-                d_max=max_dist,
-                dist_res=dist_res,
-                terrain_model=terrain_model,
-            )
-            for theta in thetas
-        ]
-    else:
-        f = functools.partial(
-            line_of_sight_along_ray,
-            start,
-            target_alt=target_alt,
-            d_max=max_dist,
-            dist_res=dist_res,
-            terrain_model=terrain_model,
+    return _calculate_monostatic_coverage(point, terrain, grid, d_max)
+
+
+def _calculate_monostatic_coverage(
+    point: Point,
+    terrain: AbstractTerrainModel,
+    grid: LatLonHeightGrid,
+    d_max: float,
+) -> np.ndarray:
+    points = grid.points
+    mask = np.empty((points.shape[0],), dtype=bool)
+    for i, p in enumerate(points):
+        # Distance check: We have a rectangular grid!
+        mask[i] = line_of_sight_distance(
+            point.lat,
+            point.lon,
+            point.alt,
+            p[0],
+            p[1],
+            p[2],
+        ) <= d_max and terrain.has_line_of_sight(
+            point,
+            Point(lat=p[0], lon=p[1], alt=p[2]),
         )
-        with Pool(n_workers) as p:
-            visible_points = p.map(f, thetas)
+    mask = mask.reshape(grid.n_points[:2])
+    mask = binary_dilation(binary_erosion(mask))
 
-    if visible_points[-1] != visible_points[0]:
-        visible_points.append(visible_points[0])
-
-    geojson = {
-        "type": "Polygon",
-        "coordinates": [[[p.lon, p.lat] for p in visible_points]],
-    }
-
-    with tempfile.NamedTemporaryFile("w", delete_on_close=False) as fp:
-        json.dump(geojson, fp)
-        fp.close()
-        with open(fp.name, "r") as file:
-            return gpd.read_file(file).iloc[0]["geometry"]
+    return mask_to_polygon(
+        mask,
+        grid.lat_start - grid.lat_res,
+        grid.lat_res,
+        grid.lon_start - grid.lon_res,
+        grid.lon_res,
+    )
 
 
 def calculate_range_polygon(
