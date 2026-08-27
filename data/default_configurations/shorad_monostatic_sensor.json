@@ -1,0 +1,59 @@
+{
+    "name": "Short Range Surveillance Radar",
+    "description": "Medium range radar inspired by the Spexer 3D MKIII Land system.\n All parameters are either taken from the publicly available information, derived from it or guessed",
+    "sensor": {
+        "id": -1,
+        "transmitter": {
+            "id": -1,
+            "point": {
+                "lat": 47.41422602024407,
+                "lon": 8.574829101562502,
+                "alt": 432.72090901396064
+            },
+            "power": 500,
+            "erp": 1000,
+            "antenna_height": 8,
+            "antenna_diameter": 1,
+            "antenna_gain": 37.833520559951936,
+            "frequency": 9600,
+            "pulse_width": 15,
+            "polarization": 0,
+            "bandwidth": 15,
+            "max_coherent_integration_time": 0.01,
+            "antenna_efficiency_value": 0.6,
+            "vertical_attenuation": null,
+            "horizontal_attenuation": null
+        },
+        "receiver": {
+            "id": -1,
+            "point": {
+                "lat": 47.41422602024407,
+                "lon": 8.574829101562502,
+                "alt": 432.72090901396064
+            },
+            "antenna_height": 8,
+            "diameter": 1,
+            "cpi_pulses": 4,
+            "pfa": 0.000001,
+            "min_elevation": -1.5707963267948966,
+            "max_elevation": 1.5707963267948966,
+            "min_azimuth": 0,
+            "max_azimuth": 6.283185307179586,
+            "rotation_time": 1,
+            "bandwidth": 15,
+            "gain": 0,
+            "losses": 0,
+            "noise_temperature": 300,
+            "noise_figure": 9,
+            "antenna_efficiency_value": 0.6,
+            "vertical_attenuation": null,
+            "horizontal_attenuation": null
+        },
+        "error_model": {
+            "min_range_uncertainty": 0,
+            "max_range_uncertainty": 0,
+            "min_angular_uncertainty": 0,
+            "max_angular_uncertainty": 0
+        }
+    }
+}
