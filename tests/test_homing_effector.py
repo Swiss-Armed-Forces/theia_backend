@@ -256,6 +256,41 @@ class TestUpdate(HomingSystemTestCase):
         system._get_targets.assert_called_once_with()
         system._get_firing_effectors.assert_called_once_with(sp, dt)
 
+    def test_update_advances_travelled_dist_by_actual_distance_moved(self):
+        # Target is 5 units away; at speed=10 over dt=1s the interceptor
+        # could cover 10 units, but must stop exactly on the target (5
+        # units) rather than overshoot. travelled_dist must reflect the
+        # actual distance moved (5), not the nominal dt * speed (10).
+        with (
+            patch.object(
+                CoordinateTransformations,
+                "geodetic_to_cartesian",
+                side_effect=lambda lat, lon, alt: (lat, lon, alt),
+            ),
+            patch.object(
+                CoordinateTransformations,
+                "cartesian_to_geodetic",
+                side_effect=lambda x, y, z: (x, y, z),
+            ),
+        ):
+            track = make_track(x=5.0, y=0.0, z=0.0)
+            track.id = 99
+            system = self.make_system(
+                assigned_track_id=99,
+                speed=10.0,
+                max_dist=1000.0,
+                travelled_dist=0.0,
+                point=Point(lat=0.0, lon=0.0, alt=0.0),
+            )
+            system._get_firing_effectors = MagicMock(return_value=[])
+            sp = MagicMock(time=datetime.datetime(2026, 1, 1))
+            sp.enemy_targets = [track]
+            dt = datetime.timedelta(seconds=1)
+
+            system.update(sp, dt)
+
+        self.assertAlmostEqual(system.travelled_dist, 5.0)
+
 
 class TestGetNextPositionGeometry(HomingSystemTestCase):
     """
@@ -355,10 +390,7 @@ class TestGetNextPositionGeometry(HomingSystemTestCase):
             x = 100.0 + 20.0 * elapsed
             return (x, 20.0, 0.0, 0.0, 0.0, 0.0)
 
-        def situational_picture_track(t):
-            return ground_truth(t - dt)
-
-        situational_picture_track.id = 99
+        ground_truth.id = 99
         system = self.make_system(
             assigned_track_id=99,
             speed=50.0,  # faster than the target
@@ -367,7 +399,7 @@ class TestGetNextPositionGeometry(HomingSystemTestCase):
             point=Point(lat=0.0, lon=0.0, alt=0.0),
         )
         sp = MagicMock(time=datetime.datetime(2026, 1, 1))
-        sp.enemy_targets = [situational_picture_track]
+        sp.enemy_targets = [ground_truth]
         
 
         for _ in range(3):
