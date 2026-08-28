@@ -2,7 +2,6 @@ import datetime
 import itertools
 import json
 
-import numpy as np
 import pandas as pd
 from pydantic import TypeAdapter
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
@@ -10,7 +9,6 @@ from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 from theia.coordinates import CoordinateTransformations
 from theia.simulation.simulator import AbstractSimulationListener, Simulator
 from theia.types import (
-    ConstantRcsModel,
     Event,
     GeoJSONFeature,
     KillEvent,
@@ -25,7 +23,6 @@ from theia.types import (
     Target,
     TextEvent,
     TrackInitEvent,
-    Trajectory,
 )
 
 
@@ -541,8 +538,8 @@ class SituationalPictureBuffer(AbstractSimulationListener):
 
     def register_simulator(self, simulator: Simulator):
         self._simulator = simulator
-        self._geojson_blue = simulator._blue_controller.get_geojson()
-        self._geojson_red = simulator._red_controller.get_geojson()
+        self._geojson_blue = simulator._blue_controller.geojson
+        self._geojson_red = simulator._red_controller.geojson
 
     def on_snapshot(self, snapshot: Snapshot):
         for target in snapshot.red_targets:

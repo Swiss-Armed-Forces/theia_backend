@@ -2,14 +2,10 @@ import datetime
 
 from theia.config import SIDC
 from theia.types import (
-    AbstractEffector,
     ConstantRcsModel,
     Controller,
     Event,
-    MonostaticSensor,
     PclSensor,
-    Point,
-    Receiver,
     SituationalPicture,
     Target,
     Velocity,
@@ -39,63 +35,44 @@ class PclSensorController(Controller):
         self._own_receiver = own_receiver
         self._own_transmitter = own_transmitter
 
-    def get_monostatic_radars(
-        self, situational_picture: SituationalPicture, dt: datetime.timedelta
-    ) -> list[MonostaticSensor]:
-        return []
-
-    def get_pcl_sensors(
-        self, situational_picture: SituationalPicture, dt: datetime.timedelta
-    ) -> list[PclSensor]:
-        return [self._sensor]
-
-    def get_targets(
-        self, situational_picture: SituationalPicture, dt: datetime.timedelta
-    ) -> list[Target]:
-        targets = []
-        if self._own_receiver:
-            targets.append(
-                Target(
-                    id=self._target_id_rx,
-                    is_stationary=True,
-                    name=self._name,
-                    sidc=self._sidc_rx,
-                    point=self._sensor.receiver.point,
-                    cross_section_model=self._rcs_model,
-                    velocity=Velocity(vx=0, vy=0, vz=0),
-                    receiver=self._sensor.receiver,
-                    transmitter=None,
-                )
-            )
-        if self._own_transmitter:
-            targets.append(
-                Target(
-                    id=self._target_id_tx,
-                    is_stationary=True,
-                    name=f"Tx (ID {self._sensor.transmitter})",
-                    sidc=self._sidc_tx,
-                    point=self._sensor.receiver.point,
-                    cross_section_model=self._rcs_model,
-                    velocity=Velocity(vx=0, vy=0, vz=0),
-                    receiver=None,
-                    transmitter=self._sensor.transmitter,
-                )
-            )
-        return targets
-
-    def get_pet_receivers(
+    def update(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[Receiver]:
-        return []
-
-    def get_firing_effectors(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[tuple[AbstractEffector, Point]]:
-        return []
+    ):
+        if len(self.pcl_sensors) == 0:
+            # Only needed at initialisation.
+            self.pcl_sensors = [self._sensor]
+            targets = []
+            if self._own_receiver:
+                targets.append(
+                    Target(
+                        id=self._target_id_rx,
+                        is_stationary=True,
+                        name=self._name,
+                        sidc=self._sidc_rx,
+                        point=self._sensor.receiver.point,
+                        cross_section_model=self._rcs_model,
+                        velocity=Velocity(vx=0, vy=0, vz=0),
+                        receiver=self._sensor.receiver,
+                        transmitter=None,
+                    )
+                )
+            if self._own_transmitter:
+                targets.append(
+                    Target(
+                        id=self._target_id_tx,
+                        is_stationary=True,
+                        name=f"Tx (ID {self._sensor.transmitter})",
+                        sidc=self._sidc_tx,
+                        point=self._sensor.receiver.point,
+                        cross_section_model=self._rcs_model,
+                        velocity=Velocity(vx=0, vy=0, vz=0),
+                        receiver=None,
+                        transmitter=self._sensor.transmitter,
+                    )
+                )
+            self.targets = targets
 
     def on_event(self, event: Event):
         pass
