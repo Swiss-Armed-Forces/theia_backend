@@ -1,6 +1,7 @@
 from dataclasses import dataclass
+import datetime
 
-from theia.types import Controller, VisualSensor
+from theia.types import Controller, SituationalPicture, VisualSensor
 
 
 @dataclass
@@ -14,26 +15,12 @@ class StationaryEyeController(Controller):
 
     sensor: VisualSensor
 
+    def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
+        if len(self.visual_sensors) == 0:
+            self.visual_sensors = [self.sensor]
+
     def __post_init__(self):
         super().__init__()
 
     def on_event(self, event):
         pass
-
-    def get_monostatic_radars(self, situational_picture, dt):
-        return []
-
-    def get_pcl_sensors(self, situational_picture, dt):
-        return []
-
-    def get_targets(self, situational_picture, dt):
-        return []
-
-    def get_pet_receivers(self, situational_picture, dt):
-        return []
-
-    def get_firing_effectors(self, situational_picture, dt):
-        return []
-
-    def get_visual_sensors(self, situational_picture, dt) -> list[VisualSensor]:
-        return [self.sensor]

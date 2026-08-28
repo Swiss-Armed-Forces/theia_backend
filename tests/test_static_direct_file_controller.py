@@ -108,20 +108,16 @@ class StaticDirectFireControllerTest(unittest.TestCase):
     def test_no_assigned_target(self):
         controller = get_controller(None)
         picture = get_situational_picture_in_range()
-        fire_decisions = controller.get_firing_effectors(
-            picture,
-            datetime.timedelta(seconds=1),
-        )
+        controller.update(picture, datetime.timedelta(seconds=1))
+        fire_decisions = controller.firing_effectors
         self.assertEqual(len(fire_decisions), 0)
 
     def test_assigned_target(self):
         controller = get_controller("0")
         picture = get_situational_picture_in_range()
+        controller.update(picture, datetime.timedelta(seconds=1))
 
-        fire_decisions = controller.get_firing_effectors(
-            picture,
-            datetime.timedelta(seconds=1),
-        )
+        fire_decisions = controller.firing_effectors
         self.assertEqual(len(fire_decisions), 1)
 
         effector, p = fire_decisions[0]
@@ -134,7 +130,8 @@ class StaticDirectFireControllerTest(unittest.TestCase):
     def test_as_target(self):
         controller = get_controller(None)
         picture = get_situational_picture_in_range()
-        targets = controller.get_targets(picture, datetime.timedelta(seconds=1))
+        controller.update(picture, datetime.timedelta(seconds=1))
+        targets = controller.targets
 
         expected = Target(
             id=4,

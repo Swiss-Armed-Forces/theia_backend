@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import datetime
 
 from theia.config import UNKNOWN_ID
 from theia.distance import line_of_sight_distance
@@ -9,6 +10,7 @@ from theia.types import (
     KillEvent,
     Point,
     Shot,
+    SituationalPicture,
     Trajectory,
 )
 
@@ -39,38 +41,21 @@ class FixedPathOneWayDrone(Controller):
                 )
             )
 
-    def get_monostatic_radars(self, situational_picture, dt):
-        return []
-
-    def get_pcl_sensors(self, situational_picture, dt):
-        return []
-
-    def get_targets(self, situational_picture, dt):
+    def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
         target = self.trajectory(situational_picture.time)
-        if target is not None:
-            return [target]
-        else:
-            return []
+        self.targets = [] if target is None else [target]
 
-    def get_pet_receivers(self, situational_picture, dt):
-        return []
-
-    def get_firing_effectors(
-        self,
-        situational_picture,
-        dt,
-    ) -> list[tuple[AbstractEffector, Point]]:
-        target = self.trajectory(situational_picture.time)
         if target is None:
-            return []
-        p = target.point
+            self.firing_effectors = []
+            return
 
+        p = target.point
         if (
             self.terrain.has_line_of_sight(p, self.assigned_goal)
             and line_of_sight_distance(*p.as_tuple(), *self.assigned_goal.as_tuple())
             <= self.effector.combat_range
         ):
             self.effector.point = p
-            return [(self.effector, self.assigned_goal)]
+            self.firing_effectors = [(self.effector, self.assigned_goal)]
         else:
             return []

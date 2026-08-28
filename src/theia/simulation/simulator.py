@@ -563,59 +563,29 @@ class Simulator(Trigger, AbstractEventListener):
         self._listener.on_situational_picture(blue_situational_picture, True)
         self._listener.on_situational_picture(red_situational_picture, False)
 
+        self._blue_controller.update(blue_situational_picture, self._dt)
+        self._red_controller.update(red_situational_picture, self._dt)
+
         # Fight before updating the world.
         # Otherwise, the shots always miss because the situational picture refers
         # to the time step before the update.
-        self._blue_firing_effectors = self._blue_controller.get_firing_effectors(
-            blue_situational_picture,
-            self._dt,
-        )
-        self._red_firing_effectors = self._red_controller.get_firing_effectors(
-            red_situational_picture,
-            self._dt,
-        )
+        self._blue_firing_effectors = self._blue_controller.firing_effectors
+        self._red_firing_effectors = self._red_controller.firing_effectors
 
         self._execute_attacks(is_blue=True)
         self._execute_attacks(is_blue=False)
 
         # Update world according to behaviour informed by situational picture.
-        self._blue_monostatic_radars = self._blue_controller.get_monostatic_radars(
-            blue_situational_picture,
-            self._dt,
-        )
-        self._blue_pcl_sensors = self._blue_controller.get_pcl_sensors(
-            blue_situational_picture,
-            self._dt,
-        )
-        self._blue_visual_sensors = self._blue_controller.get_visual_sensors(
-            blue_situational_picture,
-            self._dt,
-        )
-        self._blue_targets = self._blue_controller.get_targets(
-            blue_situational_picture,
-            self._dt,
-        )
-        self._red_monostatic_radars = self._red_controller.get_monostatic_radars(
-            red_situational_picture,
-            self._dt,
-        )
-        self._red_pcl_sensors = self._red_controller.get_pcl_sensors(
-            red_situational_picture,
-            self._dt,
-        )
-        self._red_visual_sensors = self._red_controller.get_visual_sensors(
-            red_situational_picture,
-            self._dt,
-        )
-        self._red_targets = self._red_controller.get_targets(
-            red_situational_picture,
-            self._dt,
-        )
+        self._blue_monostatic_radars = self._blue_controller.monostatic_sensors
+        self._blue_pcl_sensors = self._blue_controller.pcl_sensors
+        self._blue_visual_sensors = self._blue_controller.visual_sensors
+        self._blue_targets = self._blue_controller.targets
+        self._red_monostatic_radars = self._red_controller.monostatic_sensors
+        self._red_pcl_sensors = self._red_controller.pcl_sensors
+        self._red_visual_sensors = self._red_controller.visual_sensors
+        self._red_targets = self._red_controller.targets
 
-        self._blue_pet_receivers = self._blue_controller.get_pet_receivers(
-            blue_situational_picture,
-            self._dt,
-        )
+        self._blue_pet_receivers = self._blue_controller.pet_receivers
         self._blue_pet_sensors: list[PetSensor] = []
         for rx, target in itertools.product(
             self._blue_pet_receivers, self._red_targets
@@ -634,10 +604,7 @@ class Simulator(Trigger, AbstractEventListener):
                 self._blue_pet_sensors.append(sensor)
                 self._pet_sensor_ids[(rx.id, target.id)] = sensor.id
 
-        self._red_pet_receivers = self._red_controller.get_pet_receivers(
-            red_situational_picture,
-            self._dt,
-        )
+        self._red_pet_receivers = self._red_controller.pet_receivers
         self._red_pet_sensors: list[PetSensor] = []
         for rx, target in itertools.product(
             self._red_pet_receivers, self._blue_targets

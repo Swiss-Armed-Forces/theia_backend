@@ -52,25 +52,9 @@ class LivingControllerTest(unittest.TestCase):
         self.assertTrue(self._controller._is_alive)
         picture = get_dummy_situational_picture()
         dt = get_dt()
-        with patch.object(self._radar_controller, "get_monostatic_radars") as mock:
-            self._controller.get_monostatic_radars(picture, dt)
-            mock.assert_called_once()
-
-        with patch.object(self._radar_controller, "get_pcl_sensors") as mock:
-            self._controller.get_pcl_sensors(picture, dt)
-            mock.assert_called_once()
-
-        with patch.object(self._radar_controller, "get_targets") as mock:
-            self._controller.get_targets(picture, dt)
-            mock.assert_called_once()
-
-        with patch.object(self._radar_controller, "get_pet_receivers") as mock:
-            self._controller.get_pet_receivers(picture, dt)
-            mock.assert_called_once()
-
-        with patch.object(self._radar_controller, "get_firing_effectors") as mock:
-            self._controller.get_firing_effectors(picture, dt)
-            mock.assert_called_once()
+        with patch.object(MonostaticRadarController, "update", autospec=True) as mock:
+            self._controller.update(picture, dt)
+            mock.assert_called_once_with(self._radar_controller, picture, dt)
 
     def test_kill(self):
         self.assertTrue(self._controller._is_alive)
@@ -87,30 +71,14 @@ class LivingControllerTest(unittest.TestCase):
         self.assertFalse(self._controller._is_alive)
         picture = get_dummy_situational_picture()
         dt = get_dt()
-        with patch.object(self._radar_controller, "get_monostatic_radars") as mock:
-            result = self._controller.get_monostatic_radars(picture, dt)
+        with patch.object(MonostaticRadarController, "update", autospec=True) as mock:
+            self._controller.update(picture, dt)
             mock.assert_not_called()
-            self.assertEqual(len(result), 0)
-
-        with patch.object(self._radar_controller, "get_pcl_sensors") as mock:
-            result = self._controller.get_pcl_sensors(picture, dt)
-            mock.assert_not_called()
-            self.assertEqual(len(result), 0)
-
-        with patch.object(self._radar_controller, "get_targets") as mock:
-            result = self._controller.get_targets(picture, dt)
-            mock.assert_not_called()
-            self.assertEqual(len(result), 0)
-
-        with patch.object(self._radar_controller, "get_pet_receivers") as mock:
-            result = self._controller.get_pet_receivers(picture, dt)
-            mock.assert_not_called()
-            self.assertEqual(len(result), 0)
-
-        with patch.object(self._radar_controller, "get_firing_effectors") as mock:
-            result = self._controller.get_firing_effectors(picture, dt)
-            mock.assert_not_called()
-            self.assertEqual(len(result), 0)
+            self.assertEqual(len(self._controller.monostatic_sensors), 0)
+            self.assertEqual(len(self._controller.pcl_sensors), 0)
+            self.assertEqual(len(self._controller.targets), 0)
+            self.assertEqual(len(self._controller.pet_receivers), 0)
+            self.assertEqual(len(self._controller.firing_effectors), 0)
 
 
 if __name__ == "__main__":

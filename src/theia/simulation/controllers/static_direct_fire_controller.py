@@ -1,30 +1,24 @@
-from dataclasses import dataclass, field
 import datetime
+from dataclasses import dataclass, field
 from typing import Optional
-
 
 from theia.config import SIDC
 from theia.coordinates import CoordinateTransformations
 from theia.coverage import calculate_coverage
 from theia.effectors import DirectFireEffector
 from theia.types import (
-    AbstractEffector,
     ConstantRcsModel,
     Controller,
     Event,
     GeoJSONFeature,
     GeoJSONPolygon,
-    MonostaticSensor,
-    PclSensor,
     Point,
-    Receiver,
     SituationalPicture,
     Target,
     Velocity,
 )
 
 
-@dataclass
 class StaticDirectFireController(Controller):
     """
     Controller representing a static (i. e. non-moving) direct fire effector.
@@ -62,26 +56,13 @@ class StaticDirectFireController(Controller):
     def on_event(self, event: Event):
         pass
 
-    def get_monostatic_radars(
+    def update(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[MonostaticSensor]:
-        return []
-
-    def get_pcl_sensors(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[PclSensor]:
-        return []
-
-    def get_targets(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Target]:
-        return [
+    ):
+        # Targets.
+        self.targets = [
             Target(
                 id=self.target_id,
                 is_stationary=True,
@@ -95,52 +76,35 @@ class StaticDirectFireController(Controller):
             )
         ]
 
-    def get_pet_receivers(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Receiver]:
-        return []
-
-    def get_firing_effectors(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[tuple[AbstractEffector, Point]]:
-        if self.assigned_track_id is None:
-            return []
-        if (
-            self.time_of_last_shot is not None
-            and (situational_picture.time - self.time_of_last_shot).seconds
+        # Fire.
+        self.firing_effectors = []
+        ready_to_fire = (
+            self.time_of_last_shot is None
+            or (situational_picture.time - self.time_of_last_shot).seconds
             < 1 / self.cadence
-        ):
-            return []
-        track = next(
-            (
-                t
-                for t in situational_picture.enemy_targets
-                if t.id == self.assigned_track_id
-            ),
-            None,
         )
+        if self.assigned_track_id is not None and ready_to_fire:
+            track = next(
+                (
+                    t
+                    for t in situational_picture.enemy_targets
+                    if t.id == self.assigned_track_id
+                ),
+                None,
+            )
+            if track is not None:
+                x, vx, y, vy, z, vz = track(situational_picture.time)
+                lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
+                target_position = Point(lat=lat, lon=lon, alt=alt)
 
-        if track is None:
-            return []
+                if self.effector.terrain.has_line_of_sight(
+                    self.effector.point, target_position
+                ):
+                    self.time_of_last_shot = situational_picture.time + dt
+                    self.firing_effectors = [(self.effector, target_position)]
 
-        x, vx, y, vy, z, vz = track(situational_picture.time)
-        lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
-        target_position = Point(lat=lat, lon=lon, alt=alt)
-
-        if self.effector.terrain.has_line_of_sight(
-            self.effector.point, target_position
-        ):
-            self.time_of_last_shot = situational_picture.time + dt
-            return [(self.effector, target_position)]
-        else:
-            return []
-
-    def get_geojson(self):
-        result = {}
+        # GeoJSON.
+        geojson = {}
         for alt in self.geojson_range_altitudes:
             coverage = calculate_coverage(
                 self.effector.terrain,
@@ -152,5 +116,5 @@ class StaticDirectFireController(Controller):
                 geometry=GeoJSONPolygon.from_shapely(coverage),
                 properties={"name": "my polygon"},
             )
-            result["Effector range @ {alt}MASL"] = coverage
-        return result
+            geojson["Effector range @ {alt}MASL"] = coverage
+        self.geojson = geojson

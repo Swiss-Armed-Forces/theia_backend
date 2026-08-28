@@ -1,15 +1,17 @@
 from __future__ import annotations
+
 import abc
-from dataclasses import dataclass
 import datetime
 import enum
+from dataclasses import dataclass
 from typing import Any, Literal, Optional, Self
-from matplotlib import pyplot as plt
+
 import numpy as np
 import pydantic
-from scipy.interpolate import CubicSpline, make_interp_spline, BSpline
 import scipy.constants as sc
 import shapely
+from matplotlib import pyplot as plt
+from scipy.interpolate import BSpline, CubicSpline, make_interp_spline
 
 from theia.config import SIDC, UNKNOWN_ID
 from theia.util import from_dB
@@ -761,6 +763,9 @@ class ConstantRcsModel(RcsModel, pydantic.BaseModel):
         return self.rcs
 
 
+ConcreteRcsModel = ConstantRcsModel
+
+
 CLUTTER_TARGET = Target(
     id=-2,
     is_stationary=True,
@@ -1179,15 +1184,14 @@ class TimerEvent(Event):
     """ID of the timer."""
 
 
-class Trigger:
+class Trigger(pydantic.BaseModel):
     """
     Fires events and informs registered listeners.
 
     This class does not fire any events itself, but is meant to be extended.
     """
 
-    def __init__(self):
-        self._listeners: list[AbstractEventListener] = []
+    _listeners: list[AbstractEventListener] = pydantic.PrivateAttr(default_factory=list)
 
     def register_event_listener(self, listener: AbstractEventListener):
         self._listeners.append(listener)
@@ -1300,57 +1304,26 @@ class GeoJSONFeature(pydantic.BaseModel):
         return cls(geometry=geometry, properties=properties)
 
 
-class Controller(AbstractEventListener, Trigger):
-    @abc.abstractmethod
-    def get_monostatic_radars(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[MonostaticSensor]:
-        raise NotImplementedError()
+class Controller(
+    AbstractEventListener,
+    Trigger,
+    validate_assignment=True,
+):
+    monostatic_sensors: list[MonostaticSensor] = []
+    pcl_sensors: list[PclSensor] = []
+    targets: list[Target] = []
+    pet_receivers: list[Receiver] = []
+    visual_sensors: list[VisualSensor] = []
+    firing_effectors: list[tuple[AbstractEffector, Point]] = []
+    geojson: dict[str, GeoJSONFeature] = {}
 
     @abc.abstractmethod
-    def get_pcl_sensors(
+    def update(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[PclSensor]:
+    ):
         raise NotImplementedError()
-
-    @abc.abstractmethod
-    def get_targets(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Target]:
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def get_pet_receivers(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Receiver]:
-        raise NotImplementedError()
-
-    def get_visual_sensors(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[VisualSensor]:
-        return []
-
-    @abc.abstractmethod
-    def get_firing_effectors(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[tuple[AbstractEffector, Point]]:
-        """Let the controller perform shots."""
-        raise NotImplementedError()
-
-    def get_geojson(self) -> dict[str, GeoJSONFeature]:
-        return {}
 
 
 class Snapshot(pydantic.BaseModel):

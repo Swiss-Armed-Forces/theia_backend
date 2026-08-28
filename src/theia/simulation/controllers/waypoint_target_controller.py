@@ -1,19 +1,18 @@
 from __future__ import annotations
+
 import datetime
 from typing import Optional
 
 import numpy as np
 from scipy.interpolate import CubicSpline
+
 from theia.coordinates import CoordinateTransformations
 from theia.types import (
-    AbstractEffector,
     Controller,
     Event,
     MonostaticSensor,
-    PclSensor,
     Point,
     RcsModel,
-    Receiver,
     SituationalPicture,
     Target,
     Trajectory,
@@ -72,42 +71,24 @@ class WaypointTargetController(Controller):
         """Velocity in ECEF space as a function of POSIX timestamp"""
         self._sensor = radar
 
-    def get_monostatic_radars(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[MonostaticSensor]:
-        if self._sensor is None:
-            return []
+    def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
+        if self._sensor is not None:
+            # Monostatic radars.
+            t = (situational_picture.time + dt).timestamp()
+            x, y, z = self._f(t)
+            lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
+            p = Point(lat=lat, lon=lon, alt=alt)
+            self._sensor.transmitter.point = p
+            self._sensor.receiver.point = p
+            self.monostatic_sensors = [self._sensor]
 
-        t = (situational_picture.time + dt).timestamp()
-        x, y, z = self._f(t)
-        lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
-        p = Point(lat=lat, lon=lon, alt=alt)
-        self._sensor.transmitter.point = p
-        self._sensor.receiver.point = p
-        return [self._sensor]
-
-    def get_pcl_sensors(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[PclSensor]:
-        return []
-
-    def get_targets(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Target]:
+        # Targets.
         t = (situational_picture.time + dt).timestamp()
         xyz = self._f(t)
         v_xyz = self._v(t)
         lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(*xyz)
-        if np.isnan((lat, lon, alt)).any():
-            # Out-of-bounds time.
-            return []
-        else:
+        # Ignore out-of-bounds time.
+        if not np.isnan((lat, lon, alt)).any():
             rx = None
             tx = None
             if self._sensor is not None:
@@ -115,7 +96,7 @@ class WaypointTargetController(Controller):
                 tx = self._sensor.transmitter.model_copy(deep=True)
                 p = Point(lat=lat, lon=lon, alt=alt)
                 tx.point = p
-            return [
+            self.targets = [
                 Target(
                     id=self._target_id,
                     is_stationary=False,
@@ -128,13 +109,6 @@ class WaypointTargetController(Controller):
                     receiver=rx,
                 )
             ]
-
-    def get_pet_receivers(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Receiver]:
-        return []
 
     @staticmethod
     def from_trajectory(
@@ -157,13 +131,6 @@ class WaypointTargetController(Controller):
             trajectory.cross_section_model,
             sensor,
         )
-
-    def get_firing_effectors(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[tuple[AbstractEffector, Point]]:
-        return []
 
     def on_event(self, event: Event):
         pass

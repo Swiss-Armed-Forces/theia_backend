@@ -9,11 +9,16 @@ from theia.simulation.controllers.static_direct_fire_controller import (
     StaticDirectFireController,
 )
 from theia.terrain import AbstractTerrainModel
-from theia.types import Point
+from theia.types import Point, SituationalPicture
 
 
 class StaticDirectFireCoordinator(ControllerGroup):
-    """Assigns the closest track to every effector."""
+    """
+    Assigns the closest track to every effector.
+
+    Target assignment is assumed to be instantaneous, i. e. the effector can
+    fire in the same turn as it is assigned a new target.
+    """
 
     def __init__(
         self,
@@ -23,14 +28,14 @@ class StaticDirectFireCoordinator(ControllerGroup):
         super().__init__(controllers)
         self._terrain = terrain
 
-    def get_firing_effectors(self, situational_picture, dt):
+    def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
         tracks = situational_picture.enemy_targets
         for c in self._controllers:
             c: StaticDirectFireController = c
             effector = c.effector
             min_track_id: str | None = None
             min_d = np.inf
-            for i, track in enumerate(tracks):
+            for track in tracks:
                 x, vx, y, vy, z, vz = track(situational_picture.time)
                 lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
                 d = line_of_sight_distance(
@@ -51,6 +56,4 @@ class StaticDirectFireCoordinator(ControllerGroup):
                     min_track_id = track.id
                     min_d = d
             c.assigned_track_id = min_track_id
-
-        firing_effectors = super().get_firing_effectors(situational_picture, dt)
-        return firing_effectors
+        super().update(situational_picture, dt)

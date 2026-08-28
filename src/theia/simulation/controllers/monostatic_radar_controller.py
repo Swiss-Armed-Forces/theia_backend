@@ -45,52 +45,27 @@ class MonostaticRadarController(Controller):
         self._sidc = SIDC.BLUE_RADAR if is_blue else SIDC.RED_RADAR
         self._rcs_model = rcs_model
 
-    def get_monostatic_radars(
+    def update(
         self,
         situational_picture: SituationalPicture,
         dt: datetime.timedelta,
-    ) -> list[MonostaticSensor]:
-        return [self._radar]
-
-    def get_pcl_sensors(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[PclSensor]:
-        return []
-
-    def get_targets(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Target]:
-        return [
-            Target(
-                id=self._target_id,
-                is_stationary=True,
-                name=self._name,
-                sidc=self._sidc,
-                point=self._radar.receiver.point,
-                cross_section_model=self._rcs_model,
-                velocity=Velocity(vx=0, vy=0, vz=0),
-                receiver=self._radar.receiver,
-                transmitter=self._radar.transmitter,
-            )
-        ]
-
-    def get_pet_receivers(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[Receiver]:
-        return []
-
-    def get_firing_effectors(
-        self,
-        situational_picture: SituationalPicture,
-        dt: datetime.timedelta,
-    ) -> list[tuple[AbstractEffector, Point]]:
-        return []
+    ):
+        if len(self.monostatic_sensors) == 0:
+            # Only needed at initialisation.
+            self.monostatic_sensors = [self._radar]
+            self.targets = [
+                Target(
+                    id=self._target_id,
+                    is_stationary=True,
+                    name=self._name,
+                    sidc=self._sidc,
+                    point=self._radar.receiver.point,
+                    cross_section_model=self._rcs_model,
+                    velocity=Velocity(vx=0, vy=0, vz=0),
+                    receiver=self._radar.receiver,
+                    transmitter=self._radar.transmitter,
+                )
+            ]
 
     def on_event(self, event: Event):
         pass

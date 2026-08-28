@@ -1,4 +1,16 @@
-from theia.types import Controller, Event, EventRelais, KillEvent, TheiaException
+import datetime
+
+from pydantic import PrivateAttr
+import pydantic
+
+from theia.types import (
+    Controller,
+    Event,
+    EventRelais,
+    KillEvent,
+    SituationalPicture,
+    TheiaException,
+)
 
 
 class AlreadyDeadException(TheiaException):
@@ -13,49 +25,35 @@ class LivingController(Controller):
     is received.
     """
 
-    def __init__(self, child: Controller, target_id: int):
-        super().__init__()
-        self._child = child
-        self._target_id = target_id
+    child: Controller
+    target_id: int
+
+    def model_post_init(self, context):
+        super().model_post_init(context)
         self._is_alive = True
         self._relais = EventRelais()
-        child.register_event_listener(self._relais)
+        self.child.register_event_listener(self._relais)
 
     def on_event(self, event: Event):
-        if isinstance(event, KillEvent) and event.target_id == self._target_id:
+        if isinstance(event, KillEvent) and event.target_id == self.target_id:
             if self._is_alive:
                 self._is_alive = False
-        self._child.on_event(event)
+        self.child.on_event(event)
 
     def register_event_listener(self, listener):
         self._relais.register_event_listener(listener)
 
-    def get_monostatic_radars(self, situational_picture, dt):
+    def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
         if self._is_alive:
-            return self._child.get_monostatic_radars(situational_picture, dt)
+            self.child.update(situational_picture, dt)
+            self.monostatic_sensors = (
+                self.child.monostatic_sensors if self._is_alive else []
+            )
         else:
-            return []
-
-    def get_pcl_sensors(self, situational_picture, dt):
-        if self._is_alive:
-            return self._child.get_pcl_sensors(situational_picture, dt)
-        else:
-            return []
-
-    def get_targets(self, situational_picture, dt):
-        if self._is_alive:
-            return self._child.get_targets(situational_picture, dt)
-        else:
-            return []
-
-    def get_pet_receivers(self, situational_picture, dt):
-        if self._is_alive:
-            return self._child.get_pet_receivers(situational_picture, dt)
-        else:
-            return []
-
-    def get_firing_effectors(self, situational_picture, dt):
-        if self._is_alive:
-            return self._child.get_firing_effectors(situational_picture, dt)
-        else:
-            return []
+            self.monostatic_sensors = []
+        self.pcl_sensors = self.child.pcl_sensors if self._is_alive else []
+        self.targets = self.child.targets if self._is_alive else []
+        self.pet_receivers = self.child.pet_receivers if self._is_alive else []
+        self.visual_sensors = self.child.visual_sensors if self._is_alive else []
+        self.firing_effectors = self.child.firing_effectors if self._is_alive else []
+        self.geojson = self.child.geojson if self._is_alive else {}
