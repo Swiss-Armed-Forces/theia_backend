@@ -156,7 +156,7 @@ class HomingSystem(Controller):
                 t + datetime.timedelta(seconds=seconds_in_future[0])
             )
             R2 = (pos_x - x) ** 2 + (pos_y - y) ** 2 + (pos_z - z) ** 2
-            r2 = min(( seconds_in_future[0] * self.speed) ** 2, R2)
+            r2 = min((seconds_in_future[0] * self.speed) ** 2, R2)
             return R2 - r2
 
         result = minimize(
@@ -166,13 +166,6 @@ class HomingSystem(Controller):
             tol=1e-6,
         )
         t_closest = result.x
-        DEBUG = False
-        if DEBUG:
-            print("t_closest = ", t_closest)
-            x, vx, y, vy, z, vz = track(
-                t + datetime.timedelta(seconds=t_closest[0])
-            )
-            print("Closest point = ", x, y, z)
         x, vx, y, vy, z, vz = track(t + datetime.timedelta(seconds=t_closest[0]))
         diff = (x - pos_x, y - pos_y, z - pos_z)
         # Avoid division by zero.
@@ -180,8 +173,6 @@ class HomingSystem(Controller):
         direction = (diff[0] / R, diff[1] / R, diff[2] / R)
         # Important: We make a tiny step towards the future expected closest approach.
         r = min(dt.seconds * self.speed, R)
-        print("Dist to closest = ", R)
-        print("Final dist = ", r)
 
         lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(
             pos_x + r * direction[0],
@@ -189,7 +180,6 @@ class HomingSystem(Controller):
             pos_z + r * direction[2],
         )
         p_next = Point(lat=lat, lon=lon, alt=alt)
-        print(p_next)
         return p_next
 
     def _get_targets(self) -> list[Target]:

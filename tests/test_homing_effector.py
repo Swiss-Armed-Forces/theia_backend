@@ -400,7 +400,6 @@ class TestGetNextPositionGeometry(HomingSystemTestCase):
         )
         sp = MagicMock(time=datetime.datetime(2026, 1, 1))
         sp.enemy_targets = [ground_truth]
-        
 
         for _ in range(3):
             result = system._get_next_position(sp, dt)
@@ -413,11 +412,9 @@ class TestGetNextPositionGeometry(HomingSystemTestCase):
             )
             x, vx, y, vy, z, vz = ground_truth(sp.time + dt)
             d2 = (px - x) ** 2 + (py - y) ** 2 + (pz - z) ** 2
-            print(math.sqrt(d2))
             self.assertGreater(d2, 0)
             sp.time += dt
 
-        print("===================================")
         result = system._get_next_position(sp, dt)
         self.assertIsNotNone(result)
         system.point = result
@@ -428,7 +425,6 @@ class TestGetNextPositionGeometry(HomingSystemTestCase):
         )
         x, vx, y, vy, z, vz = ground_truth(sp.time + dt)
         d2 = (px - x) ** 2 + (py - y) ** 2 + (pz - z) ** 2
-        print(math.sqrt(d2))
         self.assertAlmostEqual(d2, 0)
 
 
