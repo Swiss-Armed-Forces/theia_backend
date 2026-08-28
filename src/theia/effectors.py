@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+import pydantic
+
 from theia.config import UNKNOWN_ID, UNKNOWN_TIME
 from theia.distance import line_of_sight_distance
 from theia.terrain import AbstractTerrainModel
@@ -25,8 +27,7 @@ class NoLosException(TheiaException):
     pass
 
 
-@dataclass
-class DirectFireEffector(AbstractEffector):
+class DirectFireEffector(pydantic.BaseModel, AbstractEffector):
     terrain: AbstractTerrainModel
 
     def fire(self, target: Target) -> DirectShot:
