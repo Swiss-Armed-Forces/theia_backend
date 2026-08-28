@@ -77,6 +77,15 @@ class HomingSystem(Controller):
         p = self._get_next_position(situational_picture, dt)
         if p is None:
             return
+        old_x, old_y, old_z = CoordinateTransformations.geodetic_to_cartesian(
+            self.point.lat, self.point.lon, self.point.alt
+        )
+        new_x, new_y, new_z = CoordinateTransformations.geodetic_to_cartesian(
+            p.lat, p.lon, p.alt
+        )
+        self.travelled_dist += math.sqrt(
+            (new_x - old_x) ** 2 + (new_y - old_y) ** 2 + (new_z - old_z) ** 2
+        )
         self.point = p
         self.targets = self._get_targets()
         self.firing_effectors = self._get_firing_effectors(situational_picture, dt)
