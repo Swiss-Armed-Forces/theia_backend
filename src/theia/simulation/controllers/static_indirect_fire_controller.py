@@ -20,7 +20,7 @@ from theia.types import (
 )
 
 
-class StaticIndirectFireController(Controller):
+class StaticIndirectFireController(Controller, arbitrary_types_allowed=True):
     """
     Controller representing a static (i. e. non-moving) indirect fire effector.
     Indirect fire means that instead of attacking the target immediately like
@@ -57,7 +57,8 @@ class StaticIndirectFireController(Controller):
         self._children: list[LivingController[HomingSystem]] = []
 
     def on_event(self, event):
-        pass
+        for child in self._children:
+            child.on_event(event)
 
     def update(
         self,
@@ -82,7 +83,6 @@ class StaticIndirectFireController(Controller):
             self._children.append(
                 LivingController(child=projectile, target_id=projectile.target_id)
             )
-        raise NotImplementedError
 
     @property
     def point(self) -> Point:
@@ -101,7 +101,7 @@ class StaticIndirectFireController(Controller):
                 receiver=None,
                 transmitter=None,
             )
-        ] + itertools.chain.from_iterable([child.targets for child in self._children])
+        ] + list(itertools.chain.from_iterable([child.targets for child in self._children]))
 
     def _launch_projectile(
         self,
@@ -148,4 +148,5 @@ class StaticIndirectFireController(Controller):
         projectile = self.projectile.model_copy(deep=True)
         projectile.assigned_track_id = self.assigned_track_id
         projectile.target_id = self.id_provier.increment(Entity.TARGET)
+        self.n_shots_left -= 1
         return projectile
