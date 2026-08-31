@@ -1,7 +1,5 @@
 import datetime
-
-from pydantic import PrivateAttr
-import pydantic
+from typing import Generic, TypeVar
 
 from theia.types import (
     Controller,
@@ -17,7 +15,10 @@ class AlreadyDeadException(TheiaException):
     pass
 
 
-class LivingController(Controller):
+T = TypeVar("T", bound=Controller)
+
+
+class LivingController(Controller, Generic[T]):
     """
     Wrapper for another controller to render it "alive", meaning it can be killed.
 
@@ -25,7 +26,7 @@ class LivingController(Controller):
     is received.
     """
 
-    child: Controller
+    child: T
     target_id: int
 
     def model_post_init(self, context):
