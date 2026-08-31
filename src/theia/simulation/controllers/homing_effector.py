@@ -55,7 +55,7 @@ class HomingSystem(Controller):
     """Position"""
     rcs: ConcreteRcsModel
     effector: DirectFireEffector
-    assigned_track_id: int
+    assigned_track_id: str
     """The tracked target to be destroyed"""
     terrain: AbstractTerrainModel
     # Do not implement the radar sensor yet (KISS and YAGNI principles).
