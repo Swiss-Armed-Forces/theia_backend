@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 import pydantic
 
 from theia.config import UNKNOWN_ID, UNKNOWN_TIME
@@ -8,7 +6,6 @@ from theia.terrain import AbstractTerrainModel
 from theia.types import (
     AbstractEffector,
     DirectShot,
-    IndirectShot,
     Target,
     TheiaException,
 )
@@ -65,35 +62,4 @@ class DirectFireEffector(pydantic.BaseModel, AbstractEffector):
             time=UNKNOWN_TIME,
             shooter=self,
             target=target,
-        )
-
-
-@dataclass
-class IndirectFireEffector(AbstractEffector):
-    projectile: DirectFireEffector
-
-    def fire(self, target: Target) -> IndirectShot:
-        d = line_of_sight_distance(
-            self.point.lat,
-            self.point.lon,
-            self.point.alt,
-            target.lat,
-            target.lon,
-            target.alt,
-        )
-        if self.n_attacks_left <= 0:
-            raise OutOfAttacksException("No attack left.")
-        if d > self.combat_range:
-            raise OutOfRangeException(
-                f"Target at {target.point} out of range ({self.combat_range:.1f} m)."
-            )
-
-        self.n_attacks_left -= 1
-
-        return IndirectShot(
-            id=UNKNOWN_ID,
-            time=UNKNOWN_TIME,
-            shooter=self,
-            target=target,
-            projectile=self.projectile,
         )

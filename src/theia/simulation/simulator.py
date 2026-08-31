@@ -1,13 +1,15 @@
 from __future__ import annotations
+
 import abc
 import cProfile
-from copy import deepcopy
 import datetime
 import itertools
 import time
+from copy import deepcopy
 from typing import Optional
 
 import numpy as np
+
 from theia.config import UNKNOWN_ID, UNKNOWN_TIME
 from theia.detection.active import calculate_monostatic_detection
 from theia.detection.pcl import PclDetector
@@ -16,7 +18,6 @@ from theia.detection.visual import VisualDetector
 from theia.distance import line_of_sight_distance
 from theia.effectors import (
     DirectFireEffector,
-    IndirectFireEffector,
     NoLosException,
     OutOfAttacksException,
     OutOfRangeException,
@@ -28,12 +29,12 @@ from theia.types import (
     AbstractEffector,
     AbstractEventListener,
     AbstractTracker,
+    Controller,
     Entity,
     Event,
     IdProvider,
     KillEvent,
     MonostaticRadarDetection,
-    Controller,
     MonostaticSensor,
     PclDetection,
     PclSensor,
@@ -532,9 +533,6 @@ class Simulator(Trigger, AbstractEventListener):
                     )
                     self._events.append(event)
                     self._broadcast_event(event)
-            elif isinstance(effector, IndirectFireEffector):
-                # TODO
-                pass
             else:
                 raise RuntimeError("This part should never be reached!")
 
