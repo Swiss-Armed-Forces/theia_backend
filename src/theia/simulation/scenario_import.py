@@ -93,6 +93,8 @@ class DirectFireEffectorFactory(pydantic.BaseModel):
     """Up to which distance a target can be fought [m]"""
     n_attacks_left: int
     """Number of attacks the effector has left"""
+    cadence: float
+    """Number of attacks per second"""
 
     def to_effector(self, terrain: AbstractTerrainModel) -> DirectFireEffector:
         return DirectFireEffector(
@@ -102,13 +104,13 @@ class DirectFireEffectorFactory(pydantic.BaseModel):
             combat_range=self.combat_range,
             n_attacks_left=self.n_attacks_left,
             terrain=terrain,
+            cadence=self.cadence,
         )
 
 
 class StaticDirectFireEffectorFactory(pydantic.BaseModel):
     target_id: int
     rcs: float
-    cadence: float
     effector: DirectFireEffectorFactory
 
     def to_controller(
@@ -121,7 +123,6 @@ class StaticDirectFireEffectorFactory(pydantic.BaseModel):
             sidc=SIDC.BLUE_AIR_DEFENCE if is_blue else SIDC.RED_AIR_DEFENCE,
             rcs=self.rcs,
             effector=self.effector.to_effector(terrain),
-            cadence=self.cadence,
         )
         return c
 
@@ -595,6 +596,8 @@ class BallisticMissileFactory(pydantic.BaseModel):
                 combat_range=100.0,
                 n_attacks_left=1,
                 terrain=self.terrain.to_terrain(),
+                # One-shot missile - no rate-of-fire limit applies.
+                cadence=float("inf"),
             ),
             trajectory=self.get_trajectory(is_blue),
             assigned_goal=self.p_stop,

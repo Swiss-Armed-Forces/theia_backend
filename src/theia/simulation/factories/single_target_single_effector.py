@@ -103,8 +103,8 @@ class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
                 combat_range=5_000,
                 n_attacks_left=1,
                 terrain=self._terrain,
+                cadence=1.0,
             ),
-            cadence=1.0,
             assigned_track_id="0",
         )
 

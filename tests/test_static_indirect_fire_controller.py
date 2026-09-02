@@ -5,320 +5,220 @@ import numpy as np
 
 from theia.config import SIDC
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
-from theia.effectors import DirectFireEffector
-from theia.simulation.controllers.homing_effector import HomingSystem
+from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.simulation.controllers.static_indirect_fire_controller import (
     StaticIndirectFireController,
 )
 from theia.terrain import SrtmTerrainModel
 from theia.types import (
-    AbstractEventListener,
     ConstantRcsModel,
-    Entity,
-    IdProvider,
-    KillEvent,
     Point,
     SituationalPicture,
-    TextEvent,
+    Target,
     Track,
+    Velocity,
 )
 
 srtm = SrtmTerrainModel()
 
-p_launcher = Point(
+p_uetliberg = Point(
     lat=POSITIONS_OF_INTEREST["Uetliberg"]["lat"],
     lon=POSITIONS_OF_INTEREST["Uetliberg"]["lon"],
     alt=POSITIONS_OF_INTEREST["Uetliberg"]["alt"],
 )
 
-# Within 100 km of p_launcher (mirrors tests/test_static_direct_file_controller.py).
 p_close = CoordinateTransformations.geodetic_to_cartesian(
     lat=47.37348,
     lon=8.53707,
     alt=1000.0,
 )
 
-# Far enough away (~3000 km) to be outside any reasonable launch distance.
-p_far = CoordinateTransformations.geodetic_to_cartesian(
-    lat=20.0,
-    lon=8.53707,
+p_close2 = CoordinateTransformations.geodetic_to_cartesian(
+    lat=47.37790,
+    lon=8.49466,
     alt=1000.0,
 )
 
 t0 = datetime.datetime.fromtimestamp(0)
 t1 = datetime.datetime.fromtimestamp(1)
-dt = datetime.timedelta(seconds=1)
 
 
-class RecordingListener(AbstractEventListener):
-    def __init__(self):
-        self.events = []
-
-    def on_event(self, event):
-        self.events.append(event)
-
-
-def make_track(track_id: str, position: tuple[float, float, float]) -> Track:
-    x, y, z = position
-    return Track(
-        id=track_id,
-        sidc=SIDC.UNKNOWN,
-        states=[
-            (t0, np.array([x, 0.0, y, 0.0, z, 0.0])),
-            (t1, np.array([x, 0.0, y, 0.0, z, 0.0])),
-        ],
-    )
-
-
-def get_projectile() -> HomingSystem:
-    effector = DirectFireEffector(
+def get_projectile_effector() -> DirectFireEffector:
+    return DirectFireEffector(
         id=99,
-        point=p_launcher,
+        point=p_uetliberg,
         combat_range=5_000,
         n_attacks_left=1,
         name="",
         terrain=srtm,
+        cadence=float("inf"),
     )
-    return HomingSystem(
-        target_id=-1,
-        sidc=SIDC.BLUE_MISSILE,
-        speed=300.0,
-        max_dist=50_000,
-        point=p_launcher,
-        rcs=ConstantRcsModel(rcs=0.1),
-        effector=effector,
-        assigned_track_id="-1",
-        terrain=srtm,
+
+
+def get_effector(
+    combat_range: float = 100_000,
+    n_attacks_left: int = 1,
+) -> IndirectFireEffector:
+    return IndirectFireEffector(
+        id=5,
+        point=p_uetliberg,
+        combat_range=combat_range,
+        n_attacks_left=n_attacks_left,
+        name="",
+        projectile=get_projectile_effector(),
+        projectile_speed=300.0,
+        projectile_max_dist=50_000.0,
+        projectile_sidc=SIDC.BLUE_MISSILE,
+        projectile_rcs=ConstantRcsModel(rcs=0.1),
+        # Cadence is checked/tracked entirely by the effector's own fire()
+        # (see tests/test_effectors.py::CadenceTest) - unlimited here since
+        # these tests are about the controller's targeting decision, not
+        # cadence.
+        cadence=float("inf"),
     )
 
 
 def get_controller(
-    assigned_track_id: str | None = "0",
-    n_shots_left: int = 1,
-    id_provider: IdProvider | None = None,
+    assigned_track_id: str | None,
     launch_distance: float = 100_000,
+    n_attacks_left: int = 1,
 ) -> StaticIndirectFireController:
     return StaticIndirectFireController(
         target_id=4,
         sidc=SIDC.BLUE_AIR_DEFENCE,
         rcs=1.5,
-        projectile=get_projectile(),
-        id_provier=id_provider if id_provider is not None else IdProvider(),
-        n_shots_left=n_shots_left,
+        effector=get_effector(n_attacks_left=n_attacks_left),
         launch_distance=launch_distance,
         assigned_track_id=assigned_track_id,
     )
 
 
-def get_situational_picture(tracks: list[Track]) -> SituationalPicture:
+def get_situational_picture_in_range() -> SituationalPicture:
+    track = Track(
+        id="0",
+        sidc=SIDC.UNKNOWN,
+        states=[
+            (
+                t0,
+                np.array([p_close[0], 0.0, p_close[1], 0.0, p_close[2], 0.0]),
+            ),
+            (
+                t1,
+                np.array([p_close[0], 0.0, p_close[1], 0.0, p_close[2], 0.0]),
+            ),
+        ],
+    )
+    # Used to check whether the controller just takes the first track or actually searches.
+    red_herring = Track(
+        id="1",
+        sidc=SIDC.UNKNOWN,
+        states=[
+            (
+                t0,
+                np.array([p_close2[0], 0.0, p_close2[1], 0.0, p_close2[2], 0.0]),
+            ),
+            (
+                t1,
+                np.array([p_close2[0], 0.0, p_close2[1], 0.0, p_close2[2], 0.0]),
+            ),
+        ],
+    )
     return SituationalPicture(
         time=t0,
         friendly_pet_receivers=[],
         friendly_radars=[],
         friendly_targets=[],
-        enemy_targets=tracks,
+        enemy_targets=[red_herring, track],
     )
 
 
-class LaunchConditionsTest(unittest.TestCase):
-    def test_no_assigned_track_does_not_launch(self):
-        controller = get_controller(assigned_track_id=None)
-        picture = get_situational_picture([make_track("0", p_close)])
-
-        controller.update(picture, dt)
-
-        self.assertEqual(len(controller._children), 0)
-
-    def test_no_shots_left_does_not_launch(self):
-        controller = get_controller(assigned_track_id="0", n_shots_left=0)
-        picture = get_situational_picture([make_track("0", p_close)])
-
-        controller.update(picture, dt)
-
-        self.assertEqual(len(controller._children), 0)
-
-    def test_assigned_track_not_in_picture_does_not_launch(self):
-        controller = get_controller(assigned_track_id="0")
-        # Only an unrelated track is visible; the assigned one is absent.
-        picture = get_situational_picture([make_track("1", p_close)])
-
-        controller.update(picture, dt)
-
-        self.assertEqual(len(controller._children), 0)
-
-    def test_track_out_of_launch_range_does_not_launch(self):
-        controller = get_controller(assigned_track_id="0", launch_distance=100_000)
-        picture = get_situational_picture([make_track("0", p_far)])
-
-        controller.update(picture, dt)
-
-        self.assertEqual(len(controller._children), 0)
-
-    def test_track_within_launch_range_launches(self):
-        controller = get_controller(assigned_track_id="0", launch_distance=100_000)
-        picture = get_situational_picture([make_track("0", p_close)])
-
-        controller.update(picture, dt)
-
-        self.assertEqual(len(controller._children), 1)
-        launched = controller._children[0].child
-        self.assertIsInstance(launched, HomingSystem)
-        self.assertEqual(launched.assigned_track_id, "0")
-
-    def test_launch_consumes_one_shot(self):
-        controller = get_controller(assigned_track_id="0", n_shots_left=3)
-        picture = get_situational_picture([make_track("0", p_close)])
-
-        controller.update(picture, dt)
-
-        self.assertEqual(controller.n_shots_left, 2)
-
-    def test_no_launch_does_not_consume_ammunition(self):
-        controller = get_controller(assigned_track_id=None, n_shots_left=3)
-        picture = get_situational_picture([make_track("0", p_close)])
-
-        controller.update(picture, dt)
-
-        self.assertEqual(controller.n_shots_left, 3)
+def get_situational_picture_out_of_range() -> SituationalPicture:
+    # ~3000 km away from p_uetliberg - clearly outside any reasonable launch distance.
+    far = CoordinateTransformations.geodetic_to_cartesian(
+        lat=20.0, lon=8.53707, alt=1000.0
+    )
+    track = Track(
+        id="0",
+        sidc=SIDC.UNKNOWN,
+        states=[
+            (t0, np.array([far[0], 0.0, far[1], 0.0, far[2], 0.0])),
+            (t1, np.array([far[0], 0.0, far[1], 0.0, far[2], 0.0])),
+        ],
+    )
+    return SituationalPicture(
+        time=t0,
+        friendly_pet_receivers=[],
+        friendly_radars=[],
+        friendly_targets=[],
+        enemy_targets=[track],
+    )
 
 
-class SingleLaunchPerUpdateTest(unittest.TestCase):
-    def test_repeated_updates_launch_only_once_while_projectile_is_alive(self):
-        controller = get_controller(assigned_track_id="0", n_shots_left=5)
-        listener = RecordingListener()
-        controller.register_event_listener(listener)
-        picture = get_situational_picture([make_track("0", p_close)])
+class StaticIndirectFireControllerTest(unittest.TestCase):
+    def test_no_assigned_target(self):
+        controller = get_controller(None)
+        picture = get_situational_picture_in_range()
+        controller.update(picture, datetime.timedelta(seconds=1))
+        self.assertEqual(len(controller.firing_effectors), 0)
 
-        controller.update(picture, dt)
-        controller.update(picture, dt)
-        controller.update(picture, dt)
+    def test_assigned_target_not_present(self):
+        controller = get_controller("5")
+        picture = get_situational_picture_in_range()
+        controller.update(picture, datetime.timedelta(seconds=1))
+        self.assertEqual(len(controller.firing_effectors), 0)
 
-        self.assertEqual(len(controller._children), 1)
-        self.assertEqual(len(listener.events), 1)
-        self.assertEqual(controller.n_shots_left, 4)
+    def test_target_out_of_launch_range(self):
+        controller = get_controller("0")
+        picture = get_situational_picture_out_of_range()
+        controller.update(picture, datetime.timedelta(seconds=1))
+        self.assertEqual(len(controller.firing_effectors), 0)
 
-    def test_new_projectile_launched_once_previous_one_is_dead(self):
-        controller = get_controller(assigned_track_id="0", n_shots_left=2)
-        picture = get_situational_picture([make_track("0", p_close)])
+    def test_assigned_target(self):
+        controller = get_controller("0")
+        picture = get_situational_picture_in_range()
+        controller.update(picture, datetime.timedelta(seconds=1))
 
-        controller.update(picture, dt)
-        self.assertEqual(len(controller._children), 1)
-        first_child = controller._children[0]
+        fire_decisions = controller.firing_effectors
+        self.assertEqual(len(fire_decisions), 1)
 
-        # A KillEvent addressed to the projectile arrives at the controller
-        # (e.g. relayed by the Simulator) and must be forwarded down to it.
-        controller.on_event(KillEvent(id=1, time=t0, target_id=first_child.target_id))
-        controller.update(picture, dt)
+        effector, p = fire_decisions[0]
 
-        self.assertEqual(len(controller._children), 1)
-        self.assertIsNot(controller._children[0], first_child)
+        self.assertEqual(effector, controller.effector)
+        self.assertEqual(effector.id, 5)
+        # The effector must carry the track ID it was aimed at, so the
+        # Simulator can embed it into the resulting IndirectShot.
+        self.assertEqual(effector.assigned_track_id, "0")
+        self.assertAlmostEqual(p.lat, 47.37348)
+        self.assertAlmostEqual(p.lon, 8.53707)
+        self.assertAlmostEqual(p.alt, 1000.0)
 
+    def test_as_target(self):
+        controller = get_controller(None)
+        picture = get_situational_picture_in_range()
+        controller.update(picture, datetime.timedelta(seconds=1))
+        targets = controller.targets
 
-class EventForwardingTest(unittest.TestCase):
-    def test_on_event_forwards_to_children(self):
-        controller = get_controller(assigned_track_id="0", n_shots_left=1)
-        picture = get_situational_picture([make_track("0", p_close)])
-        controller.update(picture, dt)
-        child = controller._children[0]
-        self.assertTrue(child._is_alive)
-
-        controller.on_event(KillEvent(id=1, time=t0, target_id=child.target_id))
-
-        self.assertFalse(child._is_alive)
-
-    def test_on_event_forwards_to_a_newly_launched_child_too(self):
-        controller = get_controller(assigned_track_id="0", n_shots_left=2)
-        picture = get_situational_picture([make_track("0", p_close)])
-        controller.update(picture, dt)
-        first_child = controller._children[0]
-        # Free up the track so a second, independent projectile can launch.
-        controller.on_event(
-            KillEvent(id=1, time=t0, target_id=first_child.target_id)
-        )
-        controller.update(picture, dt)
-        second_child = controller._children[0]
-        self.assertIsNot(first_child, second_child)
-
-        controller.on_event(KillEvent(id=2, time=t0, target_id=second_child.target_id))
-
-        self.assertFalse(second_child._is_alive)
-
-    def test_unrelated_kill_event_does_not_kill_child(self):
-        controller = get_controller(assigned_track_id="0", n_shots_left=1)
-        picture = get_situational_picture([make_track("0", p_close)])
-        controller.update(picture, dt)
-        child = controller._children[0]
-
-        controller.on_event(
-            KillEvent(id=1, time=t0, target_id=child.target_id + 999)
+        expected = Target(
+            id=4,
+            is_stationary=True,
+            sidc=SIDC.BLUE_AIR_DEFENCE,
+            point=p_uetliberg,
+            cross_section_model=ConstantRcsModel(rcs=1.5),
+            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
         )
 
-        self.assertTrue(child._is_alive)
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0], expected)
 
-    def test_on_event_with_no_children_does_not_raise(self):
-        controller = get_controller(assigned_track_id=None)
+    def test_as_target_shows_damaged_sidc_when_out_of_ammo(self):
+        controller = get_controller(None, n_attacks_left=0)
+        picture = get_situational_picture_in_range()
+        controller.update(picture, datetime.timedelta(seconds=1))
 
-        controller.on_event(KillEvent(id=1, time=t0, target_id=0))
-
-
-class ProjectileIdTest(unittest.TestCase):
-    def test_projectile_receives_freshly_minted_id(self):
-        id_provider = IdProvider()
-        # Reserve earlier IDs to prove the controller pulls a real
-        # "next free" ID instead of e.g. hard-coding 0.
-        id_provider.increment(Entity.TARGET)
-        id_provider.increment(Entity.TARGET)
-        controller = get_controller(assigned_track_id="0", id_provider=id_provider)
-        picture = get_situational_picture([make_track("0", p_close)])
-
-        controller.update(picture, dt)
-
-        launched = controller._children[0].child
-        self.assertEqual(launched.target_id, 2)
-
-    def test_successive_launches_get_distinct_ids(self):
-        controller = get_controller(assigned_track_id="0", n_shots_left=2)
-        picture = get_situational_picture([make_track("0", p_close)])
-
-        controller.update(picture, dt)
-        first_id = controller._children[0].child.target_id
-        controller.on_event(
-            KillEvent(id=1, time=t0, target_id=controller._children[0].target_id)
-        )
-        controller.update(picture, dt)
-        second_id = controller._children[0].child.target_id
-
-        self.assertNotEqual(first_id, second_id)
-
-
-class LaunchEventTest(unittest.TestCase):
-    def test_launch_broadcasts_text_event_with_expected_message(self):
-        controller = get_controller(assigned_track_id="0")
-        listener = RecordingListener()
-        controller.register_event_listener(listener)
-        picture = get_situational_picture([make_track("0", p_close)])
-
-        controller.update(picture, dt)
-
-        self.assertEqual(len(listener.events), 1)
-        event = listener.events[0]
-        self.assertIsInstance(event, TextEvent)
-        self.assertEqual(event.time, picture.time + dt)
-        launched_id = controller._children[0].child.target_id
         self.assertEqual(
-            event.text,
-            f"Launcher #4 ⤼ Track #0 (projectile #{launched_id})",
+            controller.targets[0].sidc,
+            SIDC.damaged(SIDC.BLUE_AIR_DEFENCE.value),
         )
-
-    def test_no_launch_broadcasts_no_event(self):
-        controller = get_controller(assigned_track_id=None)
-        listener = RecordingListener()
-        controller.register_event_listener(listener)
-        picture = get_situational_picture([make_track("0", p_close)])
-
-        controller.update(picture, dt)
-
-        self.assertEqual(len(listener.events), 0)
 
 
 if __name__ == "__main__":

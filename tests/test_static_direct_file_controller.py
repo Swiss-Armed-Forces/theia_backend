@@ -51,6 +51,11 @@ def get_effector() -> DirectFireEffector:
         n_attacks_left=1,
         name="",
         terrain=srtm,
+        # Cadence is checked/tracked entirely by the effector's own fire()
+        # (see tests/test_effectors.py::CadenceTest) - unlimited here since
+        # these tests are about the controller's targeting decision, not
+        # cadence.
+        cadence=float("inf"),
     )
 
 
@@ -60,7 +65,6 @@ def get_controller(assigned_track_id: str | None) -> StaticDirectFireController:
         sidc=SIDC.BLUE_AIR_DEFENCE,
         rcs=1.5,
         effector=get_effector(),
-        cadence=1.0,
         assigned_track_id=assigned_track_id,
     )
 

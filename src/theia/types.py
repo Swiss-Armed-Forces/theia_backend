@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import datetime
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Optional, Self
 
 import numpy as np
@@ -1226,14 +1226,24 @@ class AbstractEffector:
     """Up to which distance a target can be fought [m]"""
     n_attacks_left: int
     """Number of attacks the effector has left"""
+    cadence: float
+    """Number of attacks per second"""
+    time_of_last_shot: Optional[datetime.datetime] = field(default=None, kw_only=True)
 
     def __post_init__(self):
         super().__init__()
 
     @abc.abstractmethod
-    def fire(self, target: Target) -> Shot:
+    def fire(self, target: Target, time: datetime.datetime) -> Shot:
         """
         Fire at the target.
+
+        Parameters
+        ----------
+        target: Target
+            The (ground-truth) target to fire at.
+        time: datetime.datetime
+            Current simulation time, used to check/stamp cadence.
         """
         raise NotImplementedError()
 
@@ -1248,6 +1258,10 @@ class DirectShot(Event):
 
 class IndirectShot(DirectShot):
     projectile: AbstractEffector
+    track_id: str
+    """
+    ID of the track the shot was aimed at
+    """
 
 
 Shot = DirectShot | IndirectShot

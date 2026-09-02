@@ -17,6 +17,9 @@ class GeoJsonController(Controller):
     def on_event(self, event: Event):
         self.child.on_event(event)
 
+    def add_controller(self, controller: Controller):
+        self.child.add_controller(controller)
+
     def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
         self.child.update(situational_picture, dt)
         self.geojson = self.child.geojson | self.geojson_features

@@ -29,10 +29,11 @@ class StaticDirectFireController(Controller):
 
     Notes
     -----
-    No checks are performed whether the effector has attacks left (enough ammo etc.)
-    are whether the track is within range. These checks are to be performed by
-    the effector during the fire call (no duplicate logic). It is possible that
-    the suggested attack is not possible.
+    No checks are performed whether the effector has attacks left (enough ammo
+    etc.), whether the track is within range, or whether cadence allows
+    another shot yet. These checks are to be performed by the effector during
+    the fire call (no duplicate logic). It is possible that the suggested
+    attack is not possible.
     """
 
     target_id: int
@@ -40,9 +41,6 @@ class StaticDirectFireController(Controller):
     rcs: float
     """Radar cross section [m^2]"""
     effector: DirectFireEffector
-    cadence: float
-    """Number of attacks per second"""
-    time_of_last_shot: Optional[datetime.datetime] = None
     assigned_track_id: Optional[str] = None
     """
     Track ID of the track to be fought. No track is fought if ``None``.
@@ -78,12 +76,7 @@ class StaticDirectFireController(Controller):
 
         # Fire.
         self.firing_effectors = []
-        ready_to_fire = (
-            self.time_of_last_shot is None
-            or (situational_picture.time - self.time_of_last_shot).seconds
-            < 1 / self.cadence
-        )
-        if self.assigned_track_id is not None and ready_to_fire:
+        if self.assigned_track_id is not None:
             track = next(
                 (
                     t
@@ -100,7 +93,6 @@ class StaticDirectFireController(Controller):
                 if self.effector.terrain.has_line_of_sight(
                     self.effector.point, target_position
                 ):
-                    self.time_of_last_shot = situational_picture.time + dt
                     self.firing_effectors = [(self.effector, target_position)]
 
         # GeoJSON.

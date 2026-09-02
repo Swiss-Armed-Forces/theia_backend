@@ -19,7 +19,14 @@ class ControllerGroup(Controller, AbstractEventListener):
         for c in controllers:
             c.register_event_listener(self._relais)
 
+    def add_controller(self, controller: Controller):
+        self._controllers.append(controller)
+        controller.register_event_listener(self._relais)
+
     def update(self, situational_picture: SituationalPicture, dt: datetime.datetime):
+        self._controllers = [
+            c for c in self._controllers if getattr(c, "_is_alive", True)
+        ]
         for child in self._controllers:
             child.update(situational_picture, dt)
         self.monostatic_sensors = itertools.chain.from_iterable(
