@@ -132,6 +132,8 @@ class ZurichAirportScenarioFactory(AbstractSimulatorFactory):
             combat_range=200.0,
             n_attacks_left=1,
             terrain=self._terrain_model,
+            # One-shot drone - no rate-of-fire limit applies.
+            cadence=float("inf"),
         )
         controller = LivingController(
             child=FixedPathOneWayDrone(
@@ -205,6 +207,8 @@ class ZurichAirportScenarioFactory(AbstractSimulatorFactory):
             combat_range=combat_range,
             n_attacks_left=n_attacks,
             terrain=self._terrain_model,
+            # One burst per second - placeholder, no cited source.
+            cadence=1.0,
         )
 
         return StaticDirectFireController(

@@ -44,6 +44,9 @@ class LivingController(Controller, Generic[T]):
     def register_event_listener(self, listener):
         self._relais.register_event_listener(listener)
 
+    def add_controller(self, controller: Controller):
+        self.child.add_controller(controller)
+
     def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
         if self._is_alive:
             self.child.update(situational_picture, dt)

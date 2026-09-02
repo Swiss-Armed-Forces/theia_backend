@@ -18,11 +18,15 @@ from theia.detection.visual import VisualDetector
 from theia.distance import line_of_sight_distance
 from theia.effectors import (
     DirectFireEffector,
+    IndirectFireEffector,
     NoLosException,
+    OnCooldownException,
     OutOfAttacksException,
     OutOfRangeException,
 )
 from theia.radar_equation import calculate_maximum_monostatic_range
+from theia.simulation.controllers.homing_effector import HomingSystem
+from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.damage_model import AbstractDamageModel
 from theia.terrain import AbstractTerrainModel
 from theia.types import (
@@ -482,19 +486,23 @@ class Simulator(Trigger, AbstractEventListener):
                 enumerate(distances),
                 key=lambda pair: pair[1],
             )
-            if min_dist > self._shot_association_tolerance:
-                # The difference between the track and the ground truth is too large.
-                # The shot is assumed to miss.
-                continue
-
             target = targets[min_index]
+            # The difference between the track and the ground truth may be too
+            # large for the shot to actually be aimed at (and therefore able
+            # to hit) this target. The effector still fires and consumes
+            # ammo/cadence using the closest target purely to evaluate
+            # range/LOS.
+            # Reason: Theia should be able to represent ammunition wasted
+            # due to tracking errors, rather than silently withholding the
+            # shot whenever the track doesn't line up with the ground truth.
+            associated = min_dist <= self._shot_association_tolerance
 
             # Process the shot.
             if isinstance(effector, DirectFireEffector):
                 try:
                     # The effector's behaviour is correct when exceptions are raised.
                     # No need to react here.
-                    shot = effector.fire(target)
+                    shot = effector.fire(target, self._t)
                     self._events.append(shot)
                     self._broadcast_event(shot)
                 except NoLosException:
@@ -524,8 +532,26 @@ class Simulator(Trigger, AbstractEventListener):
                         )
                     )
                     continue
+                except OnCooldownException:
+                    self._broadcast_event(
+                        TextEvent(
+                            id=-1,
+                            time=self._t,
+                            text=f"Effector #{effector.id} on cooldown",
+                        )
+                    )
+                    continue
 
-                if self._damage_model.is_lethal(shot):
+                if not associated:
+                    self._broadcast_event(
+                        TextEvent(
+                            id=-1,
+                            time=self._t,
+                            text=f"Effector #{effector.id} fired on a tracking "
+                            "error - no real target close enough to hit",
+                        )
+                    )
+                elif self._damage_model.is_lethal(shot):
                     event = KillEvent(
                         id=self._id_provider.increment(Entity.EVENT),
                         time=self._t,
@@ -533,6 +559,87 @@ class Simulator(Trigger, AbstractEventListener):
                     )
                     self._events.append(event)
                     self._broadcast_event(event)
+            elif isinstance(effector, IndirectFireEffector):
+                try:
+                    # The effector's behaviour is correct when exceptions are raised.
+                    # No need to react here.
+                    shot = effector.fire(target, self._t)
+                    self._events.append(shot)
+                    self._broadcast_event(shot)
+                except OutOfRangeException:
+                    self._broadcast_event(
+                        TextEvent(
+                            id=-1,
+                            time=self._t,
+                            text=f"Out of range between effector #{effector.id} and target #{target.id}",
+                        )
+                    )
+                    continue
+                except OutOfAttacksException:
+                    self._broadcast_event(
+                        TextEvent(
+                            id=-1,
+                            time=self._t,
+                            text=f"Out of ammo effector #{effector.id} and target #{target.id}",
+                        )
+                    )
+                    continue
+                except OnCooldownException:
+                    self._broadcast_event(
+                        TextEvent(
+                            id=-1,
+                            time=self._t,
+                            text=f"Effector #{effector.id} on cooldown",
+                        )
+                    )
+                    continue
+
+                if not associated:
+                    # The launch still happens and consumes ammo/cadence.
+                    # It is aimed at the assigned track regardless of whether
+                    # that track actually corresponds to a real, nearby
+                    # target. If it doesn't, the projectile will simply fail
+                    # to find anything once it gets there.
+                    self._broadcast_event(
+                        TextEvent(
+                            id=-1,
+                            time=self._t,
+                            text=f"Effector #{effector.id} launched on a "
+                            "tracking error - no real target close enough "
+                            "to associate the track with",
+                        )
+                    )
+
+                projectile = deepcopy(shot.projectile)
+                projectile.id = self._id_provider.increment(Entity.DIRECT_FIRE_EFFECTOR)
+                projectile_id = self._id_provider.increment(Entity.TARGET)
+                projectile_controller = HomingSystem(
+                    target_id=projectile_id,
+                    sidc=effector.projectile_sidc,
+                    speed=effector.projectile_speed,
+                    max_dist=effector.projectile_max_dist,
+                    point=effector.point,
+                    rcs=effector.projectile_rcs,
+                    effector=projectile,
+                    assigned_track_id=shot.track_id,
+                    terrain=self._terrain_model,
+                    name=effector.projectile_name,
+                )
+                living = LivingController(
+                    child=projectile_controller, target_id=projectile_id
+                )
+                controller_group = (
+                    self._blue_controller if is_blue else self._red_controller
+                )
+                controller_group.add_controller(living)
+
+                self._broadcast_event(
+                    TextEvent(
+                        id=-1,
+                        time=self._t,
+                        text=f"Effector #{effector.id} ⤼ Track #{shot.track_id} (projectile #{projectile_id})",
+                    )
+                )
             else:
                 raise RuntimeError("This part should never be reached!")
 
