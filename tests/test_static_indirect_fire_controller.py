@@ -80,7 +80,6 @@ def get_effector(
 
 def get_controller(
     assigned_track_id: str | None,
-    launch_distance: float = 100_000,
     n_attacks_left: int = 1,
 ) -> StaticIndirectFireController:
     return StaticIndirectFireController(
@@ -88,7 +87,6 @@ def get_controller(
         sidc=SIDC.BLUE_AIR_DEFENCE,
         rcs=1.5,
         effector=get_effector(n_attacks_left=n_attacks_left),
-        launch_distance=launch_distance,
         assigned_track_id=assigned_track_id,
     )
 
@@ -132,28 +130,6 @@ def get_situational_picture_in_range() -> SituationalPicture:
     )
 
 
-def get_situational_picture_out_of_range() -> SituationalPicture:
-    # ~3000 km away from p_uetliberg - clearly outside any reasonable launch distance.
-    far = CoordinateTransformations.geodetic_to_cartesian(
-        lat=20.0, lon=8.53707, alt=1000.0
-    )
-    track = Track(
-        id="0",
-        sidc=SIDC.UNKNOWN,
-        states=[
-            (t0, np.array([far[0], 0.0, far[1], 0.0, far[2], 0.0])),
-            (t1, np.array([far[0], 0.0, far[1], 0.0, far[2], 0.0])),
-        ],
-    )
-    return SituationalPicture(
-        time=t0,
-        friendly_pet_receivers=[],
-        friendly_radars=[],
-        friendly_targets=[],
-        enemy_targets=[track],
-    )
-
-
 class StaticIndirectFireControllerTest(unittest.TestCase):
     def test_no_assigned_target(self):
         controller = get_controller(None)
@@ -164,12 +140,6 @@ class StaticIndirectFireControllerTest(unittest.TestCase):
     def test_assigned_target_not_present(self):
         controller = get_controller("5")
         picture = get_situational_picture_in_range()
-        controller.update(picture, datetime.timedelta(seconds=1))
-        self.assertEqual(len(controller.firing_effectors), 0)
-
-    def test_target_out_of_launch_range(self):
-        controller = get_controller("0")
-        picture = get_situational_picture_out_of_range()
         controller.update(picture, datetime.timedelta(seconds=1))
         self.assertEqual(len(controller.firing_effectors), 0)
 
