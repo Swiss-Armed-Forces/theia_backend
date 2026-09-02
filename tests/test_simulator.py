@@ -321,7 +321,6 @@ class SimulatorIndirectFireTest(unittest.TestCase):
             sidc=SIDC.BLUE_AIR_DEFENCE,
             rcs=1.5,
             effector=effector,
-            launch_distance=100_000,
             assigned_track_id="6",
         )
         blue_group = ControllerGroup([launcher])
@@ -527,7 +526,6 @@ class TrackingErrorWastesAmmoTest(unittest.TestCase):
             sidc=SIDC.BLUE_AIR_DEFENCE,
             rcs=1.5,
             effector=effector,
-            launch_distance=100_000,
             assigned_track_id="9",
         )
         blue_group = ControllerGroup([launcher])

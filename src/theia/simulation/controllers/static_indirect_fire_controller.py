@@ -24,9 +24,7 @@ class StaticIndirectFireController(Controller):
     Indirect fire means that instead of attacking the target immediately like
     with small calibre weapons, a projectile is deployed.
 
-    Launch condition: The target's extrapolated track approaches closer than
-    the launch distance, which could be the effector range minus a safety margin.
-
+    
     A real-world example for such an effector is the IRIS-T SL or the
     MIM-104 Patriot launcher families.
 
@@ -35,9 +33,10 @@ class StaticIndirectFireController(Controller):
     Notes
     -----
     No checks are performed whether the effector has attacks left (enough ammo
-    etc.) or whether cadence allows another launch yet. These checks are to be
-    performed by the effector during the fire call (no duplicate logic). It is
-    possible that the suggested attack is not possible.
+    etc.), whether the track is within range, or whether cadence allows another
+    launch yet. These checks are to be performed by the effector during the
+    fire call (no duplicate logic). It is possible that the suggested attack is
+    not possible.
     """
 
     target_id: int
@@ -45,8 +44,6 @@ class StaticIndirectFireController(Controller):
     rcs: float
     """Radar cross section [m^2]"""
     effector: IndirectFireEffector
-    launch_distance: float
-    """Maximum distance a target is allowed to have to be shot [m]"""
     assigned_track_id: Optional[str] = None
     """
     Track ID of the track to be fought. No track is fought if ``None``.
@@ -91,31 +88,18 @@ class StaticIndirectFireController(Controller):
                 None,
             )
             if track is not None:
-                # Determining when to launch a missile is a complex problem well
-                # studied in literature (e. g. https://arxiv.org/abs/2311.11905).
-                # Instead of performing complex computations, we rely on a
-                # simple heuristic: Whenever a track approaches at least to the
-                # launch distance, a projectile is launched.
-                #
                 # Queried at situational_picture.time (not +dt): _execute_attacks
                 # matches this aim point against ground-truth targets that are
                 # one tick stale (see "Fight before updating the world" in
                 # Simulator.advance), so the aim point must be computed on that
                 # same, un-advanced time basis to actually line up with it.
                 x, vx, y, vy, z, vz = track(situational_picture.time)
-                px, py, pz = CoordinateTransformations.geodetic_to_cartesian(
-                    self.effector.point.lat,
-                    self.effector.point.lon,
-                    self.effector.point.alt,
+                lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(
+                    x, y, z
                 )
-                d2 = (x - px) ** 2 + (y - py) ** 2 + (z - pz) ** 2
-                if d2 <= self.launch_distance**2:
-                    lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(
-                        x, y, z
-                    )
-                    target_position = Point(lat=lat, lon=lon, alt=alt)
-                    self.effector.assigned_track_id = self.assigned_track_id
-                    self.firing_effectors = [(self.effector, target_position)]
+                target_position = Point(lat=lat, lon=lon, alt=alt)
+                self.effector.assigned_track_id = self.assigned_track_id
+                self.firing_effectors = [(self.effector, target_position)]
 
         # GeoJSON.
         geojson = {}
