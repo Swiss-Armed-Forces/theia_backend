@@ -18,12 +18,7 @@ from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
 )
-from theia.simulation.controllers.static_direct_fire_controller import (
-    StaticDirectFireController,
-)
-from theia.simulation.controllers.static_indirect_fire_controller import (
-    StaticIndirectFireController,
-)
+from theia.simulation.controllers.static_gbad_controller import StaticGbadController
 from theia.simulation.controllers.waypoint_target_controller import (
     WaypointTargetController,
 )
@@ -316,7 +311,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
             # effector, not the controller - see tests/test_effectors.py).
             cadence=0.5,
         )
-        launcher = StaticIndirectFireController(
+        launcher = StaticGbadController(
             target_id=4,
             sidc=SIDC.BLUE_AIR_DEFENCE,
             rcs=1.5,
@@ -463,7 +458,7 @@ class TrackingErrorWastesAmmoTest(unittest.TestCase):
             terrain=terrain,
             cadence=float("inf"),
         )
-        launcher = StaticDirectFireController(
+        launcher = StaticGbadController(
             target_id=4,
             sidc=SIDC.BLUE_AIR_DEFENCE,
             rcs=1.5,
@@ -521,7 +516,7 @@ class TrackingErrorWastesAmmoTest(unittest.TestCase):
             projectile_rcs=ConstantRcsModel(rcs=0.1),
             cadence=float("inf"),
         )
-        launcher = StaticIndirectFireController(
+        launcher = StaticGbadController(
             target_id=4,
             sidc=SIDC.BLUE_AIR_DEFENCE,
             rcs=1.5,

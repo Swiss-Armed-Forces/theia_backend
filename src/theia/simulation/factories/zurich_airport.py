@@ -13,12 +13,8 @@ from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
 )
-from theia.simulation.controllers.static_direct_fire_controller import (
-    StaticDirectFireController,
-)
-from theia.simulation.controllers.static_direct_fire_coordinator import (
-    StaticDirectFireCoordinator,
-)
+from theia.simulation.controllers.static_gbad_controller import StaticGbadController
+from theia.simulation.controllers.static_gbad_coordinator import StaticGbadCoordinator
 from theia.simulation.controllers.stationary_eye_controller import (
     StationaryEyeController,
 )
@@ -211,7 +207,7 @@ class ZurichAirportScenarioFactory(AbstractSimulatorFactory):
             cadence=1.0,
         )
 
-        return StaticDirectFireController(
+        return StaticGbadController(
             target_id=self._id_provider.increment(Entity.TARGET, name),
             sidc=SIDC.BLUE_AIR_DEFENCE,
             rcs=2.0,
@@ -393,7 +389,7 @@ class ZurichAirportScenarioFactory(AbstractSimulatorFactory):
                     rcs_model=ConstantRcsModel(rcs=3.0),
                     name="Immenberg radar",
                 ),
-                StaticDirectFireCoordinator(
+                StaticGbadCoordinator(
                     controllers=[
                         flak_stammerberg,
                         flak_frauenfeld,
