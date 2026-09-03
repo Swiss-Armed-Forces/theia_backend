@@ -23,12 +23,8 @@ from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
 )
-from theia.simulation.controllers.static_direct_fire_controller import (
-    StaticDirectFireController,
-)
-from theia.simulation.controllers.static_direct_fire_coordinator import (
-    StaticDirectFireCoordinator,
-)
+from theia.simulation.controllers.static_gbad_controller import StaticGbadController
+from theia.simulation.controllers.static_gbad_coordinator import StaticGbadCoordinator
 from theia.simulation.damage_model import AbstractDamageModel, UniformDamageModel
 from theia.simulation.simulator import Simulator, TimeCriterion
 from theia.simulation.theia_logging import (
@@ -108,21 +104,21 @@ class DirectFireEffectorFactory(pydantic.BaseModel):
         )
 
 
-class StaticDirectFireEffectorFactory(pydantic.BaseModel):
+class StaticGbadFactory(pydantic.BaseModel):
     target_id: int
     rcs: float
-    effector: DirectFireEffectorFactory
+    gbad: DirectFireEffectorFactory
 
     def to_controller(
         self,
         terrain: AbstractTerrainModel,
         is_blue: bool,
-    ) -> StaticDirectFireController:
-        c = StaticDirectFireController(
+    ) -> StaticGbadController:
+        c = StaticGbadController(
             target_id=self.target_id,
             sidc=SIDC.BLUE_AIR_DEFENCE if is_blue else SIDC.RED_AIR_DEFENCE,
             rcs=self.rcs,
-            effector=self.effector.to_effector(terrain),
+            effector=self.gbad.to_effector(terrain),
         )
         return c
 
@@ -248,7 +244,7 @@ class SimulationResults(pydantic.BaseModel):
 class OrderOfBattle(pydantic.BaseModel):
     monostatic_sensors: list[MonostaticSensorFactory]
     pcl_sensors: list[PclSensorFactory]
-    effectors: list[StaticDirectFireEffectorFactory]
+    gbads: list[StaticGbadFactory]
     simulationResults: SimulationResults
     oneway_drones: list[FixedPathOneWayDroneFactory]
     ballistic_missiles: list[BallisticMissileFactory]
@@ -292,13 +288,13 @@ class OrderOfBattle(pydantic.BaseModel):
 
         static_deployment_controllers = [
             LivingController(
-                child=StaticDirectFireCoordinator(
+                child=StaticGbadCoordinator(
                     controllers=[e.to_controller(terrain, is_blue)],
                     terrain=terrain,
                 ),
                 target_id=e.target_id,
             )
-            for e in self.effectors
+            for e in self.gbads
         ]
 
         oneway_drone_controllers = [
@@ -343,10 +339,10 @@ class OrderOfBattle(pydantic.BaseModel):
                 id_provider.register_entity(Entity.RECEIVER, sensor.receiver.id)
             except ValueError:
                 pass
-        for detectable_effector in self.effectors:
-            effector = detectable_effector.effector
+        for gbad_factory in self.gbads:
+            effector = gbad_factory.gbad
             id_provider.register_entity(Entity.EFFECTOR, effector.id)
-            id_provider.register_entity(Entity.TARGET, detectable_effector.target_id)
+            id_provider.register_entity(Entity.TARGET, gbad_factory.target_id)
         for drone in self.oneway_drones:
             id_provider.register_entity(Entity.EFFECTOR, drone.effector.id)
             id_provider.register_entity(Entity.TARGET, drone.trajectory.target_id)
@@ -376,8 +372,8 @@ class OrderOfBattle(pydantic.BaseModel):
                 new_id = id_provider.increment(Entity.RECEIVER)
                 pcl_receiver_id_mapping[s.receiver.id] = new_id
                 s.receiver.id = new_id
-        for detectable_effector in self.effectors:
-            detectable_effector.effector.id = id_provider.increment(Entity.EFFECTOR)
+        for gbad_factory in self.gbads:
+            gbad_factory.gbad.id = id_provider.increment(Entity.EFFECTOR)
         for calc, t in self.simulationResults.monostaticCoverages:
             calc.sensorId = sensor_id_mapping[calc.sensorId]
         for calc, t in self.simulationResults.pclMinDetectableRcsGrids:
@@ -423,7 +419,7 @@ class OrderOfBattle(pydantic.BaseModel):
         return OrderOfBattle(
             monostatic_sensors=orbat1.monostatic_sensors + orbat2.monostatic_sensors,
             pcl_sensors=orbat1.pcl_sensors + orbat2.pcl_sensors,
-            effectors=orbat1.effectors + orbat2.effectors,
+            gbads=orbat1.gbads + orbat2.gbads,
             simulationResults=orbat1.simulationResults + orbat2.simulationResults,
             oneway_drones=orbat1.oneway_drones + orbat2.oneway_drones,
             ballistic_missiles=orbat1.ballistic_missiles + orbat2.oneway_drones,

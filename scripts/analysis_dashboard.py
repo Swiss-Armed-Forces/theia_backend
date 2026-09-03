@@ -104,10 +104,10 @@ def n_kills_overlay(
 
 def build_map(analysis: Analysis, skull_svg: str) -> dl.Map:
     effector_markers = []
-    for e in scenario.blue_orbat.effectors:
-        n = analysis.n_shots_per_effector[e.effector.id]
+    for e in scenario.blue_orbat.gbads:
+        n = analysis.n_shots_per_effector[e.gbad.id]
         color = "rgb(128, 224, 255)" if n > 0 else "gray"
-        position = (e.effector.point.lat, e.effector.point.lon)
+        position = (e.gbad.point.lat, e.gbad.point.lon)
         m = dl.DivMarker(
             position=position,
             iconOptions=dict(
@@ -119,7 +119,7 @@ def build_map(analysis: Analysis, skull_svg: str) -> dl.Map:
             children=dl.Tooltip(
                 html.Div(
                     [
-                        f"Effector #{e.effector.id}",
+                        f"Effector #{e.gbad.id}",
                         html.Br(),
                         f"No. shots: {n}",
                     ]
@@ -130,7 +130,7 @@ def build_map(analysis: Analysis, skull_svg: str) -> dl.Map:
         effector_markers.append(
             dl.Circle(
                 center=position,
-                radius=e.effector.combat_range,
+                radius=e.gbad.combat_range,
                 pathOptions=dict(
                     fill=False,
                     color="blue",

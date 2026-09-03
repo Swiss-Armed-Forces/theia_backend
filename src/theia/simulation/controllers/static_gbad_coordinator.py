@@ -5,14 +5,12 @@ import numpy as np
 from theia.coordinates import CoordinateTransformations
 from theia.distance import line_of_sight_distance
 from theia.simulation.controllers.controller_group import ControllerGroup
-from theia.simulation.controllers.static_direct_fire_controller import (
-    StaticDirectFireController,
-)
+from theia.simulation.controllers.static_gbad_controller import StaticGbadController
 from theia.terrain import AbstractTerrainModel
 from theia.types import Point, SituationalPicture
 
 
-class StaticDirectFireCoordinator(ControllerGroup):
+class StaticGbadCoordinator(ControllerGroup):
     """
     Assigns the closest track to every effector.
 
@@ -22,7 +20,7 @@ class StaticDirectFireCoordinator(ControllerGroup):
 
     def __init__(
         self,
-        controllers: list[StaticDirectFireController],
+        controllers: list[StaticGbadController],
         terrain: AbstractTerrainModel,
     ):
         super().__init__(controllers)
@@ -31,7 +29,7 @@ class StaticDirectFireCoordinator(ControllerGroup):
     def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
         tracks = situational_picture.enemy_targets
         for c in self._controllers:
-            c: StaticDirectFireController = c
+            c: StaticGbadController = c
             effector = c.effector
             min_track_id: str | None = None
             min_d = np.inf

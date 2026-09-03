@@ -4,7 +4,7 @@ from typing import Optional
 from theia.config import SIDC
 from theia.coordinates import CoordinateTransformations
 from theia.coverage import calculate_coverage
-from theia.effectors import IndirectFireEffector
+from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.types import (
     ConstantRcsModel,
     Controller,
@@ -18,15 +18,13 @@ from theia.types import (
 )
 
 
-class StaticIndirectFireController(Controller):
+class StaticGbadController(Controller):
     """
-    Controller representing a static (i. e. non-moving) indirect fire effector.
-    Indirect fire means that instead of attacking the target immediately like
-    with small calibre weapons, a projectile is deployed.
-
-    
-    A real-world example for such an effector is the IRIS-T SL or the
-    MIM-104 Patriot launcher families.
+    Controller representing a static (i. e. non-moving) ground-based air
+    defence (GBAD) effector - either direct fire (a real-world example being
+    the Centurion C-RAM) or indirect fire, which launches a self-homing
+    projectile rather than resolving damage immediately (real-world examples
+    being the IRIS-T SL or the MIM-104 Patriot launcher families).
 
     This controller attacks only the assigned track.
 
@@ -34,16 +32,20 @@ class StaticIndirectFireController(Controller):
     -----
     No checks are performed whether the effector has attacks left (enough ammo
     etc.), whether the track is within range, or whether cadence allows another
-    launch yet. These checks are to be performed by the effector during the
-    fire call (no duplicate logic). It is possible that the suggested attack is
-    not possible.
+    shot yet. These checks are to be performed by the effector during the fire
+    call (no duplicate logic). It may happen that the suggested attack is not
+    possible.
+
+    Direct fire additionally requires line-of-sight to the target to be
+    offered as a shot; indirect fire does not (see
+    ``theia.effectors.IndirectFireEffector``).
     """
 
     target_id: int
     sidc: SIDC
     rcs: float
     """Radar cross section [m^2]"""
-    effector: IndirectFireEffector
+    effector: DirectFireEffector | IndirectFireEffector
     assigned_track_id: Optional[str] = None
     """
     Track ID of the track to be fought. No track is fought if ``None``.
@@ -76,7 +78,7 @@ class StaticIndirectFireController(Controller):
             )
         ]
 
-        # Launch.
+        # Fire.
         self.firing_effectors = []
         if self.assigned_track_id is not None:
             track = next(
@@ -88,31 +90,35 @@ class StaticIndirectFireController(Controller):
                 None,
             )
             if track is not None:
-                # Queried at situational_picture.time (not +dt): _execute_attacks
-                # matches this aim point against ground-truth targets that are
-                # one tick stale (see "Fight before updating the world" in
-                # Simulator.advance), so the aim point must be computed on that
-                # same, un-advanced time basis to actually line up with it.
+                # Queried at situational_picture.time, not +dt.
+                # See "Fight before updating the world" in Simulator.advance.
                 x, vx, y, vy, z, vz = track(situational_picture.time)
                 lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(
                     x, y, z
                 )
                 target_position = Point(lat=lat, lon=lon, alt=alt)
-                self.effector.assigned_track_id = self.assigned_track_id
-                self.firing_effectors = [(self.effector, target_position)]
+
+                if isinstance(self.effector, DirectFireEffector):
+                    if self.effector.terrain.has_line_of_sight(
+                        self.effector.point, target_position
+                    ):
+                        self.firing_effectors = [(self.effector, target_position)]
+                else:
+                    self.effector.assigned_track_id = self.assigned_track_id
+                    self.firing_effectors = [(self.effector, target_position)]
 
         # GeoJSON.
         geojson = {}
-        for alt in self.geojson_range_altitudes:
-            coverage = calculate_coverage(
-                self.effector.terrain,
-                self.effector.point,
-                self.effector.combat_range,
-                alt,
-            )
-            coverage = GeoJSONFeature(
-                geometry=GeoJSONPolygon.from_shapely(coverage),
-                properties={"name": "my polygon"},
-            )
-            geojson["Effector range @ {alt}MASL"] = coverage
+        if isinstance(self.effector, DirectFireEffector):
+            for alt in self.geojson_range_altitudes:
+                coverage = calculate_coverage(
+                    self.effector.terrain,
+                    self.effector.point,
+                    self.effector.combat_range,
+                    alt,
+                )
+                geojson[f"Effector range @ {alt}MASL"] = GeoJSONFeature(
+                    geometry=GeoJSONPolygon.from_shapely(coverage),
+                    properties={"name": "my polygon"},
+                )
         self.geojson = geojson

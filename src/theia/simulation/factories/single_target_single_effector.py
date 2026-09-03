@@ -12,9 +12,7 @@ from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
 )
-from theia.simulation.controllers.static_direct_fire_controller import (
-    StaticDirectFireController,
-)
+from theia.simulation.controllers.static_gbad_controller import StaticGbadController
 from theia.simulation.controllers.waypoint_target_controller import (
     WaypointTargetController,
 )
@@ -92,7 +90,7 @@ class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
             is_blue=True,
             rcs_model=ConstantRcsModel(rcs=1.0),
         )
-        effector_controller = StaticDirectFireController(
+        effector_controller = StaticGbadController(
             target_id=20,
             sidc=SIDC.BLUE_AIR_DEFENCE,
             rcs=1.0,
