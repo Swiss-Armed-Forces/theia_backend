@@ -2,7 +2,13 @@ import datetime
 
 import pydantic
 
-from theia.types import Controller, Event, GeoJSONFeature, SituationalPicture
+from theia.types import (
+    Controller,
+    Event,
+    EventRelais,
+    GeoJSONFeature,
+    SituationalPicture,
+)
 
 
 class GeoJsonController(Controller, pydantic.BaseModel):
@@ -11,11 +17,16 @@ class GeoJsonController(Controller, pydantic.BaseModel):
     child: Controller
     geojson_features: dict[str, GeoJSONFeature]
 
-    def __post_init__(self):
-        super().__init__()
+    def model_post_init(self, context):
+        super().model_post_init(context)
+        self._relais = EventRelais()
+        self.child.register_event_listener(self._relais)
 
     def on_event(self, event: Event):
         self.child.on_event(event)
+
+    def register_event_listener(self, listener):
+        self._relais.register_event_listener(listener)
 
     def add_controller(self, controller: Controller):
         self.child.add_controller(controller)

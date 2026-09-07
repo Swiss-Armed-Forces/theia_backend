@@ -50,6 +50,19 @@ def _check_cadence(effector: AbstractEffector, time: datetime.datetime):
 class DirectFireEffector(pydantic.BaseModel, AbstractEffector):
     terrain: AbstractTerrainModel
 
+    def __deepcopy__(self, memo=None):
+        """
+        ``terrain`` is the shared, read-only world model. It also holds
+        thread-local LOS scratch buffers (see ``HbvTree._tls``) that cannot
+        be deep-copied. Cloning an effector (e.g. instantiating a projectile
+        from its template) must keep the same terrain reference rather than
+        duplicating the world.
+        """
+        if memo is None:
+            memo = {}
+        memo[id(self.terrain)] = self.terrain
+        return super().__deepcopy__(memo)
+
     def fire(self, target: Target, time: datetime.datetime) -> DirectShot:
         """
         Raises
