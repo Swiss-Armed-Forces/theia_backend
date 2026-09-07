@@ -1,5 +1,6 @@
-from dataclasses import dataclass
 import datetime
+
+import pydantic
 
 from theia.config import UNKNOWN_ID
 from theia.distance import line_of_sight_distance
@@ -15,8 +16,7 @@ from theia.types import (
 )
 
 
-@dataclass
-class FixedPathOneWayDrone(Controller):
+class FixedPathOneWayDrone(Controller, pydantic.BaseModel):
     """
     Represent a drone that travels on a predefined trajectory and attacks a
     target once it is within the attack radius of the destination.
