@@ -14,7 +14,7 @@ from theia.coordinates import CoordinateTransformations
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.distance import line_of_sight_distance
-from theia.effectors import DirectFireEffector
+from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.grids import LatLonHeightGrid
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
@@ -79,6 +79,7 @@ class TerrainFactory(pydantic.BaseModel):
 
 
 class DirectFireEffectorFactory(pydantic.BaseModel):
+    type: Literal["direct"] = "direct"
     id: int
     """Effector ID"""
     name: str
@@ -104,21 +105,85 @@ class DirectFireEffectorFactory(pydantic.BaseModel):
         )
 
 
+class IndirectFireEffectorFactory(pydantic.BaseModel):
+    type: Literal["indirect"] = "indirect"
+    id: int
+    """Effector ID"""
+    name: str
+    """Human-readable name for this effector"""
+    point: Point
+    """Position of the effector."""
+    combat_range: float
+    """Up to which distance a target can be fought [m]"""
+    n_attacks_left: int
+    """Number of attacks the effector has left"""
+    cadence: float
+    """Number of attacks per second"""
+    projectile: DirectFireEffectorFactory
+    """
+    Template for the launched projectile. Its `id` is never used directly:
+    each shot deep-copies this template and mints a fresh id from a separate
+    runtime id-space (see Simulator._execute_attacks,
+    Entity.DIRECT_FIRE_EFFECTOR), independently of the scenario-level
+    Entity.EFFECTOR id-space this factory's own `id` belongs to.
+    """
+    projectile_speed: float
+    """Cruise speed of the launched projectile [m / s]"""
+    projectile_max_dist: float
+    """Maximum distance the launched projectile can travel [m]"""
+    projectile_rcs: ConstantRcsModel
+
+    def to_effector(
+        self, terrain: AbstractTerrainModel, is_blue: bool
+    ) -> IndirectFireEffector:
+        return IndirectFireEffector(
+            id=self.id,
+            name=self.name,
+            point=self.point,
+            combat_range=self.combat_range,
+            n_attacks_left=self.n_attacks_left,
+            cadence=self.cadence,
+            projectile=self.projectile.to_effector(terrain),
+            projectile_speed=self.projectile_speed,
+            projectile_max_dist=self.projectile_max_dist,
+            projectile_sidc=SIDC.BLUE_MISSILE if is_blue else SIDC.RED_MISSILE,
+            projectile_rcs=self.projectile_rcs,
+        )
+
+
 class StaticGbadFactory(pydantic.BaseModel):
     target_id: int
     rcs: float
-    gbad: DirectFireEffectorFactory
+    gbad: DirectFireEffectorFactory | IndirectFireEffectorFactory = pydantic.Field(
+        discriminator="type"
+    )
+
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def _default_legacy_gbad_type(cls, data):
+        # Scenario files saved before indirect fire existed have no "type" on
+        # their gbad, which the discriminator needs to pick a factory variant.
+        if isinstance(data, dict):
+            gbad = data.get("gbad")
+            if isinstance(gbad, dict) and "type" not in gbad:
+                data = {**data, "gbad": {**gbad, "type": "direct"}}
+        return data
 
     def to_controller(
         self,
         terrain: AbstractTerrainModel,
         is_blue: bool,
     ) -> StaticGbadController:
+        effector = (
+            self.gbad.to_effector(terrain, is_blue)
+            if isinstance(self.gbad, IndirectFireEffectorFactory)
+            else self.gbad.to_effector(terrain)
+        )
         c = StaticGbadController(
             target_id=self.target_id,
             sidc=SIDC.BLUE_AIR_DEFENCE if is_blue else SIDC.RED_AIR_DEFENCE,
             rcs=self.rcs,
-            effector=self.gbad.to_effector(terrain),
+            effector=effector,
         )
         return c
 
@@ -343,6 +408,10 @@ class OrderOfBattle(pydantic.BaseModel):
             effector = gbad_factory.gbad
             id_provider.register_entity(Entity.EFFECTOR, effector.id)
             id_provider.register_entity(Entity.TARGET, gbad_factory.target_id)
+            # effector.projectile.id (if indirect) is intentionally not
+            # registered here. The projectile is only a template. Each shot
+            # deep-copies it and mints a fresh id. The template's id is never
+            # actually used for identity.
         for drone in self.oneway_drones:
             id_provider.register_entity(Entity.EFFECTOR, drone.effector.id)
             id_provider.register_entity(Entity.TARGET, drone.trajectory.target_id)
@@ -374,6 +443,8 @@ class OrderOfBattle(pydantic.BaseModel):
                 s.receiver.id = new_id
         for gbad_factory in self.gbads:
             gbad_factory.gbad.id = id_provider.increment(Entity.EFFECTOR)
+            # The projectile template's id is deliberately left untouched
+            # because it is only a placeholder that is never used.
         for calc, t in self.simulationResults.monostaticCoverages:
             calc.sensorId = sensor_id_mapping[calc.sensorId]
         for calc, t in self.simulationResults.pclMinDetectableRcsGrids:
