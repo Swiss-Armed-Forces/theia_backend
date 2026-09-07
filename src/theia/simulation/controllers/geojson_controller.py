@@ -1,11 +1,11 @@
-from dataclasses import dataclass
 import datetime
+
+import pydantic
 
 from theia.types import Controller, Event, GeoJSONFeature, SituationalPicture
 
 
-@dataclass
-class GeoJsonController(Controller):
+class GeoJsonController(Controller, pydantic.BaseModel):
     """wrapper that adds GeoJSON to any controller"""
 
     child: Controller
@@ -22,4 +22,10 @@ class GeoJsonController(Controller):
 
     def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
         self.child.update(situational_picture, dt)
+        self.monostatic_sensors = self.child.monostatic_sensors
+        self.pcl_sensors = self.child.pcl_sensors
+        self.targets = self.child.targets
+        self.pet_receivers = self.child.pet_receivers
+        self.visual_sensors = self.child.visual_sensors
+        self.firing_effectors = self.child.firing_effectors
         self.geojson = self.child.geojson | self.geojson_features
