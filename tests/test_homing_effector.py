@@ -376,6 +376,54 @@ class TestGetNextPositionGeometry(HomingSystemTestCase):
             1000.0,
         )
 
+    def test_prefers_earliest_intercept_over_a_later_reachable_point(self):
+        # Regression test for a real bug: once the interceptor is fast
+        # enough to reach some future point on the target's track, every
+        # *later* point on that track is trivially "reachable" too -- the
+        # minimize() objective is exactly flat at zero from the earliest
+        # true intercept time onward (see the comment on
+        # _EARLIEST_INTERCEPT_BIAS / inside pseudo_distance_of_approach).
+        # Without a tie-break favoring the earliest such time, scipy's
+        # minimize can settle anywhere on that flat plateau -- including
+        # right at the fuel-exhaustion boundary -- and compute a lead
+        # direction toward the target's position near the end of the
+        # flight instead of the true, much closer intercept point. That
+        # wastes fuel and can aim in a completely different direction.
+        #
+        # Geometry: interceptor at the origin, target 100 units downrange
+        # and 50 units to the side, receding along -x at the interceptor's
+        # own speed (10). The true earliest intercept is at t=6.25s (a
+        # clean solution: R(6.25) = 62.5 = speed * 6.25), far short of the
+        # 1000s of fuel actually available.
+        epoch = datetime.datetime(2026, 1, 1)
+
+        def track(current_time):
+            elapsed = (current_time - epoch).total_seconds()
+            return (100.0 - 10.0 * elapsed, -10.0, 50.0, 0.0, 0.0, 0.0)
+
+        track.id = 99
+        system = self.make_system(
+            assigned_track_id=99,
+            speed=10.0,
+            max_dist=10_000.0,  # seconds_left = 1000s: vastly more than needed
+            travelled_dist=0.0,
+            point=Point(lat=0.0, lon=0.0, alt=0.0),
+        )
+        sp = MagicMock(time=epoch)
+        sp.enemy_targets = [track]
+        dt = datetime.timedelta(seconds=1)
+
+        result = system._get_next_position(sp, dt)
+
+        # Correct (earliest-intercept) direction is (0.6, 0.8, 0), towards
+        # (37.5, 50, 0) -- the target's position at t=6.25s -- not towards
+        # its position near fuel exhaustion, which lies in a very
+        # different, mostly -x direction.
+        self.assertIsInstance(result, Point)
+        self.assertAlmostEqual(result.lat, 6.0, places=2)
+        self.assertAlmostEqual(result.lon, 8.0, places=2)
+        self.assertAlmostEqual(result.alt, 0.0, places=2)
+
     def test_leads_a_moving_target_rather_than_chasing_current_position(self):
         dt = datetime.timedelta(seconds=1)
 
