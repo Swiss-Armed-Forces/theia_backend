@@ -20,6 +20,15 @@ from theia.types import (
     Velocity,
 )
 
+_EARLIEST_INTERCEPT_BIAS = 1e-3
+"""
+Tiny per-second penalty used in ``HomingSystem._get_next_position`` to break
+ties among all equally-valid (zero-deficit) intercept times in favor of the
+earliest one. Must stay far smaller than any genuine (squared-metres) deficit
+so it never overrides a real geometric difference, while still dominating
+floating-point noise on the exactly-zero plateau.
+"""
+
 
 class HomingSystem(Controller):
     """
@@ -147,17 +156,28 @@ class HomingSystem(Controller):
             2. r^2(t) == R^2(t)
                 We reach the target exactly. The distance is zero.
 
+            Case 2 holds not just at the earliest reachable time but for
+            every larger t too (once reachable, always reachable), so the
+            objective is exactly flat at zero across that entire range.
+            A tiny +_EARLIEST_INTERCEPT_BIAS * t term is added so the
+            optimizer's unique minimum is the *earliest* such t rather than
+            an arbitrary point on that plateau (up to and including
+            seconds_left, i.e. "wait until fuel nearly runs out"). Without
+            it, the computed lead direction can aim at the target's
+            position far later than necessary, wasting fuel and degrading
+            the intercept geometry instead of converging onto the target.
+
             Returns
             -------
             float
-                R^2 - r^2, i. e. a number >= 0.
+                R^2 - r^2 + bias, i. e. a number >= 0.
             """
             x, vx, y, vy, z, vz = track(
                 t + datetime.timedelta(seconds=seconds_in_future[0])
             )
             R2 = (pos_x - x) ** 2 + (pos_y - y) ** 2 + (pos_z - z) ** 2
             r2 = min((seconds_in_future[0] * self.speed) ** 2, R2)
-            return R2 - r2
+            return R2 - r2 + _EARLIEST_INTERCEPT_BIAS * seconds_in_future[0]
 
         result = minimize(
             pseudo_distance_of_approach,
@@ -213,7 +233,14 @@ class HomingSystem(Controller):
         if track is None:
             return []
 
-        x, vx, y, vy, z, vz = track(situational_picture.time + dt)
+        # Queried at situational_picture.time, not +dt.
+        # See "Fight before updating the world" in Simulator.advance: the
+        # ground-truth targets used for shot association in
+        # Simulator._execute_attacks are also still at situational_picture.time,
+        # so extrapolating the track to the future here would introduce a
+        # ~|velocity| * dt offset and every real hit would be misclassified
+        # as an unassociated tracking error.
+        x, vx, y, vy, z, vz = track(situational_picture.time)
         p_target = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
         p_target = Point(lat=p_target[0], lon=p_target[1], alt=p_target[2])
 
