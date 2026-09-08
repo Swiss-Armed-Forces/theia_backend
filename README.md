@@ -1,98 +1,150 @@
-<img src="doc/source/_static/logo.png" alt="Logo of Theia" width="256" />
+<p align="center">
+  <img src="doc/source/_static/logo.png" alt="Logo of Theia" width="200" />
+</p>
 
-Theia is an agent-based simulation code for integrated air defense (IAD) by the Swiss Armed Forces. It is inspired by and loosely based on the open source code [openBURST](https://github.com/Swiss-Armed-Forces/openburst).
+<h1 align="center">Theia</h1>
 
-# What is Theia?
+<p align="center">
+  An open source agent-based simulation framework for integrated air defence.
+</p>
 
-Theia is an open source framework for simulating integrated air defence to assess the consequences of an operational concept for sensors and effectors, compare multiple variants and assess their performances against various hostile forces.
+<p align="center">
+  <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-blue">
+  <img alt="Status: early stage" src="https://img.shields.io/badge/status-early--stage-orange">
+  <img alt="Docs: Sphinx" src="https://img.shields.io/badge/docs-sphinx-blue">
+</p>
 
-Existing open source simulation frameworks for defense focus on one of two use cases.
-The first type focus on simulating physics and sensors in very specific situations, while considering
-decision making setting the stage, but not being modelled. The second type, on the other hand,
-simplifies the sensor network, usually omitting tracking altogether, for the sake
-of simulating complex behaviour and decision making.
+Theia simulates integrated air defence (IAD) to assess the consequences of
+an operational concept for sensors and effectors, compare variants, and
+evaluate their performance against various hostile forces. It is
+developed by the Swiss Armed Forces, and is inspired by, and loosely
+based on, the open source code
+[openBURST](https://github.com/Swiss-Armed-Forces/openburst).
 
-Theia aims to fill this gap and is, to the best of our knowledge, the only
-framework that fulfills all of the following properties:
+Existing open source simulation frameworks for defence tend to fall into
+one of two categories: some simulate physics and sensors in specific
+situations without modelling decision-making, others simplify the sensor
+network — usually omitting tracking altogether — to focus on complex
+behaviour. Theia aims to fill that gap. To the best of our knowledge, it
+is the only framework that is:
 
-- It is open source.
-- It detections for complex heterogeneous sensor networks of multiple types, including active radar, PCL, PET and visual sensors.
-- It fuses information from various sensors and prior knowledge into a unified situational picture using tracking algorithms provided by frameworks such as [Stone Soup](https://github.com/dstl/Stone-Soup/).
-- It is capable of modelling complex high-level behaviour with incomplete information, informed by the simulated situational picture ("if you cannot see it, you cannot react to it"). Ex.: Target assignment, emission control, movement, ...
-- It provides a GUI, but can be run headless.
+- **Open source.**
+- **Multi-sensor** — detects targets across heterogeneous sensor networks,
+  including active radar, PCL, PET, and visual sensors.
+- **Fusion-capable** — combines detections from multiple sensors and prior
+  knowledge into a unified situational picture, using tracking algorithms
+  from frameworks such as [Stone Soup](https://github.com/dstl/Stone-Soup/).
+- **Behaviour-aware** — models high-level decision-making under
+  incomplete information, informed by the simulated situational picture
+  ("if you cannot see it, you cannot react to it"): target assignment,
+  emission control, movement, and more.
+- **Visual and scriptable** — ships a GUI, but runs just as well headless for
+  batch analysis.
 
-# What questions does Theia answer?
+## What questions can it answer?
 
-All of these questions can be answered using the same simulation output.
+All from the same simulation output:
 
-- **How effective is the sensor placement?**
-  - Theia calculates coverage maps.
-  - Theia simulates hostile forces and simultaneously friendly sensor detections.
-  - Theia fuses the information into tracks.
-  - Theia simulates effectors that fight the identified targets.
-  - Output:
-    - Geometric coverage maps
-    - Detection performance ("x% of enemy ballistic missiles were tracked with error <y%")
-    - Resilience ("what if x% of sensors are out of order?")
-- **How effectice is the effector placement?**
-  - Theia calculates effector range maps.
-  - Theia simulates detection & information fusion.
-  - Theia simulates effectors probabilistically.
-  - Output:
-    - Geometric coverage maps
-    - Battle performance ("x% of detected drones are eliminated before approaching closer than y meters")
-    - Ammo stockpile requirements
-    - Ammo throughput requirements (replenishment requirements)
-- **How do decision for the sensor placement propagate to battle outcome?**
-- **Future Force Design**
-  - Pros and cons of various force package configurations
-  - What is the tactical and operational benefit of a dollar spent on system x in scenario y in terms of KPIs?
-  - Where are the bottle necks? Is it sensor placement, effector placement, ammo stockpiling, replenishment, ...?
-  - How well do various force package configurations perform in different scenarios?
-  - Tradeoff analysis: Which goals go hand in hand, which goals ae mutually exclusive?<br />
-    Example: Is it possible to fend off ballistic missiles while optimising for drone defense?
+- **How effective is a sensor placement?** Theia simulates hostile forces
+  and friendly detections simultaneously, fuses them into tracks, and
+  reports geometric coverage, detection performance (e.g. "x% of enemy
+  ballistic missiles were tracked with error < y%"), and resilience to
+  sensor loss.
+- **How effective is an effector placement?** Theia simulates detection,
+  fusion, and probabilistic engagement, reporting coverage, battle
+  performance (e.g. "x% of detected drones eliminated before y metres"),
+  and ammunition stockpile/throughput requirements.
+- **How do sensor placement decisions propagate to battle outcome?**
+- **What's the best force design?** Compare force package configurations,
+  identify bottlenecks, and run trade-off analyses across competing goals
+  (e.g. ballistic missile defence vs. drone defence).
 
-# Physics model
+## How it fits together
 
-- Terrain is considered. By default, [SRTM terrain data](https://doi.org/10.5067/MEASURES/SRTM/SRTMGL1.003) are used, so earth curvature is taken into account.
-- Radar radiation is assumed to travel in straight lines; refraction is neglected (k = 1 for the earth radius).
-- Propagation effects are neglected.
-- Detections are simulated using the radar equation and SNR thresholding, combined with Doppler thresholding.
+Theia is split across three repositories that talk to each other only
+through this backend's HTTP API:
 
+```mermaid
+flowchart LR
+    A["🖥️ Scenario Editor<br/>(build an orbat)"] -->|orbat files| B["⚙️ theia_backend<br/>(this repo)"]
+    B -->|REST + GeoJSON API| C["📡 Live Frontend<br/>(watch it happen)"]
+```
 
-# Installation
+| Repository | Role |
+| --- | --- |
+| **theia_backend** (this repo) | Simulation engine, physics/tracking models, and the API server everything else talks to. |
+| [theia_scenario_editor](https://github.com/Swiss-Armed-Forces/theia_scenario_editor) | GUI for placing sensors/effectors and assembling an order of battle. |
+| [theia_frontend](https://github.com/Swiss-Armed-Forces/theia_frontend) | GUI for live visualisation of a running simulation. |
 
-First, [install poetry](https://python-poetry.org/docs/#installation).
-
-Then, the repository can be installed as follows:
+## Getting started
 
 ```bash
 poetry install
+poetry run python scripts/run_server.py
 ```
 
-# Generating doc
+That starts a standalone server on `http://localhost:8000` with interactive
+API docs at [`/docs`](http://localhost:8000/docs). See the documentation for the full picture, such as downloading terrain data, running an actual scenario, and the concepts behind the physics and tracking models:
 
-Run the following commands from the repo root directory:
+- [Installation](doc/source/installation.rst)
+- [Running the server](doc/source/running.rst)
+- [API docs](doc/source/api.rst)
+- [Concepts: physics model](doc/source/concepts/physics_model.rst) & [architecture](doc/source/concepts/architecture.rst)
+- [API reference](doc/source/index.rst) (autogenerated — build locally with `cd doc && poetry run make html`, output in `doc/build/html/`)
 
-```bash
-cd doc/
-make html
-```
+## Project status
 
-You will find the HTML documentation at `doc/build/html/index.html`.
+Theia is early-stage software. Expect breaking changes as the
+architecture and APIs settle.
 
-# Running unit tests
+## Contributing
+
+Issues and pull requests are welcome. Since the project is still moving
+fast, it's worth opening an issue to discuss non-trivial changes before
+investing time in a PR.
+
+For development (running tests, building docs, cutting a release), see
+[Development](#development) below.
+
+## License
+
+TODO: a license has not been finalized yet.
+
+## Acknowledgments
+
+- [openBURST](https://github.com/Swiss-Armed-Forces/openburst), which
+  inspired this project.
+- [Stone Soup](https://github.com/dstl/Stone-Soup/), used for tracking.
+- Barton's *Radar System Analysis and Modeling*, the basis for Theia's
+  detection models (see the [physics model docs](doc/source/concepts/physics_model.rst)).
+
+---
+
+## Development
+
+### Running unit tests
 
 ```bash
 python -m unittest discover tests
 ```
 
-# Publishing a new release
+### Building the documentation
 
-The package version is inferred from the git tags. We use semantic versioning.
+```bash
+cd doc/
+poetry run make html
+```
 
-1. ``git tag v1.2.3`` (insert your version!)
-2. ``git push; git push --tags``
-3. ``poetry install``
+The HTML output is written to `doc/build/html/index.html`.
 
-You can test whether the correct version is picked up using ``poetry version``.
+### Publishing a new release
+
+The package version is inferred from git tags (semantic versioning):
+
+```bash
+git tag v1.2.3   # insert your version
+git push; git push --tags
+poetry install
+```
+
+Verify the correct version was picked up with `poetry version`.
