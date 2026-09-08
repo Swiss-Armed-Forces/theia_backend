@@ -2,8 +2,6 @@
   <img src="doc/source/_static/logo.png" alt="Logo of Theia" width="200" />
 </p>
 
-<h1 align="center">Theia</h1>
-
 <p align="center">
   An open source agent-based simulation framework for integrated air defence.
 </p>
