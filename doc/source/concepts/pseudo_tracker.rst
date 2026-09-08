@@ -12,7 +12,7 @@ Pseudo tracker
 
 .. _schematic:
 
-.. figure:: img/pseudotracker.svg
+.. figure:: ../img/pseudotracker.svg
    :alt: Schematic depiction of the pseudo tracker algorithm.
 
    Schematic depiction of the pseudo tracker algorithm.
@@ -56,85 +56,16 @@ The final two cases do not allow to initialize a track since they do not detect
 a target unambiguously. However, they can still be used to update an existing
 track assuming perfect association.
 
-.. Consider two PCL detections with measured bistatic ranges
-.. :math:`\rho_i \sim \mathcal{N}(R_i, \sigma_i), \quad i = 1, 2` distributed normally
-.. around the true values :math:`R_i`.
-.. Since both measurement processes are independent, the probability of obtaining
-.. a sample for the given true values :math:`\mathbf{R}` is given by
-
-.. .. math::
-    
-..     p(\mathbf{\rho} | \mathbf{R}) = \frac{1}{4 \pi \sqrt{\sigma_1 \sigma_2}} \exp\left(-\frac{(\mathbf{\rho_1} - \mathbf{R_1})^2}{2 \sigma_1^2}\right) \exp\left(-\frac{(\mathbf{\rho_2} - \mathbf{R_2})^2}{2 \sigma_2^2}\right).
-
-.. Using Bayes' law:
-
-.. .. math::
-
-..     p(\mathbf{R} | \mathbf{\rho}) = \frac{p(\mathbf{\rho} | \mathbf{R}) p(\mathbf{R})}{p(\mathbf{\rho})}
-
 Given two PCL detections and no other detections (case 5), it is possible to
 sample one ellipse and consider the points within a threshold distance to the
 surface of the other ellipsoid. The threshold is given by the sum of the two ellipses'
 bistatic range uncertainty.
-
-.. Track initialisation
-.. --------------------
-
-.. A new track is initialised in the following cases:
-
-.. - There is at least one monostatic radar detection for the target.
-
-..     If multiple mononostatic detections are present, only the one with the
-..     shortest monostatic range is considered. That detection (inlcuding uncertainty)
-..     is transformed to ECEF coordinates and initialises the track.
-.. - There are at least three PCL detections for the target.
-
-..     A simplified detection model in ECEF coordinates is built. It is a Gaussian
-..     distribution, centered at the true target position and with
-..     standard deviations derived from the detections' bistatic range uncertainty.
-..     A point in ECEF space is sampled from this detection model and initialises
-..     the track.
-
-.. Track update
-.. ------------
-
-.. An existing track is updated in the following cases, listed in decreasing preference:
-
-.. - There is at least one monostatic radar detection for the target.
-
-..     If multiple mononostatic detections are present, only the one with the
-..     shortest monostatic range is considered.
-    
-..     That detection (inlcuding uncertainty) is transformed to ECEF coordinates
-..     and updates the track.
-
-.. - There is at least one PCL detection for the target.
-
-..     If there are multiple PCL detections, we select the one with the shortest
-..     bistatic range.
-
-..     We assume that the target speed has not changed since the previous track update,
-..     i. e. that the true next position :math:`\mathbf{x}` lies on a sphere of
-..     radius :math:`\rho = v \Delta t`, where the quantity :math:`v` represents
-..     the target speed and the quantity :math:`\Delta t` represents the time
-..     since the latest track update.
-
-..     The ellipsoid surface is sampled and the distance of each point to the sphere's
-..     surface is calculated. The closest point is chosen as the plot to be added to the track. [#efficiency]_
-
-..     .. figure:: img/pseudo_tracker_pcl.svg
 
 Track deletion
 --------------
 
 A track is deleted if more than `patience` iterations have passed since the
 latest update.
-
-
-.. .. [#efficiency] There might be more efficient approaches, e. g. by deriving closed
-..    form solutions. We keep it simple to implement because it might be enough and
-..    the pseudo tracker is an approximation in the first place.
-
 
 Example
 =======
@@ -144,10 +75,10 @@ Consider a simple example situation with three transmitters (blue) and one recei
 .. raw:: html
 
     <iframe
-        src="/home/user/Documents/theia_backend/doc/build/html/_static/pcl_example.html"
+        src="../_static/pcl_example.html"
         width="100%"
         height="400px"
-        style"border:none;display=block;"
+        style="border:none;display:block;"
     >
     </iframe>
 
@@ -156,13 +87,13 @@ position within the rectangle and each (transmitter, receiver) pair. A hypotheti
 target of RCS = :math:`1 m^2` can be detections in regions where the minimum detectable RCS
 is :math:`\leq 1 m^2`, which is plotted in the second row.
 
-.. image:: _static/pcl_example_coverages.png
+.. image:: ../_static/pcl_example_coverages.png
 
 A track can be initialised if at least three PCL sensors are able to detect the target
 (almost) at the same time. That is, the region of PCL track init is given by the
 logical AND of each detection map.
 
-.. image:: _static/pcl_example_init_coverage.png
+.. image:: ../_static/pcl_example_init_coverage.png
 
 This is the example used in the unit tests. The pseudo track will not initialise
 a track for a target travelling within the red zone.

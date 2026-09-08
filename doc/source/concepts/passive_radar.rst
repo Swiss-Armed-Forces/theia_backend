@@ -1,7 +1,7 @@
 Passive Radar Detections
-========================
+==========================
 
-.. figure:: img/bistatic_detection.svg
+.. figure:: ../img/bistatic_detection.svg
 
 Introduction
 ------------
@@ -22,7 +22,7 @@ Therefore, the target's position cannot be measured directly. It is only known
 that it lies on an ellipsoid with focal points at ``Tx`` and ``Rx``. This section
 will derive the equations that determine the ellipsis.
 
-.. figure:: img/bistatic_detection_rotated.svg
+.. figure:: ../img/bistatic_detection_rotated.svg
 
     Setup of the bistatic radar scenario. Without loss of generality, the
     Cartesian coordinate system is rotate such that the axis between transmitter
@@ -30,7 +30,7 @@ will derive the equations that determine the ellipsis.
     at the origin.
 
 Equation for the detection ellipsoid
-------------------------------------
+--------------------------------------
 
 The equation of an ellipsoid in Cartesian coordinates is given by
 
@@ -56,7 +56,7 @@ Finally, the equation of the detection ellipsoid is given by
     \frac{x^2}{\frac{1}{2}R} + \frac{y^2 + z^2}{\frac{1}{2} \sqrt{R^2 - d^2}} = 1.
 
 Sampling the ellipsoid
-----------------------
+------------------------
 
 First, rotate the coordinate system s. t. the ellipsoid's major axis is aligned
 with the x-axis and centered at the origin.

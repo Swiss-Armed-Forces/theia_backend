@@ -1,5 +1,23 @@
-Physical Model
+Physics Model
 ==============
+
+Theia simulates detections rather than raw sensor signals. The model makes a
+few deliberate simplifications:
+
+- Terrain is considered. By default, `SRTM terrain data
+  <https://doi.org/10.5067/MEASURES/SRTM/SRTMGL1.003>`_ is used, so earth
+  curvature is taken into account.
+- Radar radiation is assumed to travel in straight lines; refraction is
+  neglected (:math:`k = 1` for the earth radius).
+- Other atmospheric propagation effects are neglected, aside from the
+  attenuation term below.
+- A detection occurs when the signal clears both an SNR threshold and a
+  Doppler threshold, computed with the radar equation described below.
+
+This page derives the SNR formula used across all sensor types (active
+radar, PCL, PET). :doc:`passive_radar` and :doc:`pseudo_tracker` build on
+top of it: the former for bistatic (PCL) geometry, the latter for how
+detections are turned into tracks.
 
 .. _snr-section:
 
@@ -61,7 +79,7 @@ The following table summarises the meaning of each quantity.
    * - :math:`n`
      - dimensionless
      - Number of pulses in coherent integration interval
-     - 
+     -
    * - :math:`G_t`
      - dimensionless
      - Transmitting antenna power gain
@@ -73,7 +91,7 @@ The following table summarises the meaning of each quantity.
    * - :math:`\lambda`
      - m
      - Signal wavelength
-     - 
+     -
    * - :math:`\sigma`
      - :math:`\textrm{m}^2`
      - Target radar cross section (RCS)
@@ -106,7 +124,7 @@ The following table summarises the meaning of each quantity.
    * - :math:`B`
      - MHz
      - Transmitter bandwidth
-     - 
+     -
    * - :math:`R`
      - m
      - Range
@@ -121,7 +139,7 @@ The following table summarises the meaning of each quantity.
    * - :math:`L_r`
      - dimensionless
      - Receiver loss figure
-     - 
+     -
    * - :math:`L_a`
      - dimensionless
      - Atmospheric and precipitation attenuation
@@ -150,7 +168,13 @@ Relations
      - | :math:`L_a = 10^{0.1 k_a R}`,
        | where :math:`R` is the distance between radar and target (range) and
        | :math:`k_a` is an attenuation coefficient in units of dB / m.
-       | :math:`k_a` is taken from Tab. (6.1) in Barton :footcite:p:`Barton2004-ru`. 
+       | :math:`k_a` is taken from Tab. (6.1) in Barton :footcite:p:`Barton2004-ru`.
      - Sec. (1.2.6)
 
 .. footbibliography::
+
+.. toctree::
+   :hidden:
+
+   passive_radar
+   pseudo_tracker
