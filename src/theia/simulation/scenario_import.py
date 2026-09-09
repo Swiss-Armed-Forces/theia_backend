@@ -17,6 +17,9 @@ from theia.distance import line_of_sight_distance
 from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.grids import LatLonHeightGrid
 from theia.simulation.controllers.controller_group import ControllerGroup
+from theia.simulation.controllers.critical_infrastructure_controller import (
+    CriticalInfrastructureController,
+)
 from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
 from theia.simulation.controllers.geojson_controller import GeoJsonController
 from theia.simulation.controllers.living_controller import LivingController
@@ -252,6 +255,24 @@ class MonostaticSensorFactory(pydantic.BaseModel):
         return LivingController(child=c, target_id=self.target_id)
 
 
+class CriticalInfrastructureFactory(pydantic.BaseModel):
+    target_id: int
+    name: str
+    point: Point
+    rcs: float = 100.0
+    """Radar cross section [m^2]"""
+
+    def to_controller(self, is_blue: bool) -> Controller:
+        c = CriticalInfrastructureController(
+            target_id=self.target_id,
+            name=self.name,
+            point=self.point,
+            sidc=SIDC.BLUE_GOVERNMENT_SITE if is_blue else SIDC.RED_GOVERNMENT_SITE,
+            rcs=self.rcs,
+        )
+        return LivingController(child=c, target_id=self.target_id)
+
+
 class MonostaticCoverageCalcSettings(pydantic.BaseModel):
     targetAlt: float
     targetRcs: float
@@ -313,6 +334,7 @@ class OrderOfBattle(pydantic.BaseModel):
     simulationResults: SimulationResults
     oneway_drones: list[FixedPathOneWayDroneFactory]
     ballistic_missiles: list[BallisticMissileFactory]
+    critical_infrastructure: list[CriticalInfrastructureFactory] = []
     unused_id_sensor: int
     unused_id_receiver: int
     unused_id_transmitter: int
@@ -366,6 +388,9 @@ class OrderOfBattle(pydantic.BaseModel):
             drone.to_controller(terrain) for drone in self.oneway_drones
         ]
         bm_controllers = [bm.to_controller(is_blue) for bm in self.ballistic_missiles]
+        infra_controllers = [
+            c.to_controller(is_blue) for c in self.critical_infrastructure
+        ]
 
         return GeoJsonController(
             child=ControllerGroup(
@@ -373,6 +398,7 @@ class OrderOfBattle(pydantic.BaseModel):
                 + static_deployment_controllers
                 + oneway_drone_controllers
                 + bm_controllers
+                + infra_controllers
             ),
             geojson_features=self.simulationResults.to_geojson_dict(),
         )
@@ -418,6 +444,8 @@ class OrderOfBattle(pydantic.BaseModel):
         for missile in self.ballistic_missiles:
             id_provider.register_entity(Entity.EFFECTOR, missile.effector_id)
             id_provider.register_entity(Entity.TARGET, missile.target_id)
+        for infra in self.critical_infrastructure:
+            id_provider.register_entity(Entity.TARGET, infra.target_id)
 
     def reindex(self, id_provider: IdProvider):
         sensor_id_mapping: dict[int, int] = {}
@@ -459,6 +487,8 @@ class OrderOfBattle(pydantic.BaseModel):
         for missile in self.ballistic_missiles:
             missile.effector_id = id_provider.increment(Entity.EFFECTOR)
             missile.target_id = id_provider.increment(Entity.TARGET)
+        for infra in self.critical_infrastructure:
+            infra.target_id = id_provider.increment(Entity.TARGET)
 
     @property
     def t_min(self) -> datetime.datetime | None:
