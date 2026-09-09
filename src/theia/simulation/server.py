@@ -89,6 +89,7 @@ class ExtrapolatedSituationalPicture(pydantic.BaseModel):
 
 class ExtrapolatedGroundtruth(pydantic.BaseModel):
     target_id: int
+    name: str
     points: list[TrackPoint]
     sidc: str
 
@@ -167,6 +168,7 @@ def create_app(
             results.append(
                 ExtrapolatedGroundtruth(
                     target_id=target.id,
+                    name=target.name,
                     points=[
                         TrackPoint(
                             time=times[0],
@@ -205,10 +207,13 @@ def create_app(
             lat_res,
             lon_res,
         )
-        return [GeoJSONFeature(
-            geometry=GeoJSONPolygon.from_shapely(p),
-            properties={"name": f"coverage (dlat={lat_res}, dlon={lon_res})"},
-        ) for p in polygons]
+        return [
+            GeoJSONFeature(
+                geometry=GeoJSONPolygon.from_shapely(p),
+                properties={"name": f"coverage (dlat={lat_res}, dlon={lon_res})"},
+            )
+            for p in polygons
+        ]
 
     @app.post("/calculate_min_detectable_rcs")
     def calculate_min_detectable_rcs(
