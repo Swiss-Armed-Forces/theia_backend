@@ -326,6 +326,13 @@ class SimulationResults(pydantic.BaseModel):
             result[tag] = calc.coverage
         return result
 
+    def __add__(self, other: SimulationResults) -> SimulationResults:
+        return SimulationResults.model_construct(
+            monostaticCoverages=self.monostaticCoverages + other.monostaticCoverages,
+            pclMinDetectableRcsGrids=self.pclMinDetectableRcsGrids
+            + other.pclMinDetectableRcsGrids,
+        )
+
 
 class OrderOfBattle(pydantic.BaseModel):
     monostatic_sensors: list[MonostaticSensorFactory]
@@ -523,7 +530,9 @@ class OrderOfBattle(pydantic.BaseModel):
             gbads=orbat1.gbads + orbat2.gbads,
             simulationResults=orbat1.simulationResults + orbat2.simulationResults,
             oneway_drones=orbat1.oneway_drones + orbat2.oneway_drones,
-            ballistic_missiles=orbat1.ballistic_missiles + orbat2.oneway_drones,
+            ballistic_missiles=orbat1.ballistic_missiles + orbat2.ballistic_missiles,
+            critical_infrastructure=orbat1.critical_infrastructure
+            + orbat2.critical_infrastructure,
             unused_id_sensor=id_provider.increment(Entity.SENSOR),
             unused_id_receiver=id_provider.increment(Entity.RECEIVER),
             unused_id_transmitter=id_provider.increment(Entity.TRANSMITTER),
