@@ -135,8 +135,8 @@ def calculate_snr(
     # print(f"r_r                       = {distance_receiver_target:.3f} m")
     # print(f"L_t                       = {L_t:.3f} dB")
     # print(f"L_a                       = {L_a:.3f} dB")
-    # print(f"pattern_propagation_factor_transmitter = {pattern_propagation_factor_transmitter:.3f} dB")
-    # print(f"pattern_propagation_factor_receiver = {pattern_propagation_factor_receiver:.3f} dB")
+    # print(f"antenna_pattern_gain_transmitter = {antenna_pattern_gain_transmitter:.3f} dB")
+    # print(f"antenna_pattern_gain_receiver = {antenna_pattern_gain_receiver:.3f} dB")
     # print(f"SNR                       = {snr:.3f} dB")
 
     return snr

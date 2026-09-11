@@ -457,6 +457,7 @@ class OrderOfBattle(pydantic.BaseModel):
     def reindex(self, id_provider: IdProvider):
         sensor_id_mapping: dict[int, int] = {}
         for detectable_sensor in self.monostatic_sensors:
+            detectable_sensor.target_id = id_provider.increment(Entity.TARGET)
             s = detectable_sensor.sensor
             sensor_id_mapping[s.id] = id_provider.increment(Entity.SENSOR)
             s.id = sensor_id_mapping[s.id]
@@ -464,6 +465,7 @@ class OrderOfBattle(pydantic.BaseModel):
             s.receiver.id = id_provider.increment(Entity.RECEIVER)
         pcl_receiver_id_mapping: dict[int, int] = {}
         for detectable_sensor in self.pcl_sensors:
+            detectable_sensor.target_id = id_provider.increment(Entity.TARGET)
             s = detectable_sensor.sensor
             sensor_id_mapping[s.id] = id_provider.increment(Entity.SENSOR)
             s.id = sensor_id_mapping[s.id]
@@ -477,6 +479,7 @@ class OrderOfBattle(pydantic.BaseModel):
                 pcl_receiver_id_mapping[s.receiver.id] = new_id
                 s.receiver.id = new_id
         for gbad_factory in self.gbads:
+            gbad_factory.target_id = id_provider.increment(Entity.TARGET)
             gbad_factory.gbad.id = id_provider.increment(Entity.EFFECTOR)
             # The projectile template's id is deliberately left untouched
             # because it is only a placeholder that is never used.

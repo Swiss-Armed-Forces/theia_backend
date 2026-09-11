@@ -1,6 +1,8 @@
 {
     "name": "Medium Range Surveillance Radar",
     "description": "Medium range radar inspired by the TRML-4D system.\n All parameters are either taken from the publicly available information, derived from it or guessed",
+    "target_id": -1,
+    "rcs": 10,
     "sensor": {
         "id": -1,
         "transmitter": {
