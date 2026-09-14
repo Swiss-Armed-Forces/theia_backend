@@ -92,6 +92,7 @@ class HomingSystem(Controller):
         p = self._get_next_position(situational_picture, dt)
         if p is None:
             return
+        self.firing_effectors = self._get_firing_effectors(situational_picture, dt)
         old_x, old_y, old_z = CoordinateTransformations.geodetic_to_cartesian(
             self.point.lat, self.point.lon, self.point.alt
         )
@@ -103,7 +104,6 @@ class HomingSystem(Controller):
         )
         self.point = p
         self.targets = self._get_targets()
-        self.firing_effectors = self._get_firing_effectors(situational_picture, dt)
 
     def _commit_suicide(self, time: datetime.datetime):
         self.source_effector.n_in_flight -= 1
