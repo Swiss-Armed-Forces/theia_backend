@@ -6,7 +6,7 @@ from scipy.optimize import minimize
 from theia.config import SIDC, UNKNOWN_ID
 from theia.coordinates import CoordinateTransformations
 from theia.distance import line_of_sight_distance
-from theia.effectors import DirectFireEffector
+from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.terrain import AbstractTerrainModel
 from theia.types import (
     AbstractEffector,
@@ -67,6 +67,12 @@ class HomingSystem(Controller):
     assigned_track_id: str
     """The tracked target to be destroyed"""
     terrain: AbstractTerrainModel
+    source_effector: IndirectFireEffector
+    """
+    The launcher effector that fired this projectile. Its
+    ``n_in_flight`` counter is decremented once this projectile is
+    destroyed.
+    """
     # Do not implement the radar sensor yet (KISS and YAGNI principles).
     # radar_sensor: MonostaticSensor | None
     name: str = ""
@@ -100,6 +106,7 @@ class HomingSystem(Controller):
         self.firing_effectors = self._get_firing_effectors(situational_picture, dt)
 
     def _commit_suicide(self, time: datetime.datetime):
+        self.source_effector.n_in_flight -= 1
         self._broadcast_event(
             KillEvent(
                 id=UNKNOWN_ID,

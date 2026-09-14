@@ -10,6 +10,7 @@ from theia.effectors import (
     OnCooldownException,
     OutOfAttacksException,
     OutOfRangeException,
+    TooManyInFlightException,
 )
 from theia.terrain import SrtmTerrainModel
 from theia.types import (
@@ -177,6 +178,9 @@ class IndirectEffectorTest(unittest.TestCase):
             # Unlimited rate of fire by default - these tests aren't about
             # cadence; see CadenceTest for that.
             "cadence": float("inf"),
+            # Effectively unlimited in-flight cap - these tests aren't
+            # about the in-flight cap; see InFlightCapTest for that.
+            "max_in_flight": 1_000_000,
         }
         defaults.update(overrides)
         return IndirectFireEffector(**defaults)
@@ -307,6 +311,9 @@ class CadenceTest(unittest.TestCase):
             "projectile_rcs": ConstantRcsModel(rcs=0.1),
             "assigned_track_id": "0",
             "cadence": 1.0,
+            # Effectively unlimited in-flight cap - these tests are about
+            # cadence, not the in-flight cap; see InFlightCapTest for that.
+            "max_in_flight": 1_000_000,
         }
         defaults.update(overrides)
         return IndirectFireEffector(**defaults)
@@ -360,6 +367,102 @@ class CadenceTest(unittest.TestCase):
         # Immediately afterwards, a shot at an in-range target must succeed -
         # the failed attempt above must not have put it on cooldown.
         effector.fire(self._target(), t0)
+
+
+class InFlightCapTest(unittest.TestCase):
+    """
+    IndirectFireEffector.max_in_flight caps how many of its own projectiles
+    may be in the air at once, independently of cadence: a fast cadence must
+    not let it launch a new one while an earlier one hasn't been resolved
+    yet (hit, lost track, or ran out of fuel - see HomingSystem).
+    """
+
+    def _make_effector(self, **overrides) -> IndirectFireEffector:
+        projectile = DirectFireEffector(
+            id=1,
+            point=p_uetliberg,
+            combat_range=100_000,
+            n_attacks_left=1,
+            name="",
+            terrain=srtm,
+            cadence=float("inf"),
+        )
+        defaults = {
+            "id": 0,
+            "point": p_uetliberg,
+            "combat_range": 100_000,
+            "n_attacks_left": 5,
+            "name": "",
+            "projectile": projectile,
+            "projectile_speed": 300.0,
+            "projectile_max_dist": 50_000.0,
+            "projectile_sidc": SIDC.BLUE_MISSILE,
+            "projectile_rcs": ConstantRcsModel(rcs=0.1),
+            "assigned_track_id": "0",
+            # Unlimited cadence - these tests aren't about cadence.
+            "cadence": float("inf"),
+        }
+        defaults.update(overrides)
+        return IndirectFireEffector(**defaults)
+
+    def _target(self) -> Target:
+        return Target(
+            id=0,
+            is_stationary=False,
+            sidc=SIDC.UNKNOWN,
+            point=p_close,
+            cross_section_model=ConstantRcsModel(rcs=1.0),
+            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+        )
+
+    def test_default_max_in_flight_is_one(self):
+        effector = self._make_effector()
+        self.assertEqual(effector.max_in_flight, 1)
+
+    def test_fire_increments_n_in_flight(self):
+        effector = self._make_effector()
+        self.assertEqual(effector.n_in_flight, 0)
+        effector.fire(self._target(), t0)
+        self.assertEqual(effector.n_in_flight, 1)
+
+    def test_second_launch_blocked_while_first_still_in_flight(self):
+        effector = self._make_effector(max_in_flight=1)
+        effector.fire(self._target(), t0)
+
+        with self.assertRaises(TooManyInFlightException):
+            effector.fire(self._target(), t0)
+
+    def test_launch_allowed_again_once_in_flight_count_drops(self):
+        effector = self._make_effector(max_in_flight=1)
+        effector.fire(self._target(), t0)
+
+        # Simulate the in-flight projectile being resolved (hit / lost
+        # track / out of fuel), as HomingSystem._commit_suicide would do.
+        effector.n_in_flight -= 1
+
+        effector.fire(self._target(), t0)  # must not raise
+
+    def test_max_in_flight_greater_than_one_allows_concurrent_launches(self):
+        effector = self._make_effector(max_in_flight=2)
+
+        effector.fire(self._target(), t0)
+        effector.fire(self._target(), t0)  # must not raise
+        self.assertEqual(effector.n_in_flight, 2)
+
+        with self.assertRaises(TooManyInFlightException):
+            effector.fire(self._target(), t0)
+
+    def test_blocked_launch_does_not_consume_ammo_or_cadence(self):
+        effector = self._make_effector(max_in_flight=1)
+        effector.fire(self._target(), t0)
+        n_attacks_before = effector.n_attacks_left
+        time_of_last_shot_before = effector.time_of_last_shot
+
+        with self.assertRaises(TooManyInFlightException):
+            effector.fire(self._target(), t0)
+
+        self.assertEqual(effector.n_attacks_left, n_attacks_before)
+        self.assertEqual(effector.time_of_last_shot, time_of_last_shot_before)
 
 
 if __name__ == "__main__":

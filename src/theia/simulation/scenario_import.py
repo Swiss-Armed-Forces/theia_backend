@@ -135,6 +135,11 @@ class IndirectFireEffectorFactory(pydantic.BaseModel):
     projectile_max_dist: float
     """Maximum distance the launched projectile can travel [m]"""
     projectile_rcs: ConstantRcsModel
+    max_in_flight: int = 1
+    """
+    Maximum number of this effector's own projectiles allowed to be in
+    flight (launched but not yet resolved) at the same time.
+    """
 
     def to_effector(
         self, terrain: AbstractTerrainModel, is_blue: bool
@@ -151,6 +156,7 @@ class IndirectFireEffectorFactory(pydantic.BaseModel):
             projectile_max_dist=self.projectile_max_dist,
             projectile_sidc=SIDC.BLUE_MISSILE if is_blue else SIDC.RED_MISSILE,
             projectile_rcs=self.projectile_rcs,
+            max_in_flight=self.max_in_flight,
         )
 
 
