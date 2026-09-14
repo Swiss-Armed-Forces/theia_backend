@@ -504,8 +504,7 @@ class Simulator(Trigger, AbstractEventListener):
                     # The effector's behaviour is correct when exceptions are raised.
                     # No need to react here.
                     shot = effector.fire(target, self._t)
-                    self._events.append(shot)
-                    self._broadcast_event(shot)
+                    self.on_event(shot)
                 except NoLosException:
                     self._broadcast_event(
                         TextEvent(
@@ -565,8 +564,7 @@ class Simulator(Trigger, AbstractEventListener):
                     # The effector's behaviour is correct when exceptions are raised.
                     # No need to react here.
                     shot = effector.fire(target, self._t)
-                    self._events.append(shot)
-                    self._broadcast_event(shot)
+                    self.on_event(shot)
                 except OutOfRangeException:
                     self._broadcast_event(
                         TextEvent(

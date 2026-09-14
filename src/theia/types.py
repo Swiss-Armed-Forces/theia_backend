@@ -1253,7 +1253,7 @@ class DirectShot(Event):
     target: Target
 
     def __str__(self) -> str:
-        return f"{self.shooter.name} 🞋 {self.target.name} (ID {self.target.id}) [{self.shooter.n_attacks_left} attacks left]"
+        return f"[SHOT] {self.shooter.name} 🞋 {self.target.name} (ID {self.target.id}) [{self.shooter.n_attacks_left} attacks left afterwards]"
 
 
 class IndirectShot(DirectShot):
@@ -1262,6 +1262,9 @@ class IndirectShot(DirectShot):
     """
     ID of the track the shot was aimed at
     """
+
+    def __str__(self) -> str:
+        return f"[LAUNCH] {self.shooter.name} ({self.projectile.name}) 🞋 {self.target.name} (ID {self.target.id}) [{self.shooter.n_attacks_left} attacks left afterwards]"
 
 
 Shot = DirectShot | IndirectShot
