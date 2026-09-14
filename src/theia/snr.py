@@ -1,3 +1,5 @@
+import math
+
 import numba
 import numpy as np
 import scipy.constants as sc
@@ -162,6 +164,8 @@ def calculate_antenna_pattern_gain(
         p_observer=p,
         p_target=point_of_interest,
     )
+    theta_bearing = (theta_bearing + 2 * math.pi) % 2 * math.pi
+    theta_vert = (theta_vert + 2 * math.pi) % 2 * math.pi
 
     horiz_att = (
         transmitter_or_receiver.horizontal_attenuation(theta_bearing)

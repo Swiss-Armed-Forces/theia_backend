@@ -1329,7 +1329,7 @@ class Controller(
     pet_receivers: list[Receiver] = []
     visual_sensors: list[VisualSensor] = []
     firing_effectors: list[tuple[AbstractEffector, Point]] = []
-    geojson: dict[str, GeoJSONFeature] = {}
+    geojson: dict[str, list[GeoJSONFeature]] = {}
 
     @abc.abstractmethod
     def update(

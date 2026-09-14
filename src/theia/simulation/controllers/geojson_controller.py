@@ -15,7 +15,7 @@ class GeoJsonController(Controller, pydantic.BaseModel):
     """wrapper that adds GeoJSON to any controller"""
 
     child: Controller
-    geojson_features: dict[str, GeoJSONFeature]
+    geojson_features: dict[str, list[GeoJSONFeature]]
 
     def model_post_init(self, context):
         super().model_post_init(context)
