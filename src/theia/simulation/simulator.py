@@ -23,6 +23,7 @@ from theia.effectors import (
     OnCooldownException,
     OutOfAttacksException,
     OutOfRangeException,
+    TooManyInFlightException,
 )
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.controllers.homing_effector import HomingSystem
@@ -593,6 +594,16 @@ class Simulator(Trigger, AbstractEventListener):
                         )
                     )
                     continue
+                except TooManyInFlightException:
+                    self._broadcast_event(
+                        TextEvent(
+                            id=-1,
+                            time=self._t,
+                            text=f"Effector #{effector.id} already has "
+                            f"{effector.n_in_flight} projectile(s) in flight",
+                        )
+                    )
+                    continue
 
                 if not associated:
                     # The launch still happens and consumes ammo/cadence.
@@ -624,6 +635,7 @@ class Simulator(Trigger, AbstractEventListener):
                     assigned_track_id=shot.track_id,
                     terrain=self._terrain_model,
                     name=effector.projectile_name,
+                    source_effector=effector,
                 )
                 living = LivingController(
                     child=projectile_controller, target_id=projectile_id

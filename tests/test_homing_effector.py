@@ -40,6 +40,7 @@ class HomingSystemTestCase(unittest.TestCase):
             effector=MagicMock(name="effector", id=42, combat_range=5_000.0),
             assigned_track_id=99,
             terrain=MagicMock(name="terrain"),
+            source_effector=MagicMock(name="source_effector", n_in_flight=1),
             name="TestHomer",
             travelled_dist=0.0,
         )
@@ -100,6 +101,14 @@ class TestCommitSuicide(HomingSystemTestCase):
         self.assertIsInstance(broadcast_arg, KillEvent)
         self.assertEqual(broadcast_arg.time, t)
         self.assertEqual(broadcast_arg.target_id, 1)
+
+    def test_decrements_source_effector_in_flight_count(self):
+        system = self.make_system()
+        self.assertEqual(system.source_effector.n_in_flight, 1)
+
+        system._commit_suicide(datetime.datetime(2026, 1, 1, 12, 0, 0))
+
+        self.assertEqual(system.source_effector.n_in_flight, 0)
 
 
 class TestGetNextPosition(HomingSystemTestCase):

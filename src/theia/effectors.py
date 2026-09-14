@@ -35,6 +35,11 @@ class OnCooldownException(TheiaException):
     pass
 
 
+class TooManyInFlightException(TheiaException):
+    # max_in_flight projectiles from this effector are already in flight.
+    pass
+
+
 def _check_cadence(effector: AbstractEffector, time: datetime.datetime):
     if (
         effector.time_of_last_shot is not None
@@ -131,6 +136,18 @@ class IndirectFireEffector(AbstractEffector):
     """
     ID of the track this launch is aimed at.
     """
+    max_in_flight: int = 1
+    """
+    Maximum number of this effector's own projectiles allowed to be in
+    flight (launched but not yet resolved) at the same time.
+    """
+    n_in_flight: int = 0
+    """
+    Number of this effector's projectiles currently in flight. Incremented
+    on a confirmed launch; decremented by the projectile's controller
+    (``HomingSystem``) once it is destroyed, for whatever reason (hit,
+    lost track, out of fuel).
+    """
 
     def fire(self, target: Target, time: datetime.datetime) -> IndirectShot:
         """
@@ -142,8 +159,16 @@ class IndirectFireEffector(AbstractEffector):
             There are no attacks left
         OutOfRangeException:
             The target is not within range
+        TooManyInFlightException:
+            ``max_in_flight`` of this effector's projectiles are already
+            in the air
         """
         _check_cadence(self, time)
+        if self.n_in_flight >= self.max_in_flight:
+            raise TooManyInFlightException(
+                f"Effector #{self.id} already has {self.n_in_flight} "
+                f"projectile(s) in flight (max {self.max_in_flight})."
+            )
         d = line_of_sight_distance(
             self.point.lat,
             self.point.lon,
@@ -161,6 +186,7 @@ class IndirectFireEffector(AbstractEffector):
 
         self.n_attacks_left -= 1
         self.time_of_last_shot = time
+        self.n_in_flight += 1
 
         return IndirectShot(
             id=UNKNOWN_ID,

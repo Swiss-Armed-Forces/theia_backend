@@ -150,9 +150,9 @@ class SimulatorTest(unittest.TestCase):
             terrain_model=terrain,
             damage_model=UniformDamageModel(1.0, rng),
         )
-        n_iterations = int(
-            np.ceil((stop_time - start_time).seconds / time_step.seconds)
-        ) + 1
+        n_iterations = (
+            int(np.ceil((stop_time - start_time).seconds / time_step.seconds)) + 1
+        )
 
         # Simulate until the end.
         for _ in tqdm(range(n_iterations)):
@@ -178,7 +178,6 @@ class SimulatorEffectorsTest(unittest.TestCase, AbstractEventListener):
 
         self.assertTrue(self._already_killed)
 
-
     def test_with_uncertainty(self):
         rng = np.random.Generator(np.random.PCG64(seed=4054080))
         terrain = SrtmTerrainModel()
@@ -192,7 +191,6 @@ class SimulatorEffectorsTest(unittest.TestCase, AbstractEventListener):
 
         self.assertTrue(self._already_killed)
 
-
     def on_event(self, event: Event):
         # Ignore all but kill events.
         if not isinstance(event, KillEvent):
@@ -201,7 +199,7 @@ class SimulatorEffectorsTest(unittest.TestCase, AbstractEventListener):
         # Make sure that the correct target is killed.
         self.assertEqual(event.target_id, 1)
         self.assertEqual(event.id, 1)
-        self.assertEqual(event.time, datetime.datetime.fromtimestamp(25))
+        self.assertEqual(event.time, datetime.datetime.fromtimestamp(25, datetime.UTC))
 
         # Make sure that the kill event occurs only once.
         self.assertFalse(self._already_killed)
@@ -256,7 +254,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
     def test_launch_spawns_projectile_and_cadence_gates_relaunch(self):
         rng = np.random.Generator(np.random.PCG64(seed=1))
         terrain = SrtmTerrainModel()
-        t0 = datetime.datetime.fromtimestamp(0)
+        t0 = datetime.datetime.fromtimestamp(0, datetime.UTC)
         dt = datetime.timedelta(seconds=1)
 
         p_launcher = Point(
@@ -331,9 +329,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
             start_time=t0,
             time_step=dt,
             min_time_per_step=datetime.timedelta(seconds=0),
-            termination_criterion=TimeCriterion(
-                t0 + datetime.timedelta(seconds=1000)
-            ),
+            termination_criterion=TimeCriterion(t0 + datetime.timedelta(seconds=1000)),
             rng=rng,
             listener=InMemoryLogger(),
             terrain_model=terrain,
@@ -378,6 +374,122 @@ class SimulatorIndirectFireTest(unittest.TestCase):
         self.assertTrue(simulator.advance())
         self.assertEqual(n_indirect_shots(), 2)
 
+    def test_relaunch_blocked_while_missile_in_flight_despite_fast_cadence(self):
+        # Regression test: cadence alone must not determine the relaunch
+        # rate for indirect fire. A launcher must not stack up multiple
+        # projectiles against the same track just because its cadence
+        # allows firing every tick - see IndirectFireEffector.max_in_flight
+        # (default 1) / n_in_flight.
+        rng = np.random.Generator(np.random.PCG64(seed=1))
+        terrain = SrtmTerrainModel()
+        t0 = datetime.datetime.fromtimestamp(0, datetime.UTC)
+        dt = datetime.timedelta(seconds=1)
+
+        p_launcher = Point(
+            lat=POSITIONS_OF_INTEREST["Uetliberg"]["lat"],
+            lon=POSITIONS_OF_INTEREST["Uetliberg"]["lon"],
+            alt=POSITIONS_OF_INTEREST["Uetliberg"]["alt"],
+        )
+        # ~91km from the launcher: within the effector's own combat_range
+        # (100km) so it can fire, but the projectile's combat_range (100m)
+        # and max_dist (900m, i.e. 3s of fuel at 300 m/s) are both far too
+        # small for it to ever reach the target - the missile stays "in
+        # flight" for several ticks until it runs out of fuel.
+        p_target = Point(lat=46.948056, lon=7.4475, alt=1000.0)
+        x, y, z = CoordinateTransformations.geodetic_to_cartesian(
+            p_target.lat, p_target.lon, p_target.alt
+        )
+        track = Track(
+            id="6",
+            sidc=SIDC.UNKNOWN,
+            states=[
+                (t0, np.array([x, 0.0, y, 0.0, z, 0.0])),
+                (
+                    t0 + datetime.timedelta(seconds=100),
+                    np.array([x, 0.0, y, 0.0, z, 0.0]),
+                ),
+            ],
+        )
+
+        projectile_effector = DirectFireEffector(
+            id=99,
+            point=p_launcher,
+            combat_range=100,
+            n_attacks_left=1,
+            name="",
+            terrain=terrain,
+            cadence=float("inf"),
+        )
+        effector = IndirectFireEffector(
+            id=5,
+            point=p_launcher,
+            combat_range=100_000,
+            n_attacks_left=5,
+            name="",
+            projectile=projectile_effector,
+            projectile_speed=300.0,
+            projectile_max_dist=900.0,
+            projectile_sidc=SIDC.BLUE_MISSILE,
+            projectile_rcs=ConstantRcsModel(rcs=0.1),
+            # Effectively unlimited rate of fire - the in-flight cap
+            # (max_in_flight, default 1) is the only thing that should
+            # gate relaunches in this test.
+            cadence=1000.0,
+        )
+        launcher = StaticGbadController(
+            target_id=4,
+            sidc=SIDC.BLUE_AIR_DEFENCE,
+            rcs=1.5,
+            effector=effector,
+            assigned_track_id="6",
+        )
+        blue_group = ControllerGroup([launcher])
+        red_stub = _StationaryTargetController(target_id=1, point=p_target)
+
+        simulator = Simulator(
+            pcl_detector=PclDetector(),
+            pet_detector=PetDetector(terrain_model=terrain),
+            blue_controller=blue_group,
+            red_controller=red_stub,
+            blue_tracker=_FixedTrackTracker(track),
+            red_tracker=DummyTracker(),
+            start_time=t0,
+            time_step=dt,
+            min_time_per_step=datetime.timedelta(seconds=0),
+            termination_criterion=TimeCriterion(t0 + datetime.timedelta(seconds=1000)),
+            rng=rng,
+            listener=InMemoryLogger(),
+            terrain_model=terrain,
+            damage_model=UniformDamageModel(1.0, rng),
+        )
+        recorder = _EventRecorder()
+        simulator.register_event_listener(recorder)
+
+        def n_indirect_shots() -> int:
+            return len([e for e in recorder.events if isinstance(e, IndirectShot)])
+
+        # Tick 0: no targets yet.
+        self.assertTrue(simulator.advance())
+        self.assertEqual(n_indirect_shots(), 0)
+
+        # Tick 1: first launch.
+        self.assertTrue(simulator.advance())
+        self.assertEqual(n_indirect_shots(), 1)
+        self.assertEqual(effector.n_in_flight, 1)
+
+        # Ticks 2-4: despite cadence allowing a shot every tick, the
+        # in-flight missile blocks any relaunch.
+        for _ in range(3):
+            self.assertTrue(simulator.advance())
+            self.assertEqual(n_indirect_shots(), 1)
+            self.assertEqual(effector.n_in_flight, 1)
+
+        # Tick 5: the first missile has run out of fuel (self-destructed)
+        # and freed up the in-flight slot, so a second launch fires.
+        self.assertTrue(simulator.advance())
+        self.assertEqual(n_indirect_shots(), 2)
+        self.assertEqual(effector.n_in_flight, 1)
+
 
 class TrackingErrorWastesAmmoTest(unittest.TestCase):
     """
@@ -392,7 +504,7 @@ class TrackingErrorWastesAmmoTest(unittest.TestCase):
     def _build_scenario(self):
         rng = np.random.Generator(np.random.PCG64(seed=2))
         terrain = SrtmTerrainModel()
-        t0 = datetime.datetime.fromtimestamp(0)
+        t0 = datetime.datetime.fromtimestamp(0, datetime.UTC)
         dt = datetime.timedelta(seconds=1)
 
         p_launcher = Point(
@@ -437,9 +549,7 @@ class TrackingErrorWastesAmmoTest(unittest.TestCase):
             start_time=t0,
             time_step=dt,
             min_time_per_step=datetime.timedelta(seconds=0),
-            termination_criterion=TimeCriterion(
-                t0 + datetime.timedelta(seconds=1000)
-            ),
+            termination_criterion=TimeCriterion(t0 + datetime.timedelta(seconds=1000)),
             rng=rng,
             listener=InMemoryLogger(),
             terrain_model=terrain,
