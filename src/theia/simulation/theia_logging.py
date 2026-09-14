@@ -223,6 +223,7 @@ class LogLoader:
         self._load_snapshots()
         self._load_sensors(is_blue=True)
         self._load_sensors(is_blue=False)
+        self._load_target_ground_truth(is_blue=True)
         self._load_target_ground_truth(is_blue=False)
         self._load_detections(is_blue=True)
         self._load_detections(is_blue=False)
@@ -256,6 +257,10 @@ class LogLoader:
     @property
     def blue_situational_pictures(self) -> list[SituationalPicture]:
         return self._blue_situational_pictures
+
+    @property
+    def blue_target_ground_truth(self) -> dict[int, GroundTruthPath]:
+        return self._blue_target_ground_truth
 
     @property
     def red_situational_pictures(self) -> list[SituationalPicture]:
@@ -333,16 +338,14 @@ class LogLoader:
             self._red_pcl_sensors = pcl_sensors
 
     def _load_target_ground_truth(self, is_blue: bool):
-        if is_blue:
-            raise NotImplementedError()
-
-        red_target_states = []
+        target_states = []
         for snapshot in self._snapshots:
-            for target in snapshot.red_targets:
+            targets = snapshot.blue_targets if is_blue else snapshot.red_targets
+            for target in targets:
                 x, y, z = CoordinateTransformations.geodetic_to_cartesian(
                     *target.point.as_tuple()
                 )
-                red_target_states.append(
+                target_states.append(
                     {
                         "id": target.id,
                         "time": snapshot.time,
@@ -354,10 +357,13 @@ class LogLoader:
                         "vz": target.velocity.vz,
                     }
                 )
-        red_target_states = pd.DataFrame(red_target_states).sort_values(["id", "time"])
+        target_states = pd.DataFrame(target_states).sort_values(["id", "time"])
 
-        self._red_target_ground_truth: dict[int, GroundTruthPath] = {}
-        for target_id, target_rows in red_target_states.groupby("id"):
+        if is_blue:
+            self._blue_target_ground_truth: dict[int, GroundTruthPath] = {}
+        else:
+            self._red_target_ground_truth: dict[int, GroundTruthPath] = {}
+        for target_id, target_rows in target_states.groupby("id"):
             ground_truth_path = GroundTruthPath()
             for _, row in target_rows.iterrows():
                 ground_truth_path.append(
@@ -367,7 +373,12 @@ class LogLoader:
                         metadata={"target_id": target_id},
                     )
                 )
-            self._red_target_ground_truth[target_id] = ground_truth_path
+            ground_truth = (
+                self._blue_target_ground_truth
+                if is_blue
+                else self._red_target_ground_truth
+            )
+            ground_truth[target_id] = ground_truth_path
 
     def _load_detections(self, is_blue: bool):
         # Monostatic detections.
