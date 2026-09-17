@@ -20,8 +20,8 @@ from theia.test_data import load_pcl_example
 
 
 project = "theia"
-copyright = "2026, Jürg Huber"
-author = "Jürg Huber"
+copyright = "2026, Renato Bellotti"
+author = "Renato Bellotti"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
