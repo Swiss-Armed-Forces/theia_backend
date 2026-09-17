@@ -42,7 +42,7 @@ The ``data/default_configurations/`` directory contains default sensor
 configurations (radar, SHORAD, surveillance). These are parametrised after
 public specifications of real systems where possible — for example, the
 default active radar configuration is derived from the Hensoldt TRML-4D
-radar used in the IRIS-T (BODLUV MR) system.
+radar used in the IRIS-T SLM system.
 
 .. todo::
 
