@@ -104,10 +104,6 @@ investing time in a PR.
 For development (running tests, building docs, cutting a release), see
 [Development](#development) below.
 
-## License
-
-TODO: a license has not been finalized yet.
-
 ## Acknowledgments
 
 - [openBURST](https://github.com/Swiss-Armed-Forces/openburst), which
@@ -115,6 +111,8 @@ TODO: a license has not been finalized yet.
 - [Stone Soup](https://github.com/dstl/Stone-Soup/), used for tracking.
 - Barton's *Radar System Analysis and Modeling*, the basis for Theia's
   detection models (see the [physics model docs](doc/source/concepts/physics_model.rst)).
+- A complete set of dependencies can be found in the file ``poetry.lock``.
+  We warmly thank all developers who allow us to stand on the shoulders of giants!
 
 ---
 
