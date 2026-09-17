@@ -38,8 +38,7 @@ The signal-to-noise ratio (SNR) for the monostatic case is given by Equ. (1.18)
 
 
 .. caution:: The code treats :math:`F_t^2, F_r^2` as the elementary quantities
-  because the transmitters of opportunity published by the Bundesamt für
-  Kommunikation (BAKOM) seem to ship :math:`F_t^{-2}, F_r^{-2}`, NOT :math:`F_t, F_r`.
+  because the transmitters of opportunity published by the Swiss Federal Office of Communication (BAKOM) seem to provide :math:`F_t^{-2}, F_r^{-2}`, NOT :math:`F_t, F_r`.
 
 
 PCL
