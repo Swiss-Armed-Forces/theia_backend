@@ -35,7 +35,7 @@ class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
     ):
         self._rng = rng
         self._terrain = terrain_model
-        self._t0 = datetime.datetime.fromtimestamp(0)
+        self._t0 = datetime.datetime.fromtimestamp(0, datetime.UTC)
 
         ANGULAR_UNCERTAINTY = np.deg2rad(0.5) if include_uncertainty else 0.0
         RANGE_UNCERTAINTY = 50.0 if include_uncertainty else 0.0

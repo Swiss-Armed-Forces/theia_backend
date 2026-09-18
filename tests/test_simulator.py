@@ -197,8 +197,9 @@ class SimulatorEffectorsTest(unittest.TestCase, AbstractEventListener):
             return
 
         # Make sure that the correct target is killed.
+        # Event with ID 1 is the shot, event with ID 2 the kill event.
         self.assertEqual(event.target_id, 1)
-        self.assertEqual(event.id, 1)
+        self.assertEqual(event.id, 2)
         self.assertEqual(event.time, datetime.datetime.fromtimestamp(25, datetime.UTC))
 
         # Make sure that the kill event occurs only once.
