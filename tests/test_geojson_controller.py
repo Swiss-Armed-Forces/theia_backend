@@ -73,12 +73,12 @@ class GeoJsonControllerTest(unittest.TestCase):
             mock_add.assert_called_once_with(self._child, grandchild)
 
     def test_update_merges_child_state_and_own_geojson_features(self):
-        own_feature = GeoJSONFeature(
+        own_feature = [GeoJSONFeature(
             geometry=GeoJSONPolygon(coordinates=[[[0.0, 0.0]]])
-        )
-        child_feature = GeoJSONFeature(
+        )]
+        child_feature = [GeoJSONFeature(
             geometry=GeoJSONPolygon(coordinates=[[[1.0, 1.0]]])
-        )
+        )]
         self._controller.geojson_features = {"own": own_feature}
         self._child.geojson = {"child": child_feature}
 
