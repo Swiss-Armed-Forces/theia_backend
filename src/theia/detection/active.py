@@ -92,10 +92,12 @@ def calculate_monostatic_detection(
             elevation,
             radar.receiver.min_elevation,
             radar.receiver.max_elevation,
+            is_rad=True,
         ) or not angle_in_interval(
             azimuth,
             radar.receiver.min_azimuth,
             radar.receiver.max_azimuth,
+            is_rad=True,
         ):
             return None
         sigma_range = 0.0
