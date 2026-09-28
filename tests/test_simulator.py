@@ -1,6 +1,8 @@
 import datetime
 from pathlib import Path
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 from tqdm import tqdm
@@ -30,7 +32,8 @@ from theia.simulation.theia_logging import FileLogger, InMemoryLogger
 from theia.simulation.simulator import KillEvent, Simulator, TimeCriterion
 from theia.simulation.trackers.tracking import DummyTracker
 from theia.terrain import SrtmTerrainModel
-from theia.test_data import get_uetliberg_radar
+from theia.terrain import DummyTerrain
+from theia.test_data import build_flores_monostatic_radar, get_uetliberg_radar
 from theia.types import (
     AbstractEventListener,
     AbstractTracker,
@@ -655,6 +658,76 @@ class TrackingErrorWastesAmmoTest(unittest.TestCase):
         spawned = [c for c in blue_group._controllers if c is not launcher]
         self.assertEqual(len(spawned), 1)
         self.assertEqual(spawned[0].child.assigned_track_id, "9")
+
+
+class MonostaticRotationTimeTest(unittest.TestCase):
+    """
+    A monostatic radar detects once per rotation, not at every time step.
+
+    Regression test: The time of the last detection used to be stored under the
+    receiver ID but looked up under the sensor ID, so radars whose IDs differ
+    detected at every time step.
+    """
+
+    def _detection_times(
+        self,
+        rotation_time: float,
+        t0: datetime.datetime,
+        offsets: list[float],
+    ) -> list[float]:
+        radar = build_flores_monostatic_radar(
+            Point(lat=46.95, lon=7.45, alt=550.0),
+            sensor_id=0,
+            rx_id=1,
+            tx_id=2,
+        )
+        radar.receiver.rotation_time = rotation_time
+        # Bypass the constructor: Only the state used by the method under test.
+        sim = Simulator.__new__(Simulator)
+        sim._blue_monostatic_radars = [radar]
+        sim._red_targets = [object()]
+        sim._time_of_last_detection = {}
+        sim._terrain_model = DummyTerrain(has_los=True)
+        sim._rng = np.random.default_rng(seed=0)
+        sim._detection_id = 0
+        sim._simulate_clutter = False
+
+        times = []
+        with patch(
+            "theia.simulation.simulator.calculate_monostatic_detection",
+            side_effect=lambda *args, **kwargs: SimpleNamespace(),
+        ):
+            for offset in offsets:
+                sim._t = t0 + datetime.timedelta(seconds=offset)
+                if sim._calculate_monostatic_detections(is_scanner_blue=True):
+                    times.append(offset)
+        return times
+
+    def test_detects_once_per_rotation(self):
+        t0 = datetime.datetime(2026, 1, 1, 12, 0, 0, tzinfo=datetime.UTC)
+        self.assertEqual(
+            self._detection_times(4.0, t0, [0, 1, 2, 3, 4, 5, 8, 9]),
+            [0, 4, 8],
+        )
+
+    def test_sub_second_rotation_time(self):
+        t0 = datetime.datetime(2026, 1, 1, 12, 0, 0, tzinfo=datetime.UTC)
+        self.assertEqual(
+            self._detection_times(0.5, t0, [0, 0.25, 0.5, 0.75, 1.0]),
+            [0, 0.5, 1.0],
+        )
+
+    def test_first_detection_at_midnight(self):
+        # The elapsed time since "never" must not be reduced to a time of day.
+        t0 = datetime.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime.UTC)
+        self.assertEqual(self._detection_times(4.0, t0, [0]), [0])
+
+    def test_gap_of_more_than_a_day(self):
+        t0 = datetime.datetime(2026, 1, 1, 12, 0, 0, tzinfo=datetime.UTC)
+        self.assertEqual(
+            self._detection_times(4.0, t0, [0, 86_401]),
+            [0, 86_401],
+        )
 
 
 if __name__ == "__main__":

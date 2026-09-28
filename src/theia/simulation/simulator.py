@@ -279,7 +279,7 @@ class Simulator(Trigger, AbstractEventListener):
             )
             if (
                 self._t - time_of_last_detection
-            ).seconds < radar.receiver.rotation_time:
+            ).total_seconds() < radar.receiver.rotation_time:
                 # No new detections.
                 continue
             for target in targets:
@@ -295,7 +295,7 @@ class Simulator(Trigger, AbstractEventListener):
                     det.detection_id = self._detection_id
                     self._detection_id += 1
                     detections.append(det)
-            self._time_of_last_detection[radar.receiver.id] = self._t
+            self._time_of_last_detection[radar.id] = self._t
             # Simulate clutter.
             if self._simulate_clutter:
                 max_range = calculate_maximum_monostatic_range(radar)
@@ -342,7 +342,7 @@ class Simulator(Trigger, AbstractEventListener):
             )
             if (
                 self._t - time_of_last_detection
-            ).seconds < sensor.receiver.rotation_time:
+            ).total_seconds() < sensor.receiver.rotation_time:
                 # No new detections.
                 continue
             for target in targets:
@@ -356,7 +356,7 @@ class Simulator(Trigger, AbstractEventListener):
                     det.detection_id = self._detection_id
                     self._detection_id += 1
                     detections.append(det)
-            self._time_of_last_detection[sensor.receiver.id] = self._t
+            self._time_of_last_detection[sensor.id] = self._t
             # Simulate clutter.
             if self._simulate_clutter:
                 # TODO: Implement PCL clutter sampling.
