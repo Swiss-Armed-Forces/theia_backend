@@ -13,7 +13,7 @@ from theia.coordinates import (
 )
 from theia.distance import line_of_sight_distance
 from theia.measurement import MonostaticMeasurementTransformations
-from theia.types import ConstantRcsModel, Point, Trajectory
+from theia.types import ConstantRcsModel, Point, TargetInfo, Trajectory
 
 
 class AbstractManeuver(abc.ABC):
@@ -30,7 +30,7 @@ class AbstractManeuver(abc.ABC):
         start_time: datetime.datetime,
         start_pos: Point,
         target_id: int,
-        sidc: str,
+        info: TargetInfo,
         rcs: float,
     ) -> Trajectory:
         times, points = self.get_waypoints(start_time, start_pos)
@@ -48,7 +48,7 @@ class AbstractManeuver(abc.ABC):
 
         return Trajectory(
             target_id=target_id,
-            target_sidc=sidc,
+            target_info=info,
             times=times,
             lats=[p.lat for p in points],
             lons=[p.lon for p in points],

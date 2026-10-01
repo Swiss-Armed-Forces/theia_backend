@@ -38,6 +38,7 @@ from theia.types import (
     PclSensor,
     Receiver,
     Sensor,
+    TargetInfo,
     Transmitter,
 )
 from theia.util import mask_to_polygon
@@ -77,6 +78,9 @@ class ExtrapolatedTrack(pydantic.BaseModel):
     id: str
     points: list[TrackPoint]
     sidc: str
+    """Resolved SIDC, ready to be rendered"""
+    info: TargetInfo
+    """Perceived categorical information about the tracked target"""
     receiver: Optional[Receiver] = None
     transmitter: Optional[Transmitter] = None
 
@@ -92,6 +96,8 @@ class ExtrapolatedGroundtruth(pydantic.BaseModel):
     name: str
     points: list[TrackPoint]
     sidc: str
+    """Resolved SIDC, ready to be rendered"""
+    info: TargetInfo
 
 
 class DefaultMonostaticSensorConfiguration(pydantic.BaseModel):
@@ -148,6 +154,7 @@ def create_app(
                     id=track.id,
                     points=track_points,
                     sidc=track.sidc,
+                    info=track.target_info,
                 )
             )
         return ExtrapolatedSituationalPicture(
@@ -181,6 +188,7 @@ def create_app(
                         )
                     ],
                     sidc=target.sidc,
+                    info=target.info,
                 )
             )
         return results

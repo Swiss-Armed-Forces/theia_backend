@@ -3,7 +3,6 @@ from pathlib import Path
 
 import numpy as np
 
-from theia.config import SIDC
 from theia.data_loading import load_trajectory_file
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
@@ -21,7 +20,13 @@ from theia.simulation.simulator import TerminationCriterion, TimeCriterion
 from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.terrain import AbstractTerrainModel
 from theia.test_data import get_uetliberg_radar
-from theia.types import AbstractTracker, ConstantRcsModel, Controller
+from theia.types import (
+    AbstractTracker,
+    ConstantRcsModel,
+    Controller,
+    Party,
+    TargetInfos,
+)
 
 
 class UetlibergOpenskySimulatorFactory(AbstractSimulatorFactory):
@@ -66,7 +71,10 @@ class UetlibergOpenskySimulatorFactory(AbstractSimulatorFactory):
     def _get_red_controller(self) -> Controller:
         return ControllerGroup(
             [
-                WaypointTargetController.from_trajectory(t, SIDC.RED_FIXED_WING)
+                WaypointTargetController.from_trajectory(
+                    t,
+                    TargetInfos.FIXED_WING.with_party(Party.RED),
+                )
                 for t in self._trajectories
             ]
         )

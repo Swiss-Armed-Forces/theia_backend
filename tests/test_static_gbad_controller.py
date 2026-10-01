@@ -3,16 +3,17 @@ import unittest
 
 import numpy as np
 
-from theia.config import SIDC
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.simulation.controllers.static_gbad_controller import StaticGbadController
 from theia.terrain import SrtmTerrainModel
 from theia.types import (
     ConstantRcsModel,
+    Party,
     Point,
     SituationalPicture,
     Target,
+    TargetInfos,
     Track,
     Velocity,
 )
@@ -44,7 +45,7 @@ t1 = datetime.datetime.fromtimestamp(1)
 def get_situational_picture_in_range() -> SituationalPicture:
     track = Track(
         id="0",
-        sidc=SIDC.UNKNOWN,
+        target_info=TargetInfos.UNKNOWN,
         states=[
             (
                 t0,
@@ -59,7 +60,7 @@ def get_situational_picture_in_range() -> SituationalPicture:
     # Used to check whether the controller just takes the first track or actually searches.
     red_herring = Track(
         id="1",
-        sidc=SIDC.UNKNOWN,
+        target_info=TargetInfos.UNKNOWN,
         states=[
             (
                 t0,
@@ -99,7 +100,7 @@ def get_direct_effector() -> DirectFireEffector:
 def get_direct_controller(assigned_track_id: str | None) -> StaticGbadController:
     return StaticGbadController(
         target_id=4,
-        sidc=SIDC.BLUE_AIR_DEFENCE,
+        info=TargetInfos.GBAD.with_party(Party.BLUE),
         rcs=1.5,
         effector=get_direct_effector(),
         assigned_track_id=assigned_track_id,
@@ -131,7 +132,7 @@ def get_indirect_effector(
         projectile=get_indirect_projectile_effector(),
         projectile_speed=300.0,
         projectile_max_dist=50_000.0,
-        projectile_sidc=SIDC.BLUE_MISSILE,
+        projectile_info=TargetInfos.INTERCEPTOR.with_party(Party.BLUE),
         projectile_rcs=ConstantRcsModel(rcs=0.1),
         # Cadence is checked/tracked entirely by the effector's own fire()
         # (see tests/test_effectors.py::CadenceTest) - unlimited here since
@@ -147,7 +148,7 @@ def get_indirect_controller(
 ) -> StaticGbadController:
     return StaticGbadController(
         target_id=4,
-        sidc=SIDC.BLUE_AIR_DEFENCE,
+        info=TargetInfos.GBAD.with_party(Party.BLUE),
         rcs=1.5,
         effector=get_indirect_effector(n_attacks_left=n_attacks_left),
         assigned_track_id=assigned_track_id,
@@ -186,7 +187,7 @@ class StaticGbadControllerDirectFireTest(unittest.TestCase):
         expected = Target(
             id=4,
             is_stationary=True,
-            sidc=SIDC.BLUE_AIR_DEFENCE,
+            info=TargetInfos.GBAD.with_party(Party.BLUE),
             point=p_uetliberg,
             cross_section_model=ConstantRcsModel(rcs=1.5),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -237,7 +238,7 @@ class StaticGbadControllerIndirectFireTest(unittest.TestCase):
         expected = Target(
             id=4,
             is_stationary=True,
-            sidc=SIDC.BLUE_AIR_DEFENCE,
+            info=TargetInfos.GBAD.with_party(Party.BLUE),
             point=p_uetliberg,
             cross_section_model=ConstantRcsModel(rcs=1.5),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -253,7 +254,7 @@ class StaticGbadControllerIndirectFireTest(unittest.TestCase):
 
         self.assertEqual(
             controller.targets[0].sidc,
-            SIDC.damaged(SIDC.BLUE_AIR_DEFENCE.value),
+            TargetInfos.GBAD.with_party(Party.BLUE).sidc(damaged=True),
         )
 
 

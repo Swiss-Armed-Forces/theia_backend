@@ -1,11 +1,10 @@
 import datetime
 import unittest
 
-from theia.config import SIDC
 from theia.simulation.controllers.critical_infrastructure_controller import (
     CriticalInfrastructureController,
 )
-from theia.types import Point, SituationalPicture
+from theia.types import Party, Point, SituationalPicture, TargetInfos
 
 t0 = datetime.datetime.fromtimestamp(0, datetime.UTC)
 
@@ -27,7 +26,7 @@ class TestCriticalInfrastructureController(unittest.TestCase):
             target_id=42,
             name="Airport Zürich",
             point=p,
-            sidc=SIDC.BLUE_GOVERNMENT_SITE,
+            info=TargetInfos.CRITICAL_INFRASTRUCTURE.with_party(Party.BLUE),
             rcs=100.0,
         )
 
@@ -52,7 +51,7 @@ class TestCriticalInfrastructureController(unittest.TestCase):
             target_id=1,
             name="Power Plant",
             point=p,
-            sidc=SIDC.BLUE_GOVERNMENT_SITE,
+            info=TargetInfos.CRITICAL_INFRASTRUCTURE.with_party(Party.BLUE),
             rcs=50.0,
         )
 
@@ -66,7 +65,7 @@ class TestCriticalInfrastructureController(unittest.TestCase):
         self.assertEqual(target.id, 1)
         self.assertTrue(target.is_stationary)
         self.assertEqual(target.name, "Power Plant")
-        self.assertEqual(target.sidc, SIDC.BLUE_GOVERNMENT_SITE.value)
+        self.assertEqual(target.sidc, "10232000001206000000")
         self.assertEqual(target.point, p)
         self.assertEqual(target.cross_section_model.rcs, 50.0)
         self.assertEqual(

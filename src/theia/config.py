@@ -1,5 +1,4 @@
 import datetime
-import enum
 import os
 import pathlib
 
@@ -41,29 +40,6 @@ RCS_FOR_RANGE_CALCULATION = 1.0
 """Radar cross section [m^2] to be used for monostatic range calculations by default."""
 
 FRONTEND_URL = "http://localhost:5173"
-
-
-class SIDC(enum.Enum):
-    GREEN_TRANSMITTER = "10242000001212010000"
-    BLUE_RECEIVER = "10231500002203000000"
-    RED_RECEIVER = "10261500002203000000"
-    BLUE_RADAR = "10231500002203000000"
-    RED_RADAR = "10261500002203000000"
-    RED_FIXED_WING = "10260100001101000000"
-    BLUE_AIR_DEFENCE = "10031000001301000000"
-    RED_AIR_DEFENCE = "10061000001301000000"
-    BLUE_GOVERNMENT_SITE = "10232000001206000000"
-    RED_GOVERNMENT_SITE = "10262000001206000000"
-    BLUE_AIRPORT = "10032000001213010000"
-    BLUE_MISSILE = "10230200001100000000"
-    RED_MISSILE = "10260200001100000000"
-    UNKNOWN = "10211000000000000000"
-
-    @staticmethod
-    def damaged(sidc: str) -> str:
-        sidc = list(sidc)
-        sidc[6] = "3"
-        return "".join(sidc)
 
 
 UNKNOWN_ID = -1

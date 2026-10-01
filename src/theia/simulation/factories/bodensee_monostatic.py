@@ -2,7 +2,6 @@ import datetime
 
 import numpy as np
 
-from theia.config import SIDC
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
@@ -15,14 +14,21 @@ from theia.simulation.controllers.waypoint_target_controller import (
 from theia.simulation.factories.abstract_simulator_factory import (
     AbstractSimulatorFactory,
 )
-from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
+from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.test_data import (
     build_fighter_jet_radar,
     build_flores_monostatic_radar,
     build_single_target_from_Bodensee,
 )
-from theia.types import AbstractTracker, ConstantRcsModel, Controller, Point
+from theia.types import (
+    AbstractTracker,
+    ConstantRcsModel,
+    Controller,
+    Party,
+    Point,
+    TargetInfos,
+)
 
 
 class BodenseeMonostaticFactory(AbstractSimulatorFactory):
@@ -73,7 +79,7 @@ class BodenseeMonostaticFactory(AbstractSimulatorFactory):
         red_sensor = build_fighter_jet_radar(0, 0, 0)
         return WaypointTargetController.from_trajectory(
             trajectory=self._trajectory,
-            sidc=SIDC.RED_FIXED_WING,
+            info=TargetInfos.FIXED_WING.with_party(Party.RED),
             name="Reconnaissance plane",
             sensor=red_sensor,
         )

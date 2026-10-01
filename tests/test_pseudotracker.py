@@ -3,7 +3,6 @@ import unittest
 
 import numpy as np
 
-from theia.config import SIDC
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.simulation.controllers.controller_group import ControllerGroup
@@ -12,19 +11,21 @@ from theia.simulation.controllers.waypoint_target_controller import (
     WaypointTargetController,
 )
 from theia.simulation.damage_model import UniformDamageModel
-from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import (
     AbstractSimulationListener,
     Simulator,
     TimeCriterion,
 )
+from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.terrain import SrtmTerrainModel
 from theia.test_data import load_pcl_example
 from theia.types import (
     AbstractEventListener,
     ConstantRcsModel,
     Event,
+    Party,
     SituationalPicture,
+    TargetInfos,
     TrackInitEvent,
 )
 
@@ -40,7 +41,10 @@ class PseudoTrackerTest(
 
         scripted_target_controller = ControllerGroup(
             [
-                WaypointTargetController.from_trajectory(t, SIDC.RED_FIXED_WING)
+                WaypointTargetController.from_trajectory(
+                    t,
+                    TargetInfos.FIXED_WING.with_party(Party.RED),
+                )
                 for t in trajectories
             ]
         )

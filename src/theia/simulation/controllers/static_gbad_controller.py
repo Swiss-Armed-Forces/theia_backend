@@ -1,7 +1,6 @@
 import datetime
 from typing import Optional
 
-from theia.config import SIDC
 from theia.coordinates import CoordinateTransformations
 from theia.coverage import calculate_coverage
 from theia.effectors import DirectFireEffector, IndirectFireEffector
@@ -14,6 +13,7 @@ from theia.types import (
     Point,
     SituationalPicture,
     Target,
+    TargetInfo,
     Velocity,
 )
 
@@ -42,7 +42,7 @@ class StaticGbadController(Controller):
     """
 
     target_id: int
-    sidc: SIDC
+    info: TargetInfo
     rcs: float
     """Radar cross section [m^2]"""
     effector: DirectFireEffector | IndirectFireEffector
@@ -67,9 +67,8 @@ class StaticGbadController(Controller):
                 id=self.target_id,
                 is_stationary=True,
                 name=self.target_name,
-                sidc=self.sidc
-                if self.effector.n_attacks_left > 0
-                else SIDC.damaged(self.sidc.value),
+                info=self.info,
+                is_damaged=self.effector.n_attacks_left <= 0,
                 point=self.effector.point,
                 cross_section_model=ConstantRcsModel(rcs=self.rcs),
                 velocity=Velocity(vx=0, vy=0, vz=0),

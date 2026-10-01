@@ -2,7 +2,6 @@ import datetime
 
 import numpy as np
 
-from theia.config import SIDC
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.distance import burstvincentydistance
@@ -34,8 +33,10 @@ from theia.types import (
     Controller,
     Entity,
     IdProvider,
+    Party,
     Point,
     Receiver,
+    TargetInfos,
     Trajectory,
     VisualSensor,
 )
@@ -111,7 +112,7 @@ class ZurichAirportScenarioFactory(AbstractSimulatorFactory):
 
         trajectory = Trajectory(
             target_id=self._id_provider.increment(Entity.TARGET, name),
-            target_sidc=SIDC.RED_FIXED_WING,
+            target_info=TargetInfos.FIXED_WING.with_party(Party.RED),
             times=times,
             lats=[p.lat for p in points],
             lons=[p.lon for p in points],
@@ -173,7 +174,7 @@ class ZurichAirportScenarioFactory(AbstractSimulatorFactory):
         return LivingController(
             child=WaypointTargetController(
                 name="Airport Zürich",
-                sidc=SIDC.BLUE_AIRPORT,
+                info=TargetInfos.AIRPORT.with_party(Party.BLUE),
                 target_id=target_id,
                 times=[self._t0, self._tmax],
                 waypoints=[self._p_infra, self._p_infra],
@@ -209,7 +210,7 @@ class ZurichAirportScenarioFactory(AbstractSimulatorFactory):
 
         return StaticGbadController(
             target_id=self._id_provider.increment(Entity.TARGET, name),
-            sidc=SIDC.BLUE_AIR_DEFENCE,
+            info=TargetInfos.GBAD.with_party(Party.BLUE),
             rcs=2.0,
             effector=effector,
             assigned_track_id=None,

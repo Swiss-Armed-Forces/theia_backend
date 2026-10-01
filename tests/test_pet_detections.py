@@ -5,7 +5,6 @@ from unittest.mock import patch
 import numpy as np
 from scipy.stats import kstest, norm
 
-from theia.config import SIDC
 from theia.detection.pet import PetDetector
 from theia.terrain import DummyTerrain
 from theia.test_data import build_airborne_pet_receiver, build_flores_monostatic_radar
@@ -16,6 +15,7 @@ from theia.types import (
     PetSensor,
     Point,
     Target,
+    TargetInfos,
     Velocity,
 )
 
@@ -35,7 +35,7 @@ def _target(point: Point) -> Target:
     return Target(
         id=0,
         is_stationary=False,
-        sidc=SIDC.UNKNOWN,
+        info=TargetInfos.UNKNOWN,
         point=point,
         cross_section_model=ConstantRcsModel(rcs=1.0),
         velocity=Velocity(vx=300.0, vy=0.0, vz=0.0),

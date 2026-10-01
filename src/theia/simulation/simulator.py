@@ -624,7 +624,7 @@ class Simulator(Trigger, AbstractEventListener):
                 projectile_id = self._id_provider.increment(Entity.TARGET)
                 projectile_controller = HomingSystem(
                     target_id=projectile_id,
-                    sidc=effector.projectile_sidc,
+                    info=effector.projectile_info,
                     speed=effector.projectile_speed,
                     max_dist=effector.projectile_max_dist,
                     point=effector.point,

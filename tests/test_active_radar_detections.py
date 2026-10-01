@@ -6,7 +6,7 @@ import numpy as np
 import scipy.constants as sc
 from scipy.stats import kstest, norm
 
-from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, RF_LOSS, SIDC
+from theia.config import ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, RF_LOSS
 from theia.coordinates import CoordinateTransformations, EcefToEnuTransformer
 from theia.detection.active import (
     FastPd,
@@ -23,6 +23,7 @@ from theia.types import (
     MonostaticSensor,
     Point,
     Target,
+    TargetInfos,
     Velocity,
 )
 from theia.util import get_clear_sky_attenuation
@@ -92,7 +93,7 @@ def _target(
     return Target(
         id=0,
         is_stationary=False,
-        sidc=SIDC.UNKNOWN,
+        info=TargetInfos.UNKNOWN,
         point=Point(lat=lat, lon=lon, alt=alt),
         cross_section_model=ConstantRcsModel(rcs=1.0),
         velocity=Velocity(vx=300.0, vy=0.0, vz=0.0),

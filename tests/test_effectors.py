@@ -1,7 +1,7 @@
 import datetime
 import unittest
 
-from theia.config import SIDC, UNKNOWN_ID, UNKNOWN_TIME
+from theia.config import UNKNOWN_ID, UNKNOWN_TIME
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.effectors import (
     DirectFireEffector,
@@ -17,8 +17,10 @@ from theia.types import (
     ConstantRcsModel,
     DirectShot,
     IndirectShot,
+    Party,
     Point,
     Target,
+    TargetInfos,
     Velocity,
 )
 
@@ -76,7 +78,7 @@ class DirectEffectorTest(unittest.TestCase):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_bern,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -90,7 +92,7 @@ class DirectEffectorTest(unittest.TestCase):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -104,7 +106,7 @@ class DirectEffectorTest(unittest.TestCase):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_no_los,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -118,7 +120,7 @@ class DirectEffectorTest(unittest.TestCase):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -136,7 +138,7 @@ class DirectEffectorTest(unittest.TestCase):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -172,7 +174,7 @@ class IndirectEffectorTest(unittest.TestCase):
             "projectile": self._projectile,
             "projectile_speed": 300.0,
             "projectile_max_dist": 50_000.0,
-            "projectile_sidc": SIDC.BLUE_MISSILE,
+            "projectile_info": TargetInfos.INTERCEPTOR.with_party(Party.BLUE),
             "projectile_rcs": ConstantRcsModel(rcs=0.1),
             "assigned_track_id": "0",
             # Unlimited rate of fire by default - these tests aren't about
@@ -190,7 +192,7 @@ class IndirectEffectorTest(unittest.TestCase):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_bern,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -204,7 +206,7 @@ class IndirectEffectorTest(unittest.TestCase):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -218,7 +220,7 @@ class IndirectEffectorTest(unittest.TestCase):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_no_los,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -231,7 +233,7 @@ class IndirectEffectorTest(unittest.TestCase):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -252,7 +254,7 @@ class IndirectEffectorTest(unittest.TestCase):
         target = Target(
             id=99,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -307,7 +309,7 @@ class CadenceTest(unittest.TestCase):
             "projectile": projectile,
             "projectile_speed": 300.0,
             "projectile_max_dist": 50_000.0,
-            "projectile_sidc": SIDC.BLUE_MISSILE,
+            "projectile_info": TargetInfos.INTERCEPTOR.with_party(Party.BLUE),
             "projectile_rcs": ConstantRcsModel(rcs=0.1),
             "assigned_track_id": "0",
             "cadence": 1.0,
@@ -322,7 +324,7 @@ class CadenceTest(unittest.TestCase):
         return Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -355,7 +357,7 @@ class CadenceTest(unittest.TestCase):
         far_target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_bern,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -396,7 +398,7 @@ class InFlightCapTest(unittest.TestCase):
             "projectile": projectile,
             "projectile_speed": 300.0,
             "projectile_max_dist": 50_000.0,
-            "projectile_sidc": SIDC.BLUE_MISSILE,
+            "projectile_info": TargetInfos.INTERCEPTOR.with_party(Party.BLUE),
             "projectile_rcs": ConstantRcsModel(rcs=0.1),
             "assigned_track_id": "0",
             # Unlimited cadence - these tests aren't about cadence.
@@ -409,7 +411,7 @@ class InFlightCapTest(unittest.TestCase):
         return Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_close,
             cross_section_model=ConstantRcsModel(rcs=1.0),
             velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),

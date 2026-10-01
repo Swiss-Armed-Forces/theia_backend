@@ -3,11 +3,18 @@ import math
 import unittest
 from unittest.mock import MagicMock, patch
 
-from theia.config import SIDC
 from theia.coordinates import CoordinateTransformations
 from theia.effectors import DirectFireEffector
 from theia.simulation.controllers.homing_effector import HomingSystem
-from theia.types import ConstantRcsModel, DirectShot, KillEvent, Point, Target
+from theia.types import (
+    ConstantRcsModel,
+    DirectShot,
+    KillEvent,
+    Party,
+    Point,
+    Target,
+    TargetInfos,
+)
 
 
 def make_track(x=0.0, y=0.0, z=0.0, vx=0.0, vy=0.0, vz=0.0):
@@ -32,7 +39,7 @@ class HomingSystemTestCase(unittest.TestCase):
     def make_system(self, **overrides):
         defaults = dict(
             target_id=1,
-            sidc=SIDC.BLUE_MISSILE,
+            info=TargetInfos.INTERCEPTOR.with_party(Party.BLUE),
             speed=100.0,
             max_dist=10_000.0,
             point=Point(lat=0.0, lon=0.0, alt=0.0) if Point else MagicMock(),

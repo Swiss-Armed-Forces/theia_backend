@@ -19,6 +19,7 @@ from theia.types import (
     Point,
     Receiver,
     Target,
+    TargetInfos,
     Transmitter,
     Velocity,
 )
@@ -212,7 +213,7 @@ class PclDetector(pydantic.BaseModel):
             tgt = Target(
                 id=-1,
                 is_stationary=True,
-                sidc=theia.config.SIDC.UNKNOWN,
+                info=TargetInfos.UNKNOWN,
                 point=Point(lat=point[0], lon=point[1], alt=point[2]),
                 cross_section_model=ConstantRcsModel(rcs=1.0),
                 velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),

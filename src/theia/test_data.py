@@ -4,7 +4,7 @@ import math
 from typing import Literal
 
 import numpy as np
-from theia.config import SIDC
+
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.data_loading import load_bakom_ukw_transmitters
 from theia.distance import line_of_sight_distance
@@ -15,12 +15,14 @@ from theia.types import (
     ConstantRcsModel,
     MonostaticRadarMeasurementModel,
     MonostaticSensor,
+    Party,
     PclMeasurementModel,
     PclSensor,
     Point,
     Polarization,
     Receiver,
     Target,
+    TargetInfos,
     Trajectory,
     Transmitter,
     calculate_antenna_gain,
@@ -77,7 +79,7 @@ class TestSituationLoader:
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=p_target,
             cross_section_model=ConstantRcsModel(rcs=2.0),
             velocity=v,
@@ -278,7 +280,7 @@ def load_pcl_example(
 
     trajectory = Trajectory(
         target_id=0,
-        target_sidc=SIDC.RED_FIXED_WING,
+        target_info=TargetInfos.FIXED_WING.with_party(Party.RED),
         times=[t1, t2, t3],
         lats=[p1.lat, p2.lat, p3.lat],
         lons=[p1.lon, p2.lon, p3.lon],
@@ -355,7 +357,7 @@ def build_single_target_from_Bodensee(
         t_start,
         p_start,
         target_id,
-        SIDC.RED_FIXED_WING,
+        TargetInfos.FIXED_WING.with_party(Party.RED),
         rcs,
     )
 

@@ -13,8 +13,188 @@ import shapely
 from matplotlib import pyplot as plt
 from scipy.interpolate import BSpline, CubicSpline, make_interp_spline
 
-from theia.config import SIDC, UNKNOWN_ID
+from theia.config import UNKNOWN_ID
 from theia.util import from_dB
+
+
+class TargetCategory(enum.Enum):
+    """Kind of a physical entity, independent of its party."""
+
+    UNKNOWN = "UNKNOWN"
+    SENSOR = "SENSOR"
+    CRITICAL_INFRASTRUCTURE = "CRITICAL_INFRASTRUCTURE"
+    INTERCEPTOR = "INTERCEPTOR"
+    GBAD = "GBAD"
+    DRONE_CLASS_I = "DRONE_CLASS_I"
+    DRONE_CLASS_II = "DRONE_CLASS_II"
+    DRONE_CLASS_III = "DRONE_CLASS_III"
+    SHORT_RANGE_BALLISTIC_MISSILE = "SHORT_RANGE_BALLISTIC_MISSILE"
+    MEDIUM_RANGE_BALLISTIC_MISSILE = "MEDIUM_RANGE_BALLISTIC_MISSILE"
+    INTERMEDIATE_RANGE_BALLISTIC_MISSILE = "INTERMEDIATE_RANGE_BALLISTIC_MISSILE"
+    CRUISE_MISSILE = "CRUISE_MISSILE"
+    FIGHTER_JET = "FIGHTER_JET"
+
+
+class Party(enum.Enum):
+    """Party a target belongs to."""
+
+    UNKNOWN = "UNKNOWN"
+    BLUE = "BLUE"
+    RED = "RED"
+    NEUTRAL = "NEUTRAL"
+
+    @classmethod
+    def from_is_blue(cls, is_blue: bool) -> Party:
+        return cls.BLUE if is_blue else cls.RED
+
+    @property
+    def sidc_digit(self) -> str:
+        """Standard identity digit (4th SIDC character) of this party."""
+        return _PARTY_TO_SIDC_DIGIT[self]
+
+
+_PARTY_TO_SIDC_DIGIT = {
+    Party.UNKNOWN: "1",
+    Party.BLUE: "3",
+    Party.NEUTRAL: "4",
+    Party.RED: "6",
+}
+_SIDC_DIGIT_TO_PARTY = {v: k for k, v in _PARTY_TO_SIDC_DIGIT.items()}
+
+SIDC_PARTY_PLACEHOLDER = "x"
+_SIDC_LENGTH = 20
+_SIDC_PARTY_INDEX = 3
+_SIDC_STATUS_INDEX = 6
+_SIDC_STATUS_DAMAGED = "3"
+
+
+class TargetInfo(pydantic.BaseModel):
+    """
+    Meta-information about a target.
+
+    Categorical information lives here rather than in `Target`, so that new
+    criteria can be added without touching `Target` (open-closed principle).
+    """
+
+    model_config = pydantic.ConfigDict(frozen=True)
+
+    sidc_template: str
+    """
+    20-digit APP-6D SIDC with the placeholder `x` as 4th character (party).
+
+    Example: `100x1000001301000000` for a GBAD system.
+    """
+    category: TargetCategory = TargetCategory.UNKNOWN
+    tags: frozenset[str] = frozenset()
+    """Mission- or controller-specific information."""
+    party: Party = Party.UNKNOWN
+
+    @pydantic.field_validator("sidc_template")
+    @classmethod
+    def _check_template(cls, template: str) -> str:
+        if (
+            len(template) != _SIDC_LENGTH
+            or template[_SIDC_PARTY_INDEX] != SIDC_PARTY_PLACEHOLDER
+        ):
+            raise ValueError(
+                f"SIDC template must have {_SIDC_LENGTH} characters and "
+                f"'{SIDC_PARTY_PLACEHOLDER}' at index {_SIDC_PARTY_INDEX}: {template}"
+            )
+        return template
+
+    def sidc(self, damaged: bool = False) -> str:
+        """Concrete SIDC for this target's party."""
+        sidc = list(self.sidc_template)
+        sidc[_SIDC_PARTY_INDEX] = self.party.sidc_digit
+        if damaged:
+            sidc[_SIDC_STATUS_INDEX] = _SIDC_STATUS_DAMAGED
+        return "".join(sidc)
+
+    def with_party(self, party: Party) -> TargetInfo:
+        return self.model_copy(update={"party": party})
+
+    @staticmethod
+    def from_sidc(sidc: str) -> TargetInfo:
+        """Build an uncategorized `TargetInfo` from a concrete (legacy) SIDC."""
+        template = list(sidc)
+        party = _SIDC_DIGIT_TO_PARTY.get(template[_SIDC_PARTY_INDEX], Party.UNKNOWN)
+        template[_SIDC_PARTY_INDEX] = SIDC_PARTY_PLACEHOLDER
+        return TargetInfo(sidc_template="".join(template), party=party)
+
+    @staticmethod
+    def is_damaged_sidc(sidc: str) -> bool:
+        return sidc[_SIDC_STATUS_INDEX] == _SIDC_STATUS_DAMAGED
+
+
+_MISSILE_TEMPLATE = "102x0200001100000000"
+_FIXED_WING_TEMPLATE = "102x0100001101000000"
+_SENSOR_TEMPLATE = "102x1500002203000000"
+
+
+class TargetInfos:
+    """Catalog of predefined target infos. Use `with_party` to assign a party."""
+
+    UNKNOWN = TargetInfo(sidc_template="102x1000000000000000")
+    RADAR = TargetInfo(
+        sidc_template=_SENSOR_TEMPLATE,
+        category=TargetCategory.SENSOR,
+    )
+    PCL_RECEIVER = TargetInfo(
+        sidc_template=_SENSOR_TEMPLATE,
+        tags=frozenset({"pcl_receiver"}),
+    )
+    TRANSMITTER = TargetInfo(
+        sidc_template="102x2000001212010000",
+        party=Party.NEUTRAL,
+    )
+    GBAD = TargetInfo(
+        sidc_template="100x1000001301000000",
+        category=TargetCategory.GBAD,
+    )
+    CRITICAL_INFRASTRUCTURE = TargetInfo(
+        sidc_template="102x2000001206000000",
+        category=TargetCategory.CRITICAL_INFRASTRUCTURE,
+    )
+    AIRPORT = TargetInfo(
+        sidc_template="100x2000001213010000",
+        category=TargetCategory.CRITICAL_INFRASTRUCTURE,
+        tags=frozenset({"airport"}),
+    )
+    INTERCEPTOR = TargetInfo(
+        sidc_template=_MISSILE_TEMPLATE,
+        category=TargetCategory.INTERCEPTOR,
+    )
+    FIXED_WING = TargetInfo(
+        sidc_template=_FIXED_WING_TEMPLATE,
+        category=TargetCategory.FIGHTER_JET,
+    )
+
+    @staticmethod
+    def for_category(category: TargetCategory) -> TargetInfo:
+        """Default info for an authored category (e.g. from an ORBAT file)."""
+        return TargetInfo(
+            sidc_template=_CATEGORY_TEMPLATES.get(
+                category,
+                TargetInfos.UNKNOWN.sidc_template,
+            ),
+            category=category,
+        )
+
+
+_CATEGORY_TEMPLATES = {
+    TargetCategory.SENSOR: _SENSOR_TEMPLATE,
+    TargetCategory.CRITICAL_INFRASTRUCTURE: TargetInfos.CRITICAL_INFRASTRUCTURE.sidc_template,
+    TargetCategory.INTERCEPTOR: _MISSILE_TEMPLATE,
+    TargetCategory.GBAD: TargetInfos.GBAD.sidc_template,
+    TargetCategory.DRONE_CLASS_I: _FIXED_WING_TEMPLATE,
+    TargetCategory.DRONE_CLASS_II: _FIXED_WING_TEMPLATE,
+    TargetCategory.DRONE_CLASS_III: _FIXED_WING_TEMPLATE,
+    TargetCategory.SHORT_RANGE_BALLISTIC_MISSILE: _MISSILE_TEMPLATE,
+    TargetCategory.MEDIUM_RANGE_BALLISTIC_MISSILE: _MISSILE_TEMPLATE,
+    TargetCategory.INTERMEDIATE_RANGE_BALLISTIC_MISSILE: _MISSILE_TEMPLATE,
+    TargetCategory.CRUISE_MISSILE: _MISSILE_TEMPLATE,
+    TargetCategory.FIGHTER_JET: _FIXED_WING_TEMPLATE,
+}
 
 
 def calculate_antenna_gain(
@@ -428,14 +608,36 @@ class Target(pydantic.BaseModel):
     """
     name: str = ""
     """Human-readable target name"""
-    sidc: str
-    """Symbol identification coding according to NATO APP-6A. Default: Unknown"""
+    info: TargetInfo
+    """Categorical meta-information"""
+    is_damaged: bool = False
     point: Point
     """Coordinates"""
     cross_section_model: ConstantRcsModel
     velocity: Velocity
     receiver: Optional[Receiver] = None
     transmitter: Optional[Transmitter] = None
+
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def _from_legacy_sidc(cls, data: Any) -> Any:
+        # Logs written before TargetInfo existed only carry a concrete SIDC.
+        if isinstance(data, dict) and "info" not in data and "sidc" in data:
+            data = dict(data)
+            sidc = data.pop("sidc")
+            data["info"] = TargetInfo.from_sidc(sidc)
+            data.setdefault("is_damaged", TargetInfo.is_damaged_sidc(sidc))
+        return data
+
+    @pydantic.computed_field
+    @property
+    def sidc(self) -> str:
+        """Symbol identification coding according to NATO APP-6D"""
+        return self.info.sidc(damaged=self.is_damaged)
+
+    @property
+    def category(self) -> TargetCategory:
+        return self.info.category
 
     @property
     def lat(self) -> float:
@@ -463,7 +665,7 @@ class Target(pydantic.BaseModel):
 
 class Trajectory(pydantic.BaseModel):
     target_id: int
-    target_sidc: str
+    target_info: TargetInfo
     times: list[datetime.datetime]
     """Ordered list of times at which the trajectory's waypoints are defined."""
     lats: list[float]
@@ -481,6 +683,16 @@ class Trajectory(pydantic.BaseModel):
     cross_section_model: ConstantRcsModel
 
     _spline: CubicSpline = pydantic.PrivateAttr()
+
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def _from_legacy_sidc(cls, data: Any) -> Any:
+        # Files written before TargetInfo existed only carry a concrete SIDC.
+        if isinstance(data, dict) and "target_info" not in data:
+            if "target_sidc" in data:
+                data = dict(data)
+                data["target_info"] = TargetInfo.from_sidc(data.pop("target_sidc"))
+        return data
 
     @pydantic.model_validator(mode="after")
     def check_same_length(self) -> Self:
@@ -532,7 +744,7 @@ class Trajectory(pydantic.BaseModel):
         return Target(
             id=self.target_id,
             is_stationary=False,
-            sidc=self.target_sidc,
+            info=self.target_info,
             point=Point(
                 lat=lat,
                 lon=lon,
@@ -591,7 +803,7 @@ class Trajectory(pydantic.BaseModel):
 
         return Trajectory(
             target_id=target.id,
-            target_sidc=target.sidc,
+            target_info=target.info,
             times=times,
             lats=[target.lat for _ in times],
             lons=[target.lon for _ in times],
@@ -628,7 +840,7 @@ class Trajectory(pydantic.BaseModel):
             raise ValueError("Invalid time interval")
         return Trajectory(
             target_id=self.target_id,
-            target_sidc=self.target_sidc,
+            target_info=self.target_info,
             times=self.times[i_start:i_stop],
             lats=self.lats[i_start:i_stop],
             lons=self.lons[i_start:i_stop],
@@ -770,7 +982,7 @@ CLUTTER_TARGET = Target(
     id=-2,
     is_stationary=True,
     name="Clutter target",
-    sidc=SIDC.UNKNOWN,
+    info=TargetInfos.UNKNOWN,
     point=Point(lat=0, lon=0, alt=0),
     cross_section_model=ConstantRcsModel(rcs=0),
     velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -1355,7 +1567,8 @@ class Snapshot(pydantic.BaseModel):
 
 class Track(pydantic.BaseModel):
     id: str
-    sidc: str
+    target_info: TargetInfo
+    """Perceived meta-information about the tracked target"""
     states: list[tuple[datetime.datetime, list[float]]]
     """
     Observations of the state space (6D Cartesian ECEF coordinates and velocities).
@@ -1372,13 +1585,13 @@ class Track(pydantic.BaseModel):
     def __init__(
         self,
         id: str,
-        sidc: str,
+        target_info: TargetInfo,
         states: list[tuple[datetime.datetime, np.ndarray]],
         inactive_time: datetime.timedelta = datetime.timedelta(seconds=30),
     ):
         super().__init__(
             id=id,
-            sidc=sidc,
+            target_info=target_info,
             states=states,
             inactive_time=inactive_time,
         )
@@ -1391,6 +1604,20 @@ class Track(pydantic.BaseModel):
             self._y[i, :] = state
 
         self._f = make_interp_spline(self._times, self._y, k=1)
+
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def _from_legacy_sidc(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "target_info" not in data and "sidc" in data:
+            data = dict(data)
+            data["target_info"] = TargetInfo.from_sidc(data.pop("sidc"))
+        return data
+
+    @pydantic.computed_field
+    @property
+    def sidc(self) -> str:
+        """Symbol identification coding according to NATO APP-6D"""
+        return self.target_info.sidc()
 
     def __call__(self, time: datetime.datetime) -> np.ndarray:
         """

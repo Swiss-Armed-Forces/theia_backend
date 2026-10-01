@@ -9,7 +9,7 @@ import numpy as np
 import pydantic
 
 import theia
-from theia.config import SIDC, TERRAIN_HBV_DATA_DIR
+from theia.config import TERRAIN_HBV_DATA_DIR
 from theia.coordinates import CoordinateTransformations
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
@@ -47,9 +47,12 @@ from theia.types import (
     GeoJSONFeature,
     IdProvider,
     MonostaticSensor,
+    Party,
     PclSensor,
     Point,
     Polarization,
+    TargetCategory,
+    TargetInfos,
     Trajectory,
 )
 from theia.util import to_dB
@@ -154,7 +157,9 @@ class IndirectFireEffectorFactory(pydantic.BaseModel):
             projectile=self.projectile.to_effector(terrain),
             projectile_speed=self.projectile_speed,
             projectile_max_dist=self.projectile_max_dist,
-            projectile_sidc=SIDC.BLUE_MISSILE if is_blue else SIDC.RED_MISSILE,
+            projectile_info=TargetInfos.INTERCEPTOR.with_party(
+                Party.from_is_blue(is_blue)
+            ),
             projectile_rcs=self.projectile_rcs,
             max_in_flight=self.max_in_flight,
         )
@@ -190,7 +195,7 @@ class StaticGbadFactory(pydantic.BaseModel):
         )
         c = StaticGbadController(
             target_id=self.target_id,
-            sidc=SIDC.BLUE_AIR_DEFENCE if is_blue else SIDC.RED_AIR_DEFENCE,
+            info=TargetInfos.GBAD.with_party(Party.from_is_blue(is_blue)),
             rcs=self.rcs,
             effector=effector,
         )
@@ -202,10 +207,18 @@ class FixedPathOneWayDroneFactory(pydantic.BaseModel):
     trajectory: Trajectory
     assigned_goal: Point
 
-    def to_controller(self, terrain: AbstractTerrainModel) -> Controller:
+    def to_controller(self, terrain: AbstractTerrainModel, is_blue: bool) -> Controller:
+        # The party is decided by the side the ORBAT is loaded for, not by the file.
+        trajectory = self.trajectory.model_copy(
+            update={
+                "target_info": self.trajectory.target_info.with_party(
+                    Party.from_is_blue(is_blue)
+                )
+            }
+        )
         drone = FixedPathOneWayDrone(
             effector=self.effector.to_effector(terrain),
-            trajectory=self.trajectory,
+            trajectory=trajectory,
             assigned_goal=self.assigned_goal,
             terrain=terrain,
         )
@@ -273,7 +286,9 @@ class CriticalInfrastructureFactory(pydantic.BaseModel):
             target_id=self.target_id,
             name=self.name,
             point=self.point,
-            sidc=SIDC.BLUE_GOVERNMENT_SITE if is_blue else SIDC.RED_GOVERNMENT_SITE,
+            info=TargetInfos.CRITICAL_INFRASTRUCTURE.with_party(
+                Party.from_is_blue(is_blue)
+            ),
             rcs=self.rcs,
         )
         return LivingController(child=c, target_id=self.target_id)
@@ -398,7 +413,7 @@ class OrderOfBattle(pydantic.BaseModel):
         ]
 
         oneway_drone_controllers = [
-            drone.to_controller(terrain) for drone in self.oneway_drones
+            drone.to_controller(terrain, is_blue) for drone in self.oneway_drones
         ]
         bm_controllers = [bm.to_controller(is_blue) for bm in self.ballistic_missiles]
         infra_controllers = [
@@ -694,6 +709,7 @@ class BallisticMissileFactory(pydantic.BaseModel):
     rcs: float
     alpha: Optional[float] = 45.0
     """Launch angle w. r. t. LOS [°]"""
+    category: TargetCategory = TargetCategory.SHORT_RANGE_BALLISTIC_MISSILE
 
     def model_post_init(self, __context):
         self._v0, self._times, self._trajectory_data = _build_trajectory(
@@ -724,7 +740,9 @@ class BallisticMissileFactory(pydantic.BaseModel):
         points = _convert_to_geodetic(self.p_start, self.p_stop, self._trajectory_data)
         return Trajectory(
             target_id=self.target_id,
-            target_sidc=SIDC.BLUE_MISSILE if is_blue else SIDC.RED_MISSILE,
+            target_info=TargetInfos.for_category(self.category).with_party(
+                Party.from_is_blue(is_blue)
+            ),
             times=[
                 datetime.datetime.fromtimestamp(t, tz=datetime.UTC) for t in self._times
             ],

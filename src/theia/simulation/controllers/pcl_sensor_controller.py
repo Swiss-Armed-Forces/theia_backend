@@ -1,13 +1,14 @@
 import datetime
 
-from theia.config import SIDC
 from theia.types import (
     ConstantRcsModel,
     Controller,
     Event,
+    Party,
     PclSensor,
     SituationalPicture,
     Target,
+    TargetInfos,
     Velocity,
 )
 
@@ -28,8 +29,8 @@ class PclSensorController(Controller):
         self._sensor = sensor
         self._name = name
         self._rcs_model = rcs_model
-        self._sidc_rx = SIDC.BLUE_RECEIVER if is_blue else SIDC.RED_RECEIVER
-        self._sidc_tx = SIDC.GREEN_TRANSMITTER
+        self._info_rx = TargetInfos.PCL_RECEIVER.with_party(Party.from_is_blue(is_blue))
+        self._info_tx = TargetInfos.TRANSMITTER
         self._target_id_rx = target_id_rx
         self._target_id_tx = target_id_tx
         self._own_receiver = own_receiver
@@ -50,7 +51,7 @@ class PclSensorController(Controller):
                         id=self._target_id_rx,
                         is_stationary=True,
                         name=self._name,
-                        sidc=self._sidc_rx,
+                        info=self._info_rx,
                         point=self._sensor.receiver.point,
                         cross_section_model=self._rcs_model,
                         velocity=Velocity(vx=0, vy=0, vz=0),
@@ -64,7 +65,7 @@ class PclSensorController(Controller):
                         id=self._target_id_tx,
                         is_stationary=True,
                         name=f"Tx (ID {self._sensor.transmitter})",
-                        sidc=self._sidc_tx,
+                        info=self._info_tx,
                         point=self._sensor.receiver.point,
                         cross_section_model=self._rcs_model,
                         velocity=Velocity(vx=0, vy=0, vz=0),

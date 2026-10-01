@@ -1,13 +1,12 @@
 import datetime
-from pathlib import Path
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
 from tqdm import tqdm
 
-from theia.config import SIDC
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.data_loading import load_trajectory_file
 from theia.data_loading_testing import load_pcl_reference_data
@@ -28,11 +27,10 @@ from theia.simulation.damage_model import UniformDamageModel
 from theia.simulation.factories.single_target_single_effector import (
     SingleTargetSingleEffectorFactory,
 )
-from theia.simulation.theia_logging import FileLogger, InMemoryLogger
 from theia.simulation.simulator import KillEvent, Simulator, TimeCriterion
+from theia.simulation.theia_logging import FileLogger, InMemoryLogger
 from theia.simulation.trackers.tracking import DummyTracker
-from theia.terrain import SrtmTerrainModel
-from theia.terrain import DummyTerrain
+from theia.terrain import DummyTerrain, SrtmTerrainModel
 from theia.test_data import build_flores_monostatic_radar, get_uetliberg_radar
 from theia.types import (
     AbstractEventListener,
@@ -42,9 +40,11 @@ from theia.types import (
     DirectShot,
     Event,
     IndirectShot,
+    Party,
     Point,
     SituationalPicture,
     Target,
+    TargetInfos,
     Track,
     Velocity,
 )
@@ -65,7 +65,10 @@ class SimulatorTest(unittest.TestCase):
         )
         scripted_target_controller = ControllerGroup(
             [
-                WaypointTargetController.from_trajectory(t, SIDC.RED_FIXED_WING)
+                WaypointTargetController.from_trajectory(
+                    t,
+                    TargetInfos.FIXED_WING.with_party(Party.RED),
+                )
                 for t in trajectories
             ]
         )
@@ -115,7 +118,10 @@ class SimulatorTest(unittest.TestCase):
 
         scripted_target_controller = ControllerGroup(
             [
-                WaypointTargetController.from_trajectory(t, SIDC.RED_FIXED_WING)
+                WaypointTargetController.from_trajectory(
+                    t,
+                    TargetInfos.FIXED_WING.with_party(Party.RED),
+                )
                 for t in trajectories
             ]
         )
@@ -224,7 +230,7 @@ class _StationaryTargetController(Controller):
             Target(
                 id=self.target_id,
                 is_stationary=True,
-                sidc=SIDC.RED_FIXED_WING,
+                info=TargetInfos.FIXED_WING.with_party(Party.RED),
                 point=self.point,
                 cross_section_model=ConstantRcsModel(rcs=1.0),
                 velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
@@ -279,7 +285,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
         # correspond to multiple targets, or to clutter).
         track = Track(
             id="6",
-            sidc=SIDC.UNKNOWN,
+            target_info=TargetInfos.UNKNOWN,
             states=[
                 (t0, np.array([x, 0.0, y, 0.0, z, 0.0])),
                 (
@@ -307,7 +313,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
             projectile=projectile_effector,
             projectile_speed=300.0,
             projectile_max_dist=50_000.0,
-            projectile_sidc=SIDC.BLUE_MISSILE,
+            projectile_info=TargetInfos.INTERCEPTOR.with_party(Party.BLUE),
             projectile_rcs=ConstantRcsModel(rcs=0.1),
             # 0.5 => must wait 2s between shots (cadence lives on the
             # effector, not the controller - see tests/test_effectors.py).
@@ -315,7 +321,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
         )
         launcher = StaticGbadController(
             target_id=4,
-            sidc=SIDC.BLUE_AIR_DEFENCE,
+            info=TargetInfos.GBAD.with_party(Party.BLUE),
             rcs=1.5,
             effector=effector,
             assigned_track_id="6",
@@ -405,7 +411,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
         )
         track = Track(
             id="6",
-            sidc=SIDC.UNKNOWN,
+            target_info=TargetInfos.UNKNOWN,
             states=[
                 (t0, np.array([x, 0.0, y, 0.0, z, 0.0])),
                 (
@@ -433,7 +439,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
             projectile=projectile_effector,
             projectile_speed=300.0,
             projectile_max_dist=900.0,
-            projectile_sidc=SIDC.BLUE_MISSILE,
+            projectile_info=TargetInfos.INTERCEPTOR.with_party(Party.BLUE),
             projectile_rcs=ConstantRcsModel(rcs=0.1),
             # Effectively unlimited rate of fire - the in-flight cap
             # (max_in_flight, default 1) is the only thing that should
@@ -442,7 +448,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
         )
         launcher = StaticGbadController(
             target_id=4,
-            sidc=SIDC.BLUE_AIR_DEFENCE,
+            info=TargetInfos.GBAD.with_party(Party.BLUE),
             rcs=1.5,
             effector=effector,
             assigned_track_id="6",
@@ -528,7 +534,7 @@ class TrackingErrorWastesAmmoTest(unittest.TestCase):
         )
         track = Track(
             id="9",
-            sidc=SIDC.UNKNOWN,
+            target_info=TargetInfos.UNKNOWN,
             states=[
                 (t0, np.array([x, 0.0, y, 0.0, z, 0.0])),
                 (
@@ -574,7 +580,7 @@ class TrackingErrorWastesAmmoTest(unittest.TestCase):
         )
         launcher = StaticGbadController(
             target_id=4,
-            sidc=SIDC.BLUE_AIR_DEFENCE,
+            info=TargetInfos.GBAD.with_party(Party.BLUE),
             rcs=1.5,
             effector=effector,
             assigned_track_id="9",
@@ -626,13 +632,13 @@ class TrackingErrorWastesAmmoTest(unittest.TestCase):
             projectile=projectile_effector,
             projectile_speed=300.0,
             projectile_max_dist=50_000.0,
-            projectile_sidc=SIDC.BLUE_MISSILE,
+            projectile_info=TargetInfos.INTERCEPTOR.with_party(Party.BLUE),
             projectile_rcs=ConstantRcsModel(rcs=0.1),
             cadence=float("inf"),
         )
         launcher = StaticGbadController(
             target_id=4,
-            sidc=SIDC.BLUE_AIR_DEFENCE,
+            info=TargetInfos.GBAD.with_party(Party.BLUE),
             rcs=1.5,
             effector=effector,
             assigned_track_id="9",

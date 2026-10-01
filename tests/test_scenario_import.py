@@ -1,7 +1,6 @@
 import datetime
 import unittest
 
-from theia.config import SIDC
 from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.simulation.controllers.critical_infrastructure_controller import (
     CriticalInfrastructureController,
@@ -20,7 +19,15 @@ from theia.simulation.scenario_import import (
     Trajectory,
 )
 from theia.terrain import SrtmTerrainModel
-from theia.types import ConstantRcsModel, Entity, IdProvider, Point
+from theia.types import (
+    ConstantRcsModel,
+    Entity,
+    IdProvider,
+    Party,
+    Point,
+    TargetCategory,
+    TargetInfos,
+)
 
 srtm = SrtmTerrainModel()
 
@@ -107,7 +114,7 @@ def get_oneway_drone_factory(target_id: int) -> FixedPathOneWayDroneFactory:
         effector=get_direct_factory(),
         trajectory=Trajectory(
             target_id=target_id,
-            target_sidc=SIDC.RED_MISSILE,
+            target_info=TargetInfos.for_category(TargetCategory.DRONE_CLASS_I),
             times=[t0, t1],
             lats=[p.lat, p.lat],
             lons=[p.lon, p.lon],
@@ -130,11 +137,17 @@ class IndirectFireEffectorFactoryTest(unittest.TestCase):
         self.assertIsInstance(effector.projectile, DirectFireEffector)
         self.assertEqual(effector.projectile_speed, 300.0)
         self.assertEqual(effector.projectile_max_dist, 50_000.0)
-        self.assertEqual(effector.projectile_sidc, SIDC.BLUE_MISSILE)
+        self.assertEqual(
+            effector.projectile_info,
+            TargetInfos.INTERCEPTOR.with_party(Party.BLUE),
+        )
 
     def test_to_effector_red(self):
         effector = get_indirect_factory().to_effector(srtm, is_blue=False)
-        self.assertEqual(effector.projectile_sidc, SIDC.RED_MISSILE)
+        self.assertEqual(
+            effector.projectile_info,
+            TargetInfos.INTERCEPTOR.with_party(Party.RED),
+        )
 
 
 class StaticGbadFactoryTest(unittest.TestCase):
@@ -142,13 +155,13 @@ class StaticGbadFactoryTest(unittest.TestCase):
         factory = StaticGbadFactory(target_id=1, rcs=1.5, gbad=get_direct_factory())
         controller = factory.to_controller(srtm, is_blue=True)
         self.assertIsInstance(controller.effector, DirectFireEffector)
-        self.assertEqual(controller.sidc, SIDC.BLUE_AIR_DEFENCE)
+        self.assertEqual(controller.info, TargetInfos.GBAD.with_party(Party.BLUE))
 
     def test_to_controller_indirect(self):
         factory = StaticGbadFactory(target_id=1, rcs=1.5, gbad=get_indirect_factory())
         controller = factory.to_controller(srtm, is_blue=False)
         self.assertIsInstance(controller.effector, IndirectFireEffector)
-        self.assertEqual(controller.sidc, SIDC.RED_AIR_DEFENCE)
+        self.assertEqual(controller.info, TargetInfos.GBAD.with_party(Party.RED))
 
     def test_discriminated_union_parses_direct_and_indirect(self):
         direct = StaticGbadFactory.model_validate(
@@ -245,13 +258,19 @@ class CriticalInfrastructureFactoryTest(unittest.TestCase):
         self.assertIsInstance(living, LivingController)
         self.assertEqual(living.target_id, 1)
         self.assertIsInstance(living.child, CriticalInfrastructureController)
-        self.assertEqual(living.child.sidc, SIDC.BLUE_GOVERNMENT_SITE)
+        self.assertEqual(
+            living.child.info,
+            TargetInfos.CRITICAL_INFRASTRUCTURE.with_party(Party.BLUE),
+        )
         self.assertEqual(living.child.rcs, 100.0)
 
     def test_to_controller_red(self):
         factory = CriticalInfrastructureFactory(target_id=1, name="Airport", point=p)
         living = factory.to_controller(is_blue=False)
-        self.assertEqual(living.child.sidc, SIDC.RED_GOVERNMENT_SITE)
+        self.assertEqual(
+            living.child.info,
+            TargetInfos.CRITICAL_INFRASTRUCTURE.with_party(Party.RED),
+        )
 
     def test_rcs_defaults_when_omitted_from_file(self):
         factory = CriticalInfrastructureFactory.model_validate(
@@ -265,7 +284,7 @@ class CriticalInfrastructureFactoryTest(unittest.TestCase):
                 target_id=1,
                 name="Airport",
                 point=p,
-                sidc=SIDC.BLUE_GOVERNMENT_SITE,
+                info=TargetInfos.CRITICAL_INFRASTRUCTURE.with_party(Party.BLUE),
             )
 
 
@@ -414,6 +433,39 @@ class OrderOfBattleMergeTest(unittest.TestCase):
         self.assertEqual(len(target_ids), len(set(target_ids)))
         effector_ids = [m.effector_id for m in result.ballistic_missiles]
         self.assertEqual(len(effector_ids), len(set(effector_ids)))
+
+
+class BallisticMissileFactoryCategoryTest(unittest.TestCase):
+    def test_default_category(self):
+        trajectory = get_ballistic_missile_factory(1, 2).get_trajectory(is_blue=False)
+        self.assertEqual(
+            trajectory.target_info.category,
+            TargetCategory.SHORT_RANGE_BALLISTIC_MISSILE,
+        )
+        self.assertEqual(trajectory.target_info.party, Party.RED)
+
+    def test_authored_category(self):
+        factory = BallisticMissileFactory.model_validate(
+            {
+                **get_ballistic_missile_factory(1, 2).model_dump(mode="json"),
+                "category": "CRUISE_MISSILE",
+            }
+        )
+        trajectory = factory.get_trajectory(is_blue=True)
+        self.assertEqual(trajectory.target_info.category, TargetCategory.CRUISE_MISSILE)
+        self.assertEqual(trajectory.target_info.party, Party.BLUE)
+
+
+class FixedPathOneWayDroneFactoryTest(unittest.TestCase):
+    def test_party_follows_side(self):
+        factory = get_oneway_drone_factory(1)
+        for is_blue, party in [(True, Party.BLUE), (False, Party.RED)]:
+            living = factory.to_controller(srtm, is_blue)
+            info = living.child.trajectory.target_info
+            self.assertEqual(info.party, party)
+            self.assertEqual(info.category, TargetCategory.DRONE_CLASS_I)
+        # The authored factory itself stays untouched.
+        self.assertEqual(factory.trajectory.target_info.party, Party.UNKNOWN)
 
 
 if __name__ == "__main__":

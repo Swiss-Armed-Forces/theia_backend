@@ -4,7 +4,7 @@ from typing import Optional
 
 import pydantic
 
-from theia.config import SIDC, UNKNOWN_ID, UNKNOWN_TIME
+from theia.config import UNKNOWN_ID, UNKNOWN_TIME
 from theia.distance import line_of_sight_distance
 from theia.terrain import AbstractTerrainModel
 from theia.types import (
@@ -13,6 +13,7 @@ from theia.types import (
     DirectShot,
     IndirectShot,
     Target,
+    TargetInfo,
     TheiaException,
 )
 
@@ -129,7 +130,7 @@ class IndirectFireEffector(AbstractEffector):
     """Cruise speed of the launched projectile [m / s]"""
     projectile_max_dist: float
     """Maximum distance the launched projectile can travel [m]"""
-    projectile_sidc: SIDC
+    projectile_info: TargetInfo
     projectile_rcs: ConcreteRcsModel
     projectile_name: str = ""
     assigned_track_id: Optional[str] = None

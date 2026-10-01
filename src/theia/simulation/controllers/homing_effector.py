@@ -3,7 +3,7 @@ import math
 
 from scipy.optimize import minimize
 
-from theia.config import SIDC, UNKNOWN_ID
+from theia.config import UNKNOWN_ID
 from theia.coordinates import CoordinateTransformations
 from theia.distance import line_of_sight_distance
 from theia.effectors import DirectFireEffector, IndirectFireEffector
@@ -17,6 +17,7 @@ from theia.types import (
     Shot,
     SituationalPicture,
     Target,
+    TargetInfo,
     Velocity,
 )
 
@@ -55,7 +56,7 @@ class HomingSystem(Controller):
 
     target_id: int
     """Target ID of the system itself"""
-    sidc: SIDC
+    info: TargetInfo
     speed: float
     """Cruise speed [m / s]"""
     max_dist: float
@@ -215,7 +216,7 @@ class HomingSystem(Controller):
                 id=self.target_id,
                 is_stationary=False,
                 name=self.name,
-                sidc=self.sidc,
+                info=self.info,
                 point=self.point,
                 cross_section_model=self.rcs,
                 velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),

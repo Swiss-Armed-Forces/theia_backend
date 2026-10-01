@@ -2,7 +2,6 @@ import datetime
 
 import numpy as np
 
-from theia.config import SIDC
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.simulation.controllers.controller_group import ControllerGroup
@@ -13,10 +12,10 @@ from theia.simulation.controllers.waypoint_target_controller import (
 from theia.simulation.factories.abstract_simulator_factory import (
     AbstractSimulatorFactory,
 )
-from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
+from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.test_data import load_pcl_example
-from theia.types import AbstractTracker, Controller
+from theia.types import AbstractTracker, Controller, Party, TargetInfos
 
 
 class UetlibergPclSimulatorFactory(AbstractSimulatorFactory):
@@ -60,7 +59,10 @@ class UetlibergPclSimulatorFactory(AbstractSimulatorFactory):
     def _get_red_controller(self) -> Controller:
         return ControllerGroup(
             [
-                WaypointTargetController.from_trajectory(t, SIDC.RED_FIXED_WING)
+                WaypointTargetController.from_trajectory(
+                    t,
+                    TargetInfos.FIXED_WING.with_party(Party.RED),
+                )
                 for t in self._trajectories
             ]
         )

@@ -15,6 +15,7 @@ from theia.types import (
     RcsModel,
     SituationalPicture,
     Target,
+    TargetInfo,
     Trajectory,
     Velocity,
 )
@@ -24,7 +25,7 @@ class WaypointTargetController(Controller):
     def __init__(
         self,
         name: str,
-        sidc: str,
+        info: TargetInfo,
         target_id: int,
         times: list[datetime.datetime],
         waypoints: list[Point],
@@ -36,8 +37,8 @@ class WaypointTargetController(Controller):
         ----------
         name: str
             Name
-        sidc: str
-            SIDC code of the target
+        info: TargetInfo
+            Information about the target
         target_id: int
             Unique identifier
         times: list[datetime.datetime]
@@ -54,7 +55,7 @@ class WaypointTargetController(Controller):
         super().__init__()
         assert len(times) == len(waypoints)
         self._name = name
-        self._sidc = sidc
+        self._info = info
         self._target_id = target_id
         self._rcs_model = rcs_model
         times = [t.timestamp() for t in times]
@@ -101,7 +102,7 @@ class WaypointTargetController(Controller):
                     id=self._target_id,
                     is_stationary=False,
                     name=self._name,
-                    sidc=self._sidc,
+                    info=self._info,
                     point=Point(lat=lat, lon=lon, alt=alt),
                     cross_section_model=self._rcs_model,
                     velocity=Velocity(vx=v_xyz[0], vy=v_xyz[1], vz=v_xyz[2]),
@@ -113,7 +114,7 @@ class WaypointTargetController(Controller):
     @staticmethod
     def from_trajectory(
         trajectory: Trajectory,
-        sidc: str,
+        info: TargetInfo,
         name: str = "",
         sensor: Optional[MonostaticSensor] = None,
     ) -> WaypointTargetController:
@@ -124,7 +125,7 @@ class WaypointTargetController(Controller):
             points.append(Point(lat=lat, lon=lon, alt=alt))
         return WaypointTargetController(
             name,
-            sidc,
+            info,
             trajectory.target_id,
             trajectory.times,
             points,

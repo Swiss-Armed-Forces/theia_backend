@@ -1,12 +1,17 @@
 import datetime
-from pathlib import Path
 import unittest
+from pathlib import Path
 
-
-from theia.config import SIDC
 from theia.coordinates import CoordinateTransformations
 from theia.data_loading import load_trajectory_file
-from theia.types import ConstantRcsModel, Point, Trajectory, Velocity
+from theia.types import (
+    ConstantRcsModel,
+    Party,
+    Point,
+    TargetInfos,
+    Trajectory,
+    Velocity,
+)
 
 
 class TestLoadRecordedTrajectories(unittest.TestCase):
@@ -34,7 +39,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
 
         expected = Trajectory(
             target_id=0,
-            target_sidc=SIDC.RED_FIXED_WING,
+            target_info=TargetInfos.FIXED_WING.with_party(Party.RED),
             times=[
                 datetime.datetime(
                     year=2022, month=6, day=27, hour=4, minute=2, second=23
@@ -79,7 +84,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
 
         expected = Trajectory(
             target_id=0,
-            target_sidc=SIDC.RED_FIXED_WING,
+            target_info=TargetInfos.FIXED_WING.with_party(Party.RED),
             times=[
                 datetime.datetime(
                     year=2022,
@@ -131,7 +136,7 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
 
         expected = Trajectory(
             target_id=1,
-            target_sidc=SIDC.RED_FIXED_WING,
+            target_info=TargetInfos.FIXED_WING.with_party(Party.RED),
             times=[
                 datetime.datetime(
                     year=2022,

@@ -2,7 +2,6 @@ import datetime
 
 import numpy as np
 
-from theia.config import SIDC
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.effectors import DirectFireEffector
@@ -23,7 +22,14 @@ from theia.simulation.simulator import TerminationCriterion, TimeCriterion
 from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.terrain import AbstractTerrainModel
 from theia.test_data import get_uetliberg_radar
-from theia.types import AbstractTracker, ConstantRcsModel, Controller, Point
+from theia.types import (
+    AbstractTracker,
+    ConstantRcsModel,
+    Controller,
+    Party,
+    Point,
+    TargetInfos,
+)
 
 
 class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
@@ -92,7 +98,7 @@ class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
         )
         effector_controller = StaticGbadController(
             target_id=20,
-            sidc=SIDC.BLUE_AIR_DEFENCE,
+            info=TargetInfos.GBAD.with_party(Party.BLUE),
             rcs=1.0,
             effector=DirectFireEffector(
                 id=0,
@@ -112,7 +118,7 @@ class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
         return LivingController(
             child=WaypointTargetController(
                 name="RED plane",
-                sidc=SIDC.RED_FIXED_WING,
+                info=TargetInfos.FIXED_WING.with_party(Party.RED),
                 target_id=self._target_id_plane,
                 times=self._times,
                 waypoints=self._points,

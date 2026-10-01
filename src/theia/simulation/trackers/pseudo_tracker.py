@@ -9,11 +9,11 @@ from stonesoup.models.transition.linear import (
     ConstantVelocity,
 )
 from stonesoup.predictor.kalman import ExtendedKalmanPredictor
-from stonesoup.updater.kalman import ExtendedKalmanUpdater
 from stonesoup.types.detection import Detection
 from stonesoup.types.hypothesis import SingleHypothesis
 from stonesoup.types.state import GaussianState
 from stonesoup.types.track import Track
+from stonesoup.updater.kalman import ExtendedKalmanUpdater
 
 import theia
 from theia.coordinates import (
@@ -30,6 +30,8 @@ from theia.types import (
     PclDetection,
     PetDetection,
     Point,
+    TargetInfo,
+    TargetInfos,
     TrackInitEvent,
     Trigger,
     VisualDetection,
@@ -49,7 +51,7 @@ class SingleTargetEcefTracker:
         t0: datetime.datetime,
         pos0: tuple[float, float, float],
         v_max: float = 300,
-        sidc: str = "",
+        info: TargetInfo = TargetInfos.UNKNOWN,
     ):
         """
         Parameters
@@ -62,11 +64,11 @@ class SingleTargetEcefTracker:
             Prior for the position at t0
         v_max: float, default 300
             Maximum expected target speed [m / s]
-        sidc: str, default ""
-            Symbol identification code representing the target
+        info: TargetInfo, default TargetInfos.UNKNOWN
+            Perceived categorical information about the target
         """
         self._id = id
-        self._sidc = sidc
+        self._info = info
         q = 1.0
         transition_model = CombinedLinearGaussianTransitionModel(
             [ConstantVelocity(q), ConstantVelocity(q), ConstantVelocity(q)]
@@ -114,12 +116,16 @@ class SingleTargetEcefTracker:
         if len(states) <= 1:
             return None
         else:
-            return theia.types.Track(id=str(self._id), sidc=self._sidc, states=states)
+            return theia.types.Track(
+                id=str(self._id),
+                target_info=self._info,
+                states=states,
+            )
 
 
 class TargetDetections(pydantic.BaseModel):
     target_id: int
-    target_sidc: str
+    target_info: TargetInfo
     monostatic_detections: list[MonostaticRadarDetection] = []
     pcl_detections: list[PclDetection] = []
     pet_detections: list[PetDetection] = []
@@ -244,7 +250,7 @@ class PseudoTracker(AbstractTracker, Trigger):
             target_detections.append(
                 TargetDetections(
                     target_id=target_id,
-                    target_sidc=target.sidc,
+                    target_info=target.info,
                     monostatic_detections=grouped_monostatic_detections.get(
                         target_id, []
                     ),
@@ -292,7 +298,7 @@ class PseudoTracker(AbstractTracker, Trigger):
                         track_id,
                         self._t0,
                         self._prior,
-                        sidc=detections.target_sidc,
+                        info=detections.target_info,
                     )
                     self._trackers[detections.target_id] = tracker
                 tracker.add_detection(detection)

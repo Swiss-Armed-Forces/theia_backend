@@ -1,6 +1,5 @@
 import datetime
 
-from theia.config import SIDC
 from theia.types import (
     ConstantRcsModel,
     Controller,
@@ -8,6 +7,7 @@ from theia.types import (
     Point,
     SituationalPicture,
     Target,
+    TargetInfo,
     Velocity,
 )
 
@@ -23,7 +23,7 @@ class CriticalInfrastructureController(Controller):
     target_id: int
     name: str
     point: Point
-    sidc: SIDC
+    info: TargetInfo
     rcs: float
     """Radar cross section [m^2]"""
 
@@ -40,7 +40,7 @@ class CriticalInfrastructureController(Controller):
                 id=self.target_id,
                 is_stationary=True,
                 name=self.name,
-                sidc=self.sidc,
+                info=self.info,
                 point=self.point,
                 cross_section_model=ConstantRcsModel(rcs=self.rcs),
                 velocity=Velocity(vx=0, vy=0, vz=0),

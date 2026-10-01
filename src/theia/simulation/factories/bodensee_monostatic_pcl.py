@@ -2,7 +2,6 @@ import datetime
 
 import numpy as np
 
-from theia.config import SIDC
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.data_loading import load_bakom_ukw_transmitters
 from theia.detection.pcl import PclDetector
@@ -18,8 +17,8 @@ from theia.simulation.controllers.waypoint_target_controller import (
 from theia.simulation.factories.abstract_simulator_factory import (
     AbstractSimulatorFactory,
 )
-from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
+from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.terrain import SrtmTerrainModel
 from theia.test_data import (
     build_fighter_jet_radar,
@@ -32,9 +31,11 @@ from theia.types import (
     ConstantRcsModel,
     Controller,
     MonostaticSensor,
+    Party,
     PclMeasurementModel,
     PclSensor,
     Point,
+    TargetInfos,
 )
 
 
@@ -151,7 +152,7 @@ class BodenseeMonostaticPclFactory(AbstractSimulatorFactory):
             [
                 WaypointTargetController.from_trajectory(
                     t,
-                    SIDC.RED_FIXED_WING,
+                    TargetInfos.FIXED_WING.with_party(Party.RED),
                     sensor=build_fighter_jet_radar(1, 1, 1),
                 )
                 for t in self._trajectories

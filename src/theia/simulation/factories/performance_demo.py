@@ -2,7 +2,6 @@ import datetime
 
 import numpy as np
 
-from theia.config import SIDC
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
@@ -18,8 +17,8 @@ from theia.simulation.controllers.waypoint_target_controller import (
 from theia.simulation.factories.abstract_simulator_factory import (
     AbstractSimulatorFactory,
 )
-from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
+from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.terrain import AbstractTerrainModel
 from theia.test_data import (
     build_fighter_jet_radar,
@@ -31,9 +30,11 @@ from theia.types import (
     AbstractTracker,
     ConstantRcsModel,
     Controller,
+    Party,
     PclMeasurementModel,
     PclSensor,
     Point,
+    TargetInfos,
 )
 
 
@@ -56,7 +57,7 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
                 alt=1000,
             ),
             target_id=1,
-            sidc=SIDC.RED_FIXED_WING,
+            info=TargetInfos.FIXED_WING.with_party(Party.RED),
             rcs=1.0,
         )
         self._terrain_model = terrain_model
@@ -83,6 +84,7 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
 
     def _get_pcl_sensors(self) -> list[PclSensor]:
         import numpy as np
+
         from theia.types import Polarization, Transmitter
         from theia.util import to_dB
 
@@ -199,14 +201,14 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
         red_sensor = build_fighter_jet_radar(0, 0, 0)
         c1 = WaypointTargetController.from_trajectory(
             trajectory=self._trajectory1,
-            sidc=SIDC.RED_FIXED_WING,
+            info=TargetInfos.FIXED_WING.with_party(Party.RED),
             name="Reconnaissance plane",
             sensor=red_sensor,
         )
 
         c2 = WaypointTargetController.from_trajectory(
             trajectory=self._trajectory2,
-            sidc=SIDC.RED_FIXED_WING,
+            info=TargetInfos.FIXED_WING.with_party(Party.RED),
             name="Transit",
             sensor=None,
         )

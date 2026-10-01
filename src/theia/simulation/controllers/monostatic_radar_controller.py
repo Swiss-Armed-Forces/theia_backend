@@ -1,16 +1,14 @@
 import datetime
-from theia.config import SIDC
+
 from theia.types import (
-    AbstractEffector,
     ConstantRcsModel,
     Controller,
     Event,
     MonostaticSensor,
-    PclSensor,
-    Point,
-    Receiver,
+    Party,
     SituationalPicture,
     Target,
+    TargetInfos,
     Velocity,
 )
 
@@ -42,7 +40,7 @@ class MonostaticRadarController(Controller):
         self._radar = radar
         self._target_id = target_id
         self._name = name
-        self._sidc = SIDC.BLUE_RADAR if is_blue else SIDC.RED_RADAR
+        self._info = TargetInfos.RADAR.with_party(Party.from_is_blue(is_blue))
         self._rcs_model = rcs_model
 
     def update(
@@ -58,7 +56,7 @@ class MonostaticRadarController(Controller):
                     id=self._target_id,
                     is_stationary=True,
                     name=self._name,
-                    sidc=self._sidc,
+                    info=self._info,
                     point=self._radar.receiver.point,
                     cross_section_model=self._rcs_model,
                     velocity=Velocity(vx=0, vy=0, vz=0),

@@ -1,7 +1,6 @@
 import math
 import unittest
 
-from theia.config import SIDC
 from theia.coordinates import CoordinateTransformations
 from theia.doppler import calculate_doppler_shift
 from theia.test_data import TestSituationLoader
@@ -13,6 +12,7 @@ from theia.types import (
     Polarization,
     Receiver,
     Target,
+    TargetInfos,
     Transmitter,
     calculate_antenna_gain,
 )
@@ -126,7 +126,7 @@ class MonostaticDopplerTest(unittest.TestCase):
         target = Target(
             id=0,
             is_stationary=False,
-            sidc=SIDC.UNKNOWN,
+            info=TargetInfos.UNKNOWN,
             point=Point(
                 lat=47.348,
                 lon=8.6266,
