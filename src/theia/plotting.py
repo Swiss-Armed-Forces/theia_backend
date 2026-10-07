@@ -1,3 +1,5 @@
+import datetime
+
 from matplotlib import pyplot as plt
 import numpy as np
 from scipy.spatial import ConvexHull
@@ -100,16 +102,16 @@ def detection_ellipse(
 def plot_altitude_profile(
     trajectory: Trajectory,
     terrain: AbstractTerrainModel | None = None,
+    dt: datetime.timedelta = datetime.timedelta(seconds=1),
 ) -> tuple[plt.Figure, plt.Axes]:
     fig, ax = plt.subplots()
 
-    ax.plot(trajectory.times, trajectory.alts, label="Trajectory")
+    times = [spacetime[0] for spacetime in trajectory.sample_in_time(dt=dt)]
+    points = [trajectory(t) for t in times]
+    ax.plot(times, [p.alt for p in points], label="Trajectory")
     if terrain is not None:
-        terrain_alts = [
-            terrain.elevationAt(lat, lon)
-            for lat, lon in zip(trajectory.lats, trajectory.lons, strict=True)
-        ]
-        ax.plot(trajectory.times, terrain_alts, label="Earth surface")
+        terrain_alts = [terrain.elevationAt(p.lat, p.lon) for p in points]
+        ax.plot(times, terrain_alts, label="Earth surface")
 
     ax.tick_params(axis="x", rotation=90)
     ax.legend()

@@ -768,20 +768,6 @@ class Trajectory(pydantic.BaseModel):
             and (self.vzs == other.vzs)
         )
 
-    def plot_velocities(self):
-        fig, ax = plt.subplots(figsize=(8, 4.5))
-        ax.plot(self.times, self.vxs, label="x")
-        ax.plot(self.times, self.vys, label="y")
-        ax.plot(self.times, self.vzs, label="z")
-        ax.legend()
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.grid(True)
-        ax.tick_params(axis="x", rotation=30)
-        ax.set_xlabel("Time", fontsize=16)
-        ax.set_ylabel("Velocity [m / s]", fontsize=16)
-        return fig, ax
-
     def to_geojson(self) -> shapely.geometry.LineString:
         points = []
         for lat, lon in zip(self.lats, self.lons, strict=True):
@@ -820,7 +806,7 @@ class Trajectory(pydantic.BaseModel):
         timestamps = np.arange(
             self.times[0].timestamp(),
             self.times[-1].timestamp(),
-            dt.seconds,
+            dt.total_seconds(),
         )
         times = [datetime.datetime.fromtimestamp(t, datetime.UTC) for t in timestamps]
         return [(t, self(t)) for t in times]
@@ -1627,7 +1613,7 @@ class Track(pydantic.BaseModel):
         x, vx, y, vy, z, vz
         """
         t = time.timestamp()
-        t = min(t, self._times[-1] + self.inactive_time.seconds)
+        t = min(t, self._times[-1] + self.inactive_time.total_seconds())
         return self._f(t)
 
     class Config:

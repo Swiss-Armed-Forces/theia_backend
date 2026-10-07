@@ -293,15 +293,17 @@ class CriticalInfrastructureFactory(pydantic.BaseModel):
     point: Point
     rcs: float = 100.0
     """Radar cross section [m^2]"""
+    tags: frozenset[str] = frozenset()
 
     def to_controller(self, is_blue: bool) -> Controller:
+        target_info = TargetInfos.CRITICAL_INFRASTRUCTURE.with_party(
+            Party.from_is_blue(is_blue)
+        ).model_copy(deep=True)
         c = CriticalInfrastructureController(
             target_id=self.target_id,
             name=self.name,
             point=self.point,
-            info=TargetInfos.CRITICAL_INFRASTRUCTURE.with_party(
-                Party.from_is_blue(is_blue)
-            ),
+            info=target_info,
             rcs=self.rcs,
         )
         return LivingController(child=c, target_id=self.target_id)
