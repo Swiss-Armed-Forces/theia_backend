@@ -9,8 +9,21 @@ import numpy as np
 import pydantic
 
 import theia
-from theia.config import TERRAIN_HBV_DATA_DIR
+from theia.config import (
+    CM_COMBAT_RANGE,
+    CM_DEFAULT_MAX_FLIGHT_PATH_ANGLE,
+    CM_DEFAULT_MIN_FLIGHT_PATH_ANGLE,
+    CM_DEFAULT_SAMPLE_SPACING,
+    CM_DEFAULT_TERMINAL_DIVE_ANGLE,
+    TERRAIN_HBV_DATA_DIR,
+)
 from theia.coordinates import CoordinateTransformations
+from theia.cruise_missile import (
+    CruiseMissilePath,
+    build_terrain_following_path,
+    default_min_clearance,
+    validate_parameters,
+)
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.distance import line_of_sight_distance
@@ -363,6 +376,7 @@ class OrderOfBattle(pydantic.BaseModel):
     oneway_drones: list[FixedPathOneWayDroneFactory]
     ballistic_missiles: list[BallisticMissileFactory]
     critical_infrastructure: list[CriticalInfrastructureFactory] = []
+    cruise_missiles: list[CruiseMissileFactory] = []
     unused_id_sensor: int
     unused_id_receiver: int
     unused_id_transmitter: int
@@ -416,6 +430,7 @@ class OrderOfBattle(pydantic.BaseModel):
             drone.to_controller(terrain, is_blue) for drone in self.oneway_drones
         ]
         bm_controllers = [bm.to_controller(is_blue) for bm in self.ballistic_missiles]
+        cm_controllers = [cm.to_controller(is_blue) for cm in self.cruise_missiles]
         infra_controllers = [
             c.to_controller(is_blue) for c in self.critical_infrastructure
         ]
@@ -426,6 +441,7 @@ class OrderOfBattle(pydantic.BaseModel):
                 + static_deployment_controllers
                 + oneway_drone_controllers
                 + bm_controllers
+                + cm_controllers
                 + infra_controllers
             ),
             geojson_features=self.simulationResults.to_geojson_dict(),
@@ -474,6 +490,9 @@ class OrderOfBattle(pydantic.BaseModel):
             id_provider.register_entity(Entity.TARGET, missile.target_id)
         for infra in self.critical_infrastructure:
             id_provider.register_entity(Entity.TARGET, infra.target_id)
+        for missile in self.cruise_missiles:
+            id_provider.register_entity(Entity.EFFECTOR, missile.effector_id)
+            id_provider.register_entity(Entity.TARGET, missile.target_id)
 
     def reindex(self, id_provider: IdProvider):
         sensor_id_mapping: dict[int, int] = {}
@@ -520,24 +539,33 @@ class OrderOfBattle(pydantic.BaseModel):
             missile.target_id = id_provider.increment(Entity.TARGET)
         for infra in self.critical_infrastructure:
             infra.target_id = id_provider.increment(Entity.TARGET)
+        for missile in self.cruise_missiles:
+            missile.effector_id = id_provider.increment(Entity.EFFECTOR)
+            missile.target_id = id_provider.increment(Entity.TARGET)
+
+    def _trajectory_time_spans(
+        self,
+    ) -> list[tuple[datetime.datetime, datetime.datetime]]:
+        trajectories = (
+            [drone.trajectory for drone in self.oneway_drones]
+            + [bm.get_trajectory(True) for bm in self.ballistic_missiles]
+            + [cm.get_trajectory(True) for cm in self.cruise_missiles]
+        )
+        return [(t.times[0], t.times[-1]) for t in trajectories]
 
     @property
     def t_min(self) -> datetime.datetime | None:
-        if len(self.oneway_drones) == 0 and len(self.ballistic_missiles) == 0:
+        spans = self._trajectory_time_spans()
+        if len(spans) == 0:
             return None
-        return min(
-            [drone.trajectory.times[0] for drone in self.oneway_drones]
-            + [bm.get_trajectory(True).times[0] for bm in self.ballistic_missiles]
-        )
+        return min(start for start, _ in spans)
 
     @property
-    def t_max(self) -> datetime.datetime:
-        if len(self.oneway_drones) == 0 and len(self.ballistic_missiles) == 0:
+    def t_max(self) -> datetime.datetime | None:
+        spans = self._trajectory_time_spans()
+        if len(spans) == 0:
             return None
-        return max(
-            [drone.trajectory.times[-1] for drone in self.oneway_drones]
-            + [bm.get_trajectory(True).times[-1] for bm in self.ballistic_missiles]
-        )
+        return max(stop for _, stop in spans)
 
     @staticmethod
     def merge(
@@ -557,6 +585,7 @@ class OrderOfBattle(pydantic.BaseModel):
             ballistic_missiles=orbat1.ballistic_missiles + orbat2.ballistic_missiles,
             critical_infrastructure=orbat1.critical_infrastructure
             + orbat2.critical_infrastructure,
+            cruise_missiles=orbat1.cruise_missiles + orbat2.cruise_missiles,
             unused_id_sensor=id_provider.increment(Entity.SENSOR),
             unused_id_receiver=id_provider.increment(Entity.RECEIVER),
             unused_id_transmitter=id_provider.increment(Entity.TRANSMITTER),
@@ -791,6 +820,120 @@ class BallisticMissileFactory(pydantic.BaseModel):
         fig.tight_layout()
 
         return fig, ax
+
+
+class CruiseMissileFactory(pydantic.BaseModel):
+    """
+    Terrain-following cruise missile, see :mod:`theia.cruise_missile`.
+
+    The altitudes of ``p_start`` and ``p_stop`` are ignored: the missile starts
+    at least ``cruise_magl`` above the terrain (higher if needed to clear the
+    terrain right after the launch) and hits the terrain at the target.
+    """
+
+    p_start: Point
+    p_stop: Point
+    t_start: datetime.datetime
+    terrain: TerrainFactory
+    target_id: int
+    effector_id: int
+    rcs: float
+    speed: float
+    """Constant speed along the path [m/s]"""
+    cruise_magl: float
+    """Nominal cruise height above ground level [m]"""
+    min_flight_path_angle: float = CM_DEFAULT_MIN_FLIGHT_PATH_ANGLE
+    """Steepest descent while cruising [°], in (-90°, 0°)"""
+    max_flight_path_angle: float = CM_DEFAULT_MAX_FLIGHT_PATH_ANGLE
+    """Steepest climb while cruising [°], in (0°, 90°)"""
+    terminal_dive_angle: float = CM_DEFAULT_TERMINAL_DIVE_ANGLE
+    """Flight-path angle of the terminal dive [°], in (-90°, 0°) (negative = descending)"""
+    min_clearance: Optional[float] = None
+    """Minimum clearance above the terrain while cruising [m].
+    ``None`` means ``min(cruise_magl, max(15 m, 0.5 * cruise_magl))``."""
+    sample_spacing: float = CM_DEFAULT_SAMPLE_SPACING
+    """Distance between trajectory samples along the ground track [m]"""
+    category: TargetCategory = TargetCategory.CRUISE_MISSILE
+
+    _path: CruiseMissilePath | None = pydantic.PrivateAttr(default=None)
+
+    @pydantic.model_validator(mode="after")
+    def _check_parameters(self) -> CruiseMissileFactory:
+        validate_parameters(
+            self.p_start,
+            self.p_stop,
+            self.speed,
+            self.cruise_magl,
+            self.min_flight_path_angle,
+            self.max_flight_path_angle,
+            self.terminal_dive_angle,
+            self.effective_min_clearance,
+            self.sample_spacing,
+        )
+        return self
+
+    @property
+    def effective_min_clearance(self) -> float:
+        if self.min_clearance is None:
+            return default_min_clearance(self.cruise_magl)
+        return self.min_clearance
+
+    @property
+    def path(self) -> CruiseMissilePath:
+        # Computed lazily because it requires terrain lookups.
+        if self._path is None:
+            self._path = build_terrain_following_path(
+                p_start=self.p_start,
+                p_stop=self.p_stop,
+                speed=self.speed,
+                cruise_magl=self.cruise_magl,
+                terrain=self.terrain.to_terrain(),
+                min_flight_path_angle=self.min_flight_path_angle,
+                max_flight_path_angle=self.max_flight_path_angle,
+                terminal_dive_angle=self.terminal_dive_angle,
+                min_clearance=self.effective_min_clearance,
+                sample_spacing=self.sample_spacing,
+            )
+        return self._path
+
+    def to_controller(self, is_blue: bool) -> LivingController:
+        missile = FixedPathOneWayDrone(
+            effector=DirectFireEffector(
+                id=self.effector_id,
+                name="cruise missile",
+                point=self.p_start,
+                combat_range=CM_COMBAT_RANGE,
+                n_attacks_left=1,
+                terrain=self.terrain.to_terrain(),
+                # One-shot missile - no rate-of-fire limit applies.
+                cadence=float("inf"),
+            ),
+            trajectory=self.get_trajectory(is_blue),
+            assigned_goal=self.path.impact,
+            terrain=self.terrain.to_terrain(),
+        )
+        return LivingController(child=missile, target_id=self.target_id)
+
+    def get_trajectory(self, is_blue: bool) -> Trajectory:
+        path = self.path
+        n = len(path.times)
+        return Trajectory(
+            target_id=self.target_id,
+            target_info=TargetInfos.for_category(self.category).with_party(
+                Party.from_is_blue(is_blue)
+            ),
+            times=[
+                self.t_start + datetime.timedelta(seconds=float(t)) for t in path.times
+            ],
+            lats=path.lats.tolist(),
+            lons=path.lons.tolist(),
+            alts=path.alts.tolist(),
+            # Velocities are not modelled; derive them from the positions if needed.
+            vxs=[0.0] * n,
+            vys=[0.0] * n,
+            vzs=[0.0] * n,
+            cross_section_model=ConstantRcsModel(rcs=self.rcs),
+        )
 
 
 def _build_trajectory(alpha: float, p_start: Point, p_stop: Point, dt: int = 1):

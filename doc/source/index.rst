@@ -25,4 +25,5 @@ visualisation frontend, see their respective repositories.
    running
    concepts/physics_model
    concepts/architecture
+   concepts/cruise_missile
    api

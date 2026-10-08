@@ -1,7 +1,12 @@
 import datetime
 import unittest
 
+import numpy as np
+import pydantic
+
+from theia.distance import line_of_sight_distance
 from theia.effectors import DirectFireEffector, IndirectFireEffector
+from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
 from theia.simulation.controllers.critical_infrastructure_controller import (
     CriticalInfrastructureController,
 )
@@ -9,6 +14,7 @@ from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.scenario_import import (
     BallisticMissileFactory,
     CriticalInfrastructureFactory,
+    CruiseMissileFactory,
     DirectFireEffectorFactory,
     FixedPathOneWayDroneFactory,
     IndirectFireEffectorFactory,
@@ -72,6 +78,7 @@ def get_order_of_battle(
     critical_infrastructure: list[CriticalInfrastructureFactory] | None = None,
     ballistic_missiles: list[BallisticMissileFactory] | None = None,
     oneway_drones: list[FixedPathOneWayDroneFactory] | None = None,
+    cruise_missiles: list[CruiseMissileFactory] | None = None,
 ) -> OrderOfBattle:
     return OrderOfBattle(
         monostatic_sensors=[],
@@ -81,6 +88,7 @@ def get_order_of_battle(
         oneway_drones=oneway_drones or [],
         ballistic_missiles=ballistic_missiles or [],
         critical_infrastructure=critical_infrastructure or [],
+        cruise_missiles=cruise_missiles or [],
         unused_id_sensor=0,
         unused_id_receiver=0,
         unused_id_transmitter=0,
@@ -104,6 +112,25 @@ def get_ballistic_missile_factory(
         effector_id=effector_id,
         rcs=rcs,
         alpha=alpha,
+    )
+
+
+def get_cruise_missile_factory(
+    target_id: int,
+    effector_id: int,
+    **kwargs,
+) -> CruiseMissileFactory:
+    return CruiseMissileFactory(
+        p_start=Point(lat=47.0, lon=8.0, alt=0.0),
+        p_stop=Point(lat=47.1, lon=8.1, alt=0.0),
+        t_start=datetime.datetime(2024, 1, 1, 12, tzinfo=datetime.UTC),
+        terrain=TerrainFactory(terrain_name="SRTM"),
+        target_id=target_id,
+        effector_id=effector_id,
+        rcs=0.1,
+        speed=250.0,
+        cruise_magl=80.0,
+        **kwargs,
     )
 
 
@@ -454,6 +481,179 @@ class BallisticMissileFactoryCategoryTest(unittest.TestCase):
         trajectory = factory.get_trajectory(is_blue=True)
         self.assertEqual(trajectory.target_info.category, TargetCategory.CRUISE_MISSILE)
         self.assertEqual(trajectory.target_info.party, Party.BLUE)
+
+
+class CruiseMissileFactoryTest(unittest.TestCase):
+    def test_default_category_and_party(self):
+        factory = get_cruise_missile_factory(1, 2)
+        for is_blue, party in [(True, Party.BLUE), (False, Party.RED)]:
+            info = factory.get_trajectory(is_blue).target_info
+            self.assertEqual(info.category, TargetCategory.CRUISE_MISSILE)
+            self.assertEqual(info.party, party)
+
+    def test_trajectory_starts_at_t_start_above_terrain(self):
+        factory = get_cruise_missile_factory(1, 2)
+        trajectory = factory.get_trajectory(is_blue=False)
+        self.assertEqual(trajectory.times[0], factory.t_start)
+        self.assertEqual(trajectory.target_id, 1)
+        self.assertEqual(trajectory.cross_section_model.rcs, 0.1)
+        # At least cruise_magl above ground; here higher, because the terrain
+        # right after the launch rises faster than the missile can climb.
+        self.assertGreaterEqual(
+            trajectory.alts[0], srtm.elevationAt(47.0, 8.0) + 80.0 - 1e-6
+        )
+
+    def test_trajectory_ends_at_impact(self):
+        factory = get_cruise_missile_factory(1, 2)
+        trajectory = factory.get_trajectory(is_blue=False)
+        impact = factory.path.impact
+        self.assertAlmostEqual(impact.lat, 47.1)
+        self.assertAlmostEqual(impact.lon, 8.1)
+        self.assertAlmostEqual(impact.alt, srtm.elevationAt(47.1, 8.1), places=6)
+        self.assertAlmostEqual(trajectory.lats[-1], impact.lat)
+        self.assertAlmostEqual(trajectory.alts[-1], impact.alt)
+        self.assertEqual(
+            trajectory.times[-1],
+            factory.t_start + datetime.timedelta(seconds=factory.path.t_impact + 1.0),
+        )
+
+    def test_to_controller(self):
+        factory = get_cruise_missile_factory(1, 2)
+        living = factory.to_controller(is_blue=True)
+        self.assertIsInstance(living, LivingController)
+        self.assertEqual(living.target_id, 1)
+        missile = living.child
+        self.assertIsInstance(missile, FixedPathOneWayDrone)
+        self.assertEqual(missile.effector.id, 2)
+        self.assertEqual(missile.effector.n_attacks_left, 1)
+        self.assertEqual(missile.assigned_goal, factory.path.impact)
+        # From the impact until the end of the hold, the missile meets the
+        # controller's firing condition (line of sight to its goal, within
+        # combat range), so any 1 s simulation time step lets it attack.
+        impact_time = factory.t_start + datetime.timedelta(
+            seconds=factory.path.t_impact
+        )
+        self.assertGreaterEqual(
+            missile.trajectory.times[-1] - impact_time,
+            datetime.timedelta(seconds=1),
+        )
+        for offset in np.linspace(0.0, 1.0, 21):
+            t = impact_time + datetime.timedelta(seconds=float(offset))
+            with self.subTest(offset=offset):
+                target = missile.trajectory(t)
+                self.assertIsNotNone(target)
+                self.assertLessEqual(
+                    line_of_sight_distance(
+                        *target.point.as_tuple(), *missile.assigned_goal.as_tuple()
+                    ),
+                    missile.effector.combat_range,
+                )
+                self.assertTrue(
+                    missile.terrain.has_line_of_sight(
+                        target.point, missile.assigned_goal
+                    )
+                )
+
+    def test_json_round_trip(self):
+        factory = get_cruise_missile_factory(
+            1, 2, min_flight_path_angle=-5.0, max_flight_path_angle=20.0
+        )
+        restored = CruiseMissileFactory.model_validate(factory.model_dump(mode="json"))
+        self.assertEqual(restored, factory)
+
+    def test_defaults(self):
+        factory = get_cruise_missile_factory(1, 2)
+        self.assertEqual(factory.min_flight_path_angle, -10.0)
+        self.assertEqual(factory.max_flight_path_angle, 15.0)
+        self.assertEqual(factory.terminal_dive_angle, -30.0)
+        self.assertEqual(factory.sample_spacing, 100.0)
+        self.assertIsNone(factory.min_clearance)
+        self.assertEqual(factory.effective_min_clearance, 40.0)
+        self.assertEqual(
+            get_cruise_missile_factory(
+                1, 2, min_clearance=20.0
+            ).effective_min_clearance,
+            20.0,
+        )
+
+    def test_invalid_parameters_rejected(self):
+        for kwargs in [
+            {"min_flight_path_angle": 5.0},
+            {"max_flight_path_angle": -5.0},
+            {"terminal_dive_angle": 30.0},
+            {"min_clearance": 100.0},
+            {"sample_spacing": 0.0},
+        ]:
+            with self.subTest(**kwargs), self.assertRaises(pydantic.ValidationError):
+                get_cruise_missile_factory(1, 2, **kwargs)
+
+
+class OrderOfBattleCruiseMissileTest(unittest.TestCase):
+    def test_file_without_cruise_missiles_loads(self):
+        data = get_order_of_battle([]).model_dump(mode="json")
+        del data["cruise_missiles"]
+        self.assertEqual(OrderOfBattle.model_validate(data).cruise_missiles, [])
+
+    def test_update_id_provider_registers_ids(self):
+        orbat = get_order_of_battle(
+            [], cruise_missiles=[get_cruise_missile_factory(5, 7)]
+        )
+        id_provider = IdProvider()
+        orbat.update_id_provider(id_provider)
+        self.assertIn(5, id_provider._used_ids[Entity.TARGET])
+        self.assertEqual(6, id_provider._free_ids[Entity.TARGET])
+        self.assertIn(7, id_provider._used_ids[Entity.EFFECTOR])
+        self.assertEqual(8, id_provider._free_ids[Entity.EFFECTOR])
+
+    def test_reindex(self):
+        orbat = get_order_of_battle(
+            [], cruise_missiles=[get_cruise_missile_factory(5, 7)]
+        )
+        id_provider = IdProvider()
+        id_provider.register_entity(Entity.TARGET, 5)
+        id_provider.register_entity(Entity.EFFECTOR, 7)
+        orbat.reindex(id_provider)
+        self.assertEqual(orbat.cruise_missiles[0].target_id, 6)
+        self.assertEqual(orbat.cruise_missiles[0].effector_id, 8)
+
+    def test_merge(self):
+        orbat1 = get_order_of_battle(
+            [], cruise_missiles=[get_cruise_missile_factory(1, 1)]
+        )
+        orbat2 = get_order_of_battle(
+            [], cruise_missiles=[get_cruise_missile_factory(1, 1)]
+        )
+        merged = OrderOfBattle.merge(orbat1, orbat2)
+        self.assertEqual(len(merged.cruise_missiles), 2)
+        target_ids = [m.target_id for m in merged.cruise_missiles]
+        effector_ids = [m.effector_id for m in merged.cruise_missiles]
+        self.assertEqual(len(set(target_ids)), 2)
+        self.assertEqual(len(set(effector_ids)), 2)
+
+    def test_time_span(self):
+        factory = get_cruise_missile_factory(1, 2)
+        orbat = get_order_of_battle([], cruise_missiles=[factory])
+        trajectory = factory.get_trajectory(True)
+        self.assertEqual(orbat.t_min, trajectory.times[0])
+        self.assertEqual(orbat.t_max, trajectory.times[-1])
+        self.assertIsNone(get_order_of_battle([]).t_min)
+        self.assertIsNone(get_order_of_battle([]).t_max)
+
+    def test_to_controller_includes_cruise_missiles(self):
+        orbat = get_order_of_battle(
+            [], cruise_missiles=[get_cruise_missile_factory(1, 2)]
+        )
+        controller = orbat.to_controller(srtm, is_blue=True)
+        children = controller.child._controllers
+        self.assertTrue(
+            any(
+                isinstance(c, LivingController)
+                and isinstance(c.child, FixedPathOneWayDrone)
+                and c.target_id == 1
+                and c.child.trajectory.target_info.category == TargetCategory.CRUISE_MISSILE
+                for c in children
+            )
+        )
 
 
 class FixedPathOneWayDroneFactoryTest(unittest.TestCase):

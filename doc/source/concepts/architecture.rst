@@ -74,7 +74,8 @@ building blocks such as the following:
 A drone controller might have building blocks such as:
 
 - "follow a trajectory through waypoints in 3D space" (implemented)
-- "follow a 2D trajectory using terrain following"
+- "follow a 2D trajectory using terrain following" (implemented for cruise
+  missiles, see :doc:`cruise_missile`)
 - "loiter until a target comes into your range, then engage"
 
 A higher level command controller could then be used to coordinate and issue orders to the lower level
