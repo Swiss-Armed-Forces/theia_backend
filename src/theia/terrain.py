@@ -169,6 +169,17 @@ class SrtmTerrainModel(AbstractTerrainModel):
         return rectangles
 
 
+class FillTerrainModel(AbstractTerrainModel, pydantic.BaseModel):
+    child: AbstractTerrainModel
+    fill_value: float
+
+    def elevationAt(self, lat, lon):
+        try:
+            return self.child.elevationAt(lat, lon)
+        except:
+            return self.fill_value
+
+
 class ConstantSphereTerrainModel(AbstractTerrainModel):
     alt: float
 

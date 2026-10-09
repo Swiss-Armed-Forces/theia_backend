@@ -49,7 +49,7 @@ from theia.simulation.theia_logging import (
     SituationalPictureBuffer,
 )
 from theia.simulation.trackers.pseudo_tracker import PseudoTracker
-from theia.terrain import AbstractTerrainModel, SrtmTerrainModel
+from theia.terrain import AbstractTerrainModel, FillTerrainModel, SrtmTerrainModel
 from theia.terrain_fast_los import FastSrtmModel, HbvTree
 from theia.types import (
     AbstractTracker,
@@ -73,6 +73,7 @@ from theia.util import to_dB
 
 class TerrainFactory(pydantic.BaseModel):
     terrain_name: str
+    fill_value: float | None = None
 
     _terrain_models: pydantic.ClassVar[dict[str, AbstractTerrainModel]] = {}
 
@@ -92,6 +93,9 @@ class TerrainFactory(pydantic.BaseModel):
             )
         else:
             raise ValueError(f"Unknown terrain model {self.terrain_name}")
+
+        if self.fill_value is not None:
+            terrain = FillTerrainModel(child=terrain, fill_value=self.fill_value)
 
         self._terrain_models[self.terrain_name] = terrain
         return terrain
