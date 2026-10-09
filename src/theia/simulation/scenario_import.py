@@ -428,14 +428,16 @@ class OrderOfBattle(pydantic.BaseModel):
         ##########################
 
         static_deployment_controllers = [
-            LivingController(
-                child=StaticGbadCoordinator(
-                    controllers=[e.to_controller(terrain, is_blue)],
-                    terrain=terrain,
-                ),
-                target_id=e.target_id,
+            StaticGbadCoordinator(
+                controllers=[
+                    LivingController(
+                        child=e.to_controller(terrain, is_blue),
+                        target_id=e.target_id,
+                    )
+                    for e in self.gbads
+                ],
+                terrain=terrain,
             )
-            for e in self.gbads
         ]
 
         oneway_drone_controllers = [
