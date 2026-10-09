@@ -5,6 +5,7 @@ import numpy as np
 from theia.coordinates import CoordinateTransformations
 from theia.distance import line_of_sight_distance
 from theia.simulation.controllers.controller_group import ControllerGroup
+from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.static_gbad_controller import StaticGbadController
 from theia.terrain import AbstractTerrainModel
 from theia.types import Point, SituationalPicture
@@ -20,7 +21,7 @@ class StaticGbadCoordinator(ControllerGroup):
 
     def __init__(
         self,
-        controllers: list[StaticGbadController],
+        controllers: list[LivingController[StaticGbadController]],
         terrain: AbstractTerrainModel,
     ):
         super().__init__(controllers)
@@ -28,14 +29,17 @@ class StaticGbadCoordinator(ControllerGroup):
 
     def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
         tracks = situational_picture.enemy_targets
+        # Reset assigned tracks to cleanup previous assignments.
         for c in self._controllers:
-            c: StaticGbadController = c
-            effector = c.effector
-            min_track_id: str | None = None
+            c.child.assigned_track_id = None
+        for track in tracks:
+            x, vx, y, vy, z, vz = track(situational_picture.time)
+            lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
             min_d = np.inf
-            for track in tracks:
-                x, vx, y, vy, z, vz = track(situational_picture.time)
-                lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
+            closest_controller: StaticGbadController | None = None
+            for c in self._controllers:
+                c: StaticGbadController = c.child
+                effector = c.effector
                 d = line_of_sight_distance(
                     effector.point.lat,
                     effector.point.lon,
@@ -51,7 +55,8 @@ class StaticGbadCoordinator(ControllerGroup):
                         Point(lat=lat, lon=lon, alt=alt), effector.point
                     )
                 ):
-                    min_track_id = track.id
+                    closest_controller = c
                     min_d = d
-            c.assigned_track_id = min_track_id
+            if closest_controller is not None:
+                c.assigned_track_id = track.id
         super().update(situational_picture, dt)
