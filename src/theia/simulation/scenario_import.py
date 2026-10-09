@@ -1085,7 +1085,7 @@ def build_scenario(
         raise ValueError("No mobile parts in the simulation!")
 
     t_max = datetime.datetime.fromtimestamp(
-        np.ceil(t_max.timestamp()),
+        np.ceil(t_max.timestamp() + 1),
         datetime.UTC,
     )
 
