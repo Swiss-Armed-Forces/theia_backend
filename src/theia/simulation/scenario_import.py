@@ -224,7 +224,11 @@ class FixedPathOneWayDroneFactory(pydantic.BaseModel):
     trajectory: Trajectory
     assigned_goal: Point
 
-    def to_controller(self, terrain: AbstractTerrainModel, is_blue: bool) -> Controller:
+    def to_controller(
+        self,
+        terrain: AbstractTerrainModel,
+        is_blue: bool,
+    ) -> LivingController[FixedPathOneWayDrone]:
         # The party is decided by the side the ORBAT is loaded for, not by the file.
         trajectory = self.trajectory.model_copy(
             update={
@@ -753,7 +757,7 @@ class BallisticMissileFactory(pydantic.BaseModel):
             self.p_stop,
         )
 
-    def to_controller(self, is_blue: bool) -> FixedPathOneWayDrone:
+    def to_controller(self, is_blue: bool) -> LivingController[FixedPathOneWayDrone]:
         bm = FixedPathOneWayDrone(
             effector=DirectFireEffector(
                 id=self.effector_id,
@@ -902,7 +906,7 @@ class CruiseMissileFactory(pydantic.BaseModel):
             )
         return self._path
 
-    def to_controller(self, is_blue: bool) -> LivingController:
+    def to_controller(self, is_blue: bool) -> LivingController[FixedPathOneWayDrone]:
         missile = FixedPathOneWayDrone(
             effector=DirectFireEffector(
                 id=self.effector_id,
