@@ -17,7 +17,7 @@ from theia.config import (
     CM_DEFAULT_TERMINAL_DIVE_ANGLE,
     TERRAIN_HBV_DATA_DIR,
 )
-from theia.coordinates import CoordinateTransformations
+from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.cruise_missile import (
     CruiseMissilePath,
     build_terrain_following_path,
@@ -1047,3 +1047,63 @@ def _convert_to_geodetic(
         p = CoordinateTransformations.cartesian_to_geodetic(*p_ecef)
         points.append(Point(lat=p[0], lon=p[1], alt=p[2]))
     return points
+
+
+def build_scenario(
+    scenario_name: str,
+    terrain_factory: TerrainFactory,
+    seed: int,
+    orbat_blue: OrderOfBattle,
+    orbat_red: OrderOfBattle,
+) -> ScenarioFactory:
+    id_provider = IdProvider()
+    orbat_blue.update_id_provider(id_provider)
+    orbat_red.reindex(id_provider)
+
+    t_min = None
+    t_max = None
+    if orbat_blue.t_min is not None:
+        t_min = orbat_blue.t_min
+        t_max = orbat_blue.t_max
+    if orbat_red.t_min is not None:
+        t_min = orbat_red.t_min if t_min is None else min(t_min, orbat_red.t_min)
+        t_max = orbat_red.t_max if t_max is None else max(t_max, orbat_red.t_max)
+
+    if t_min is None or t_max is None:
+        raise ValueError("No mobile parts in the simulation!")
+
+    t_max = datetime.datetime.fromtimestamp(
+        np.ceil(t_max.timestamp()),
+        datetime.UTC,
+    )
+
+    tracker_params = PseudoTrackerParams(
+        removal_patience=10,
+        start_timestamp=t_min.timestamp(),
+        prior_position=Point(
+            lat=POSITIONS_OF_INTEREST["CH_CENTER"]["lat"],
+            lon=POSITIONS_OF_INTEREST["CH_CENTER"]["lon"],
+            alt=1000,
+        ),
+    )
+
+    scenario = ScenarioFactory(
+        name=scenario_name,
+        start_time=t_min,
+        stop_time=t_max,
+        time_step=1,
+        blue_orbat=orbat_blue,
+        red_orbat=orbat_red,
+        blue_tracker=TrackerFactory(
+            tracker_name="pseudotracker",
+            parameters=tracker_params,
+        ),
+        red_tracker=TrackerFactory(
+            tracker_name="pseudotracker",
+            parameters=tracker_params,
+        ),
+        terrain_model=terrain_factory,
+        damage_model=DamageModelFactory(model_name="kill_always"),
+        seed=seed,
+    )
+    return scenario
