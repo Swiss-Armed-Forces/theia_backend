@@ -220,31 +220,55 @@ class LogLoader:
     def __init__(self, path: str):
         with open(path, "r") as file:
             self._data = json.load(file)
-        self._load_snapshots()
-        self._load_sensors(is_blue=True)
-        self._load_sensors(is_blue=False)
-        self._load_target_ground_truth(is_blue=True)
-        self._load_target_ground_truth(is_blue=False)
+        self._snapshots_loaded: list[Snapshot] | None = None
+        self._blue_target_ground_truth_loaded: dict[int, GroundTruthPath] | None = None
+        self._red_target_ground_truth_loaded: dict[int, GroundTruthPath] | None = None
+        self._blue_monostatic_sensors_loaded: list[MonostaticSensor] | None = None
+        self._red_monostatic_sensors_loaded: list[MonostaticSensor] | None = None
+        self._blue_pcl_sensors_loaded: list[PclSensor] | None = None
+        self._red_pcl_sensors_loaded: list[PclSensor] | None = None
         self._load_detections(is_blue=True)
         self._load_detections(is_blue=False)
         self._load_events()
         self._load_situational_pictures()
 
     @property
-    def blue_monostatic_radars(self) -> list[MonostaticSensor]:
-        return list(self._blue_monostatic_sensors.values())
+    def _snapshots(self) -> list[Snapshot]:
+        if self._snapshots_loaded is None:
+            self._snapshots_loaded = self._load_snapshots()
+        return self._snapshots_loaded
 
     @property
-    def blue_pcl_sensors(self) -> list[PclSensor]:
-        return list(self._blue_pcl_sensors.values())
+    def _blue_target_ground_truth(self) -> dict[str, GroundTruthPath]:
+        if self._blue_target_ground_truth_loaded is None:
+            self._blue_target_ground_truth_loaded = self._load_target_ground_truth(
+                is_blue=True
+            )
+        return self._blue_target_ground_truth_loaded
+
+    @property
+    def _red_target_ground_truth(self) -> dict[str, GroundTruthPath]:
+        if self._red_target_ground_truth_loaded is None:
+            self._red_target_ground_truth_loaded = self._load_target_ground_truth(
+                is_blue=False
+            )
+        return self._red_target_ground_truth_loaded
+
+    @property
+    def blue_monostatic_radars(self) -> list[MonostaticSensor]:
+        if self._blue_monostatic_sensors_loaded is None:
+            self._blue_monostatic_sensors_loaded, self._blue_pcl_sensors_loaded = (
+                self._load_sensors(True)
+            )
+        return self._blue_monostatic_sensors_loaded
 
     @property
     def red_monostatic_radars(self) -> list[MonostaticSensor]:
-        return list(self._red_monostatic_sensors.values())
-
-    @property
-    def red_pcl_sensors(self) -> list[PclSensor]:
-        return list(self._red_pcl_sensors.values())
+        if self._red_monostatic_sensors_loaded is None:
+            self._red_monostatic_sensors_loaded, self._red_pcl_sensors_loaded = (
+                self._load_sensors(False)
+            )
+        return self._red_monostatic_sensors_loaded
 
     @property
     def blue_monostatic_radar_detections(self) -> list[MonostaticRadarDetection]:
@@ -298,8 +322,8 @@ class LogLoader:
     def t_max(self) -> datetime.datetime:
         return self._snapshots[-1].time
 
-    def _load_snapshots(self):
-        self._snapshots = [Snapshot.model_validate(d) for d in self._data["snapshots"]]
+    def _load_snapshots(self) -> list[Snapshot]:
+        return [Snapshot.model_validate(d) for d in self._data["snapshots"]]
 
     def _load_situational_pictures(self):
         # Situational pictures are only logged if debugging is enabled to keep
@@ -316,9 +340,11 @@ class LogLoader:
                 if p["team"] == "red"
             ]
 
-    def _load_sensors(self, is_blue: bool):
-        monostatic_sensors: dict[int, MonostaticSensor] = {}
-        pcl_sensors: dict[int, PclSensor] = {}
+    def _load_sensors(
+        self, is_blue: bool
+    ) -> tuple[list[MonostaticSensor], list[PclSensor]]:
+        monostatic_sensors: list[MonostaticSensor] = []
+        pcl_sensors: list[PclSensor] = []
         for snapshot in self._snapshots:
             sensors = (
                 snapshot.blue_monostatic_radars
@@ -326,18 +352,13 @@ class LogLoader:
                 else snapshot.red_monostatic_radars
             )
             for sensor in sensors:
-                monostatic_sensors[sensor.id] = sensor
+                monostatic_sensors.append(sensor)
             sensors = snapshot.blue_pcl_sensors if is_blue else snapshot.red_pcl_sensors
-            for sensor in snapshot.blue_pcl_sensors:
-                pcl_sensors[sensor.id] = sensor
-        if is_blue:
-            self._blue_monostatic_sensors = monostatic_sensors
-            self._blue_pcl_sensors = pcl_sensors
-        else:
-            self._red_monostatic_sensors = monostatic_sensors
-            self._red_pcl_sensors = pcl_sensors
+            for sensor in sensors:
+                pcl_sensors.append(sensor)
+        return monostatic_sensors, pcl_sensors
 
-    def _load_target_ground_truth(self, is_blue: bool):
+    def _load_target_ground_truth(self, is_blue: bool) -> dict[int, GroundTruthPath]:
         target_states = []
         for snapshot in self._snapshots:
             targets = snapshot.blue_targets if is_blue else snapshot.red_targets
@@ -359,10 +380,7 @@ class LogLoader:
                 )
         target_states = pd.DataFrame(target_states).sort_values(["id", "time"])
 
-        if is_blue:
-            self._blue_target_ground_truth: dict[int, GroundTruthPath] = {}
-        else:
-            self._red_target_ground_truth: dict[int, GroundTruthPath] = {}
+        ground_truth: dict[int, GroundTruthPath] = {}
         for target_id, target_rows in target_states.groupby("id"):
             ground_truth_path = GroundTruthPath()
             for _, row in target_rows.iterrows():
@@ -373,12 +391,8 @@ class LogLoader:
                         metadata={"target_id": target_id},
                     )
                 )
-            ground_truth = (
-                self._blue_target_ground_truth
-                if is_blue
-                else self._red_target_ground_truth
-            )
             ground_truth[target_id] = ground_truth_path
+        return ground_truth
 
     def _load_detections(self, is_blue: bool):
         # Monostatic detections.
