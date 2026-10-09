@@ -70,7 +70,10 @@ class FastSrtmModel(AbstractTerrainModel):
             p2_enu[2] - p1_enu[2],
         )
         norm = math.sqrt(direction[0] ** 2 + direction[1] ** 2 + direction[2] ** 2)
-        direction = (direction[0] / norm, direction[1] / norm, direction[2] / norm)
+        if norm == 0:
+            # Coincident points, e.g. a one-way drone that reached its goal.
+            return True
+        direction =(direction[0] / norm, direction[1] / norm, direction[2] / norm)
         ray = Ray(p_start=p1_enu, direction=direction, t_max=norm)
         return self.tree.has_line_of_sight(ray, t_min=self.t_min)
 

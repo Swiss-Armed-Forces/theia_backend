@@ -1640,6 +1640,15 @@ class TerrainTest(unittest.TestCase):
         p2 = Point(lat=46.55, lon=8.6, alt=1500)
         self.assertFalse(fast.has_line_of_sight(p1, p2))
 
+    def test_coincident_points_have_line_of_sight(self):
+        tree = MagicMock()
+        tree.transformer.ecef_to_enu.return_value = (1.0, 2.0, 3.0)
+        fast = FastSrtmModel.model_construct(tree=tree, srtm_model=None)
+
+        p = Point(lat=46.55, lon=8.0, alt=1500)
+        self.assertTrue(fast.has_line_of_sight(p, p))
+        tree.has_line_of_sight.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
