@@ -13,7 +13,7 @@ from theia.types import Point, SituationalPicture
 
 class StaticGbadCoordinator(ControllerGroup):
     """
-    Assigns the closest track to every effector.
+    Assigns each track to the closest effector.
 
     Target assignment is assumed to be instantaneous, i. e. the effector can
     fire in the same turn as it is assigned a new target.
@@ -38,6 +38,10 @@ class StaticGbadCoordinator(ControllerGroup):
             min_d = np.inf
             closest_controller: StaticGbadController | None = None
             for c in self._controllers:
+                # Dead controllers are only pruned in super().update(), so they are
+                # around for one more iteration. We skip them.
+                if not getattr(c, "_is_alive", True):
+                    continue
                 c: StaticGbadController = c.child
                 effector = c.effector
                 d = line_of_sight_distance(
@@ -58,5 +62,5 @@ class StaticGbadCoordinator(ControllerGroup):
                     closest_controller = c
                     min_d = d
             if closest_controller is not None:
-                c.assigned_track_id = track.id
+                closest_controller.assigned_track_id = track.id
         super().update(situational_picture, dt)
