@@ -188,6 +188,7 @@ class StaticGbadFactory(pydantic.BaseModel):
     gbad: DirectFireEffectorFactory | IndirectFireEffectorFactory = pydantic.Field(
         discriminator="type"
     )
+    name: str = ""
 
     @pydantic.model_validator(mode="before")
     @classmethod
@@ -280,6 +281,7 @@ class MonostaticSensorFactory(pydantic.BaseModel):
     rcs: float
     sensor: MonostaticSensor
     vertical_antenna_diagram: AntennaDiagramFactory = AntennaDiagramFactory(name="none")
+    name: str = ""
 
     def to_controller(self, is_blue: bool) -> MonostaticRadarController:
         attenuation_model = self.vertical_antenna_diagram.to_attenuation_model()

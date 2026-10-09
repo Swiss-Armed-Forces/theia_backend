@@ -805,7 +805,7 @@ class Trajectory(pydantic.BaseModel):
     ) -> list[tuple[datetime.datetime, Target]]:
         timestamps = np.arange(
             self.times[0].timestamp(),
-            self.times[-1].timestamp(),
+            self.times[-1].timestamp() + 1,
             dt.total_seconds(),
         )
         times = [datetime.datetime.fromtimestamp(t, datetime.UTC) for t in timestamps]
