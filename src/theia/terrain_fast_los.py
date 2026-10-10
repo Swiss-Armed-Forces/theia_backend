@@ -27,10 +27,10 @@ class FastSrtmModel(AbstractTerrainModel):
     srtm_model: SrtmTerrainModel
     t_min: float = 0.0
     """
-    Ignore terrain intersections closer than this distance [m] from ``p1``.
-    Pass a small positive value (e.g. 1 m) when ``p1`` is placed on the terrain
-    surface to avoid false "blocked" results caused by the ray origin sitting
-    inside a terrain AABB.
+    Ignore terrain intersections closer than this distance [m] from ``p1`` or
+    ``p2``. Pass a small positive value (e.g. 1 m) when an end point is placed
+    on the terrain surface to avoid false "blocked" results caused by it
+    sitting inside a terrain AABB.
     """
 
     def elevationAt(self, lat: float, lon: float):
@@ -521,17 +521,17 @@ class HbvTree:
             The query ray.  See :class:`Ray` for details.
         t_min:
             Ignore terrain intersections closer than this parametric distance
-            (metres, since ``ray.direction`` is a unit vector). Pass a small positive
-            value when the ray origin lies on or inside the terrain surface to
-            skip the self-intersection at the origin.
+            (metres, since ``ray.direction`` is a unit vector) to either end of
+            the ray. Pass a small positive value when an end point lies on or
+            inside the terrain surface to skip the self-intersection there.
 
         Returns
         -------
         bool
             ``True``  - the ray does **not** intersect any leaf AABB within
-            ``[t_min, t_max]``; line of sight is clear.
-            ``False`` - at least one leaf AABB is hit at distance >= ``t_min``;
-            terrain blocks the ray.
+            ``[t_min, t_max - t_min]``; line of sight is clear.
+            ``False`` - at least one leaf AABB is hit within
+            ``[t_min, t_max - t_min]``; terrain blocks the ray.
 
         Notes
         -----
@@ -587,14 +587,18 @@ def _los_kernel(
 ) -> float:
     """
     Iterative DFS.  Returns the parametric distance ``t_enter`` of the first
-    leaf AABB hit whose entry distance satisfies ``t_enter >= t_min``
-    (terrain blocks the ray at that distance).  Returns ``math.inf`` if the
-    full tree is traversed with no such hit (clear LOS).
+    leaf AABB hit whose intersection satisfies ``t_enter >= t_min`` and
+    ``t_exit <= t_max - t_min`` (terrain blocks the ray at that distance).
+    Returns ``math.inf`` if the full tree is traversed with no such hit
+    (clear LOS).
 
     The ``t_min`` parameter lets callers skip self-intersections: when the ray
     origin lies inside a terrain AABB (e.g. a transmitter placed on the terrain
     surface), the slab test yields ``t_enter = 0``.  Passing ``t_min > 0``
     ignores that hit and continues searching for a genuinely distant block.
+    The same applies to the end point: when it lies inside a terrain AABB, the
+    slab test yields ``t_exit = t_max``, and that hit is ignored as well. This
+    keeps the result symmetric in the two end points.
 
     Axis-aligned rays are handled correctly: a zero direction component
     produces ±inf for the corresponding inv_d, which the slab test handles
@@ -633,7 +637,8 @@ def _los_kernel(
         Maximum distance along the ray
     t_min: float
         Minimum intersection distance to consider; hits with t_enter < t_min
-        are skipped (treated as self-intersections).
+        or t_exit > t_max - t_min are skipped (treated as self-intersections
+        at the origin or end point).
     stack: np.ndarray
         pre-allocated int64 scratch memory of length >= 3*depth+1
 
@@ -692,10 +697,10 @@ def _los_kernel(
 
         # ---- leaf check ---------------------------------------------------
         if children[node, 0] == -1:
-            if t_enter >= t_min:
+            if t_enter >= t_min and t_exit <= t_max - t_min:
                 # terrain AABB hit → LOS blocked at distance t_enter
                 return t_enter
-            # too close: skip (self-intersection at origin)
+            # too close: skip (self-intersection at origin or end point)
             continue
 
         # ---- push all four children (unrolled for numba) ------------------

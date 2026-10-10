@@ -361,6 +361,42 @@ class TestLosKernelSingleLeaf(unittest.TestCase):
             tree.has_line_of_sight(ray, t_min=0.5), "t_min=0.5 skips self-intersection"
         )
 
+    # ------------------------------------------------------------------
+    # t_min — skip self-intersections at the ray end point
+    # ------------------------------------------------------------------
+    def test_end_point_inside_aabb_cleared_by_t_min(self):
+        data, children = _single_leaf()  # box [0,1]^3
+        stack = _make_stack(1)
+        # Ray from x=-5 ends inside the box at x=0.5 (t_max=5.5).  The box is
+        # entered at t=5 > t_min, but it still contains the end point
+        # (t_exit=t_max > t_max - t_min) → ignored.  Clear LOS.
+        result = _los_kernel(
+            data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 5.5, 1.0, stack
+        )
+        self.assertTrue(
+            math.isinf(result), "t_min > 0 should skip the self-intersection at the end"
+        )
+
+    def test_end_point_inside_aabb_still_blocked_at_t_min_zero(self):
+        data, children = _single_leaf()  # box [0,1]^3
+        stack = _make_stack(1)
+        result = _los_kernel(
+            data, children, -5.0, 0.5, 0.5, 1.0, INF, INF, 5.5, 0.0, stack
+        )
+        self.assertFalse(
+            math.isinf(result), "t_min=0 should still report end-inside as blocked"
+        )
+
+    def test_t_min_is_symmetric_in_end_points(self):
+        data = np.array([[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]], dtype=np.float64)
+        children = np.array([[-1, -1, -1, -1]], dtype=np.int64)
+        tree = HbvTree(data, children, Point(lat=0, lon=0, alt=0))
+        # One end point inside the box, the other at x=-5.
+        forward = Ray(p_start=(-5.0, 0.5, 0.5), direction=(1.0, 0.0, 0.0), t_max=5.5)
+        backward = Ray(p_start=(0.5, 0.5, 0.5), direction=(-1.0, 0.0, 0.0), t_max=5.5)
+        self.assertTrue(tree.has_line_of_sight(forward, t_min=1.0))
+        self.assertTrue(tree.has_line_of_sight(backward, t_min=1.0))
+
 
 class TestLosKernelTree(unittest.TestCase):
     """Tests on a small complete quadtree (depth-2, 1 root + 4 leaves)."""
