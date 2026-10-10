@@ -396,13 +396,48 @@ class DummyTerrain(AbstractTerrainModel):
 def trajectory_intersects_terrain(
     trajectory: Trajectory,
     terrain: AbstractTerrainModel,
+    step_m: float = 30.0,
 ) -> bool:
-    for lat, lon, alt in zip(
-        trajectory.lats,
-        trajectory.lons,
-        trajectory.alts,
-        strict=True,
-    ):
-        if terrain.elevationAt(lat, lon) >= alt:
+    """
+    Check whether the trajectory touches or passes below the terrain surface.
+
+    Not only the waypoints are checked, but also the path in between, as it
+    is flown in the simulation (i. e. the trajectory's interpolation). Each
+    segment between two waypoints is sampled at least every ``step_m`` metres,
+    so terrain features narrower than the waypoint spacing are detected, too.
+
+    Parameters
+    ----------
+    trajectory: Trajectory
+        Trajectory to check.
+    terrain: AbstractTerrainModel
+        Terrain model.
+    step_m: float, default 30.0
+        Maximum distance between two sampled points [m].
+    """
+    n_nodes = len(trajectory.times)
+    for i in range(n_nodes):
+        if terrain.elevationAt(
+            trajectory.lats[i], trajectory.lons[i]
+        ) >= trajectory.alts[i]:
             return True
+        if i == n_nodes - 1:
+            break
+
+        # Sample the interior of the segment to the next waypoint.
+        horizontal = haversine(
+            trajectory.lons[i],
+            trajectory.lats[i],
+            trajectory.lons[i + 1],
+            trajectory.lats[i + 1],
+        )
+        vertical = trajectory.alts[i + 1] - trajectory.alts[i]
+        n_steps = math.ceil(math.hypot(horizontal, vertical) / step_m)
+        dt = trajectory.times[i + 1] - trajectory.times[i]
+        for k in range(1, n_steps):
+            target = trajectory(trajectory.times[i] + dt * (k / n_steps))
+            if target is not None and terrain.elevationAt(
+                target.lat, target.lon
+            ) >= target.alt:
+                return True
     return False
