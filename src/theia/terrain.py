@@ -181,6 +181,17 @@ class FillTerrainModel(AbstractTerrainModel, pydantic.BaseModel):
         except:
             return self.fill_value
 
+    def has_line_of_sight(self, p1: Point, p2: Point) -> bool:
+        # Delegate so that the child's own LOS check is used, e.g. the fast
+        # tree of FastSrtmModel instead of ray marching over elevationAt.
+        try:
+            return self.child.has_line_of_sight(p1, p2)
+        except FileNotFoundError:
+            # The child read an elevation tile that is not available (only
+            # SrtmTerrainModel, or FastSrtmModel's ray-marching fallback);
+            # retry with the filled elevations.
+            return super().has_line_of_sight(p1, p2)
+
 
 class ConstantSphereTerrainModel(AbstractTerrainModel):
     alt: float
