@@ -509,7 +509,7 @@ class Simulator(Trigger, AbstractEventListener):
                     self._broadcast_event(
                         TextEvent(
                             id=-1,
-                            time=self.t,
+                            time=self._t,
                             text=f"No LOS between effector #{effector.id} and target #{target.id}",
                         )
                     )

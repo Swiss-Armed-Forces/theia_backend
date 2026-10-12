@@ -884,6 +884,8 @@ class CruiseMissileFactory(pydantic.BaseModel):
             self.effective_min_clearance,
             self.sample_spacing,
         )
+        # Validate trajectory.
+        self.path
         return self
 
     @property

@@ -71,6 +71,8 @@ def interpolate_elevation_tile(lat_f: float, lon_f: float, arr: np.ndarray) -> f
 
 # Inherits from pydantic.BaseModel so that other pdantic models can use a terrain model.
 class AbstractTerrainModel(abc.ABC, pydantic.BaseModel):
+    step_m: float = 30
+
     @abc.abstractmethod
     def elevationAt(self, lat: float, lon: float) -> float:
         raise NotImplementedError()
