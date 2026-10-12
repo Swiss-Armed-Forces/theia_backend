@@ -32,6 +32,23 @@ class FastSrtmModel(AbstractTerrainModel):
     on the terrain surface to avoid false "blocked" results caused by it
     sitting inside a terrain AABB.
     """
+    exact_leaf_test: bool = True
+    """
+    Verify every terrain AABB hit against the interpolated elevation of
+    ``srtm_model`` before reporting the line-of-sight as blocked.
+
+    The leaf AABBs are flat-topped blocks at the elevation of their grid post,
+    so on slopes they protrude above the actual (interpolated) terrain by up
+    to half a cell's rise. Without this test, shallow rays from sensors close
+    to the ground are blocked by terrain they in fact clear.
+    """
+    exact_leaf_step_m: float = 5.0
+    """Sampling distance [m] of the ray within a hit AABB for the exact test."""
+    max_exact_leaf_tests: int = 1000
+    """
+    Maximum number of AABB hits verified per query. Beyond that, the query
+    falls back to ray marching over ``srtm_model``.
+    """
 
     def elevationAt(self, lat: float, lon: float):
         return self.srtm_model.elevationAt(lat, lon)
@@ -48,21 +65,18 @@ class FastSrtmModel(AbstractTerrainModel):
         p2: Point
             End point in geodetic coordinates.
         """
-        p_start = self.tree.transformer.ecef_to_enu(
-            theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
-                p1.lat,
-                p1.lon,
-                p1.alt,
-            )
+        p1_ecef = theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
+            p1.lat,
+            p1.lon,
+            p1.alt,
         )
-        p1_enu = p_start
-        p2_enu = self.tree.transformer.ecef_to_enu(
-            theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
-                p2.lat,
-                p2.lon,
-                p2.alt,
-            )
+        p2_ecef = theia.coordinates.CoordinateTransformations.geodetic_to_cartesian(
+            p2.lat,
+            p2.lon,
+            p2.alt,
         )
+        p1_enu = self.tree.transformer.ecef_to_enu(p1_ecef)
+        p2_enu = self.tree.transformer.ecef_to_enu(p2_ecef)
 
         direction = (
             p2_enu[0] - p1_enu[0],
@@ -75,7 +89,47 @@ class FastSrtmModel(AbstractTerrainModel):
             return True
         direction =(direction[0] / norm, direction[1] / norm, direction[2] / norm)
         ray = Ray(p_start=p1_enu, direction=direction, t_max=norm)
-        return self.tree.has_line_of_sight(ray, t_min=self.t_min)
+        if not self.exact_leaf_test:
+            return self.tree.has_line_of_sight(ray, t_min=self.t_min)
+
+        ignored = np.empty(0, dtype=np.int64)
+        for _ in range(self.max_exact_leaf_tests):
+            t_enter, t_exit, node = self.tree.first_hit(ray, self.t_min, ignored)
+            if node < 0:
+                return True
+            if self._ray_below_terrain(p1_ecef, p2_ecef, norm, t_enter, t_exit):
+                return False
+            ignored = np.insert(ignored, np.searchsorted(ignored, node), node)
+        return theia.terrain.has_line_of_sight_ray_marching(
+            p1, p2, self.srtm_model, self.srtm_model.step_m
+        )
+
+    def _ray_below_terrain(
+        self,
+        p1_ecef: tuple[float, float, float],
+        p2_ecef: tuple[float, float, float],
+        norm: float,
+        t_enter: float,
+        t_exit: float,
+    ) -> bool:
+        """
+        Check whether the ray from ``p1_ecef`` to ``p2_ecef`` (of length
+        ``norm``) is at or below the interpolated terrain anywhere between the
+        distances ``t_enter`` and ``t_exit`` along it.
+        """
+        n_steps = max(1, math.ceil((t_exit - t_enter) / self.exact_leaf_step_m))
+        for k in range(n_steps + 1):
+            f = (t_enter + (t_exit - t_enter) * k / n_steps) / norm
+            lat, lon, alt = (
+                theia.coordinates.CoordinateTransformations.cartesian_to_geodetic(
+                    p1_ecef[0] + f * (p2_ecef[0] - p1_ecef[0]),
+                    p1_ecef[1] + f * (p2_ecef[1] - p1_ecef[1]),
+                    p1_ecef[2] + f * (p2_ecef[2] - p1_ecef[2]),
+                )
+            )
+            if alt <= self.srtm_model.elevationAt(lat, lon):
+                return True
+        return False
 
 
 def build_bounding_boxes(
@@ -563,6 +617,56 @@ class HbvTree:
         )
         return math.isinf(t)
 
+    def first_hit(
+        self,
+        ray: Ray,
+        t_min: float = 0.0,
+        ignored: np.ndarray | None = None,
+    ) -> tuple[float, float, int]:
+        """
+        Find a leaf AABB hit by the ray, as in :meth:`has_line_of_sight`.
+
+        Parameters
+        ----------
+        ray:
+            The query ray.  See :class:`Ray` for details.
+        t_min:
+            See :meth:`has_line_of_sight`.
+        ignored:
+            Sorted ``int64`` array of leaf node indices whose hits are skipped.
+            ``None`` skips no leaves.
+
+        Returns
+        -------
+        tuple[float, float, int]
+            ``(t_enter, t_exit, node)``: entry and exit distance of the ray
+            through the hit leaf AABB and its node index, or
+            ``(math.inf, math.inf, -1)`` if no leaf is hit (clear LOS).
+        """
+        if ignored is None:
+            ignored = np.empty(0, dtype=np.int64)
+        px, py, pz = ray.p_start
+        dx, dy, dz = ray.direction
+
+        def _safe_inv(v: float) -> float:
+            return float("inf") if v == 0.0 else 1.0 / v
+
+        t_enter, t_exit, node = _los_kernel_leaf(
+            self._data,
+            self._children,
+            float(px),
+            float(py),
+            float(pz),
+            _safe_inv(float(dx)),
+            _safe_inv(float(dy)),
+            _safe_inv(float(dz)),
+            float(ray.t_max),
+            float(t_min),
+            self._get_stack(),
+            np.ascontiguousarray(ignored, dtype=np.int64),
+        )
+        return float(t_enter), float(t_exit), int(node)
+
 
 # ---------------------------------------------------------------------------
 # Module-level kernel — compiled once, reused for every HbvTree instance.
@@ -586,11 +690,48 @@ def _los_kernel(
     stack: np.ndarray,
 ) -> float:
     """
-    Iterative DFS.  Returns the parametric distance ``t_enter`` of the first
-    leaf AABB hit whose intersection satisfies ``t_enter >= t_min`` and
-    ``t_exit <= t_max - t_min`` (terrain blocks the ray at that distance).
-    Returns ``math.inf`` if the full tree is traversed with no such hit
-    (clear LOS).
+    Same as :func:`_los_kernel_leaf`, without ignored leaves, returning only
+    ``t_enter`` of the hit (``math.inf`` if there is none).
+    """
+    t_enter, _, _ = _los_kernel_leaf(
+        data,
+        children,
+        px,
+        py,
+        pz,
+        idx,
+        idy,
+        idz,
+        t_max,
+        t_min,
+        stack,
+        np.empty(0, dtype=np.int64),
+    )
+    return t_enter
+
+
+@numba.njit(cache=True)
+def _los_kernel_leaf(
+    data: np.ndarray,
+    children: np.ndarray,
+    px: float,
+    py: float,
+    pz: float,
+    idx: float,
+    idy: float,
+    idz: float,
+    t_max: float,
+    t_min: float,
+    stack: np.ndarray,
+    ignored: np.ndarray,
+) -> tuple[float, float, int]:
+    """
+    Iterative DFS.  Returns the parametric entry and exit distances and the
+    node index of the first leaf AABB hit whose intersection satisfies
+    ``t_enter >= t_min`` and ``t_exit <= t_max - t_min`` and which is not in
+    ``ignored`` (terrain blocks the ray at that distance).  Returns
+    ``(math.inf, math.inf, -1)`` if the full tree is traversed with no such
+    hit (clear LOS).
 
     The ``t_min`` parameter lets callers skip self-intersections: when the ray
     origin lies inside a terrain AABB (e.g. a transmitter placed on the terrain
@@ -641,13 +782,15 @@ def _los_kernel(
         at the origin or end point).
     stack: np.ndarray
         pre-allocated int64 scratch memory of length >= 3*depth+1
+    ignored: np.ndarray
+        Sorted int64 array of leaf node indices whose hits are skipped.
 
     Returns
     -------
-    float
-        The distance ``t`` of the first intersection that fulfills
-        the condition ``t_min <= t_min <= t_max`` or ``np.inf`` if there is no
-        intersection.
+    tuple[float, float, int]
+        ``(t_enter, t_exit, node)`` of the first intersection that fulfills
+        the conditions above, or ``(np.inf, np.inf, -1)`` if there is no
+        such intersection.
     """
     stack[0] = 0
     top = 1
@@ -698,8 +841,12 @@ def _los_kernel(
         # ---- leaf check ---------------------------------------------------
         if children[node, 0] == -1:
             if t_enter >= t_min and t_exit <= t_max - t_min:
+                k = np.searchsorted(ignored, node)
+                if k < ignored.shape[0] and ignored[k] == node:
+                    # rejected by the caller (e.g. an exact terrain test)
+                    continue
                 # terrain AABB hit → LOS blocked at distance t_enter
-                return t_enter
+                return t_enter, t_exit, node
             # too close: skip (self-intersection at origin or end point)
             continue
 
@@ -711,7 +858,7 @@ def _los_kernel(
         top += 4
 
     # no qualifying leaf hit → clear LOS
-    return np.inf
+    return np.inf, np.inf, -1
 
 
 def load_srtm_bboxes(

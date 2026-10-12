@@ -1686,6 +1686,123 @@ class TerrainTest(unittest.TestCase):
         tree.has_line_of_sight.assert_not_called()
 
 
+class FirstHitTest(unittest.TestCase):
+    def setUp(self):
+        # Two leaves along +X: [0,1] and [2,3] (root encloses both, plus two
+        # empty-ish leaves far away to form a complete quadtree).
+        leaves = np.zeros((2, 2, 6))
+        leaves[0, 0] = (0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
+        leaves[0, 1] = (2.0, 0.0, 0.0, 3.0, 1.0, 1.0)
+        leaves[1, 0] = (0.0, 50.0, 0.0, 1.0, 51.0, 1.0)
+        leaves[1, 1] = (2.0, 50.0, 0.0, 3.0, 51.0, 1.0)
+        self.tree = HbvTree.from_leaf_bboxes(leaves, Point(lat=0, lon=0, alt=0))
+        self.ray = Ray(p_start=(-5.0, 0.5, 0.5), direction=(1.0, 0.0, 0.0), t_max=20.0)
+
+    def test_returns_hit_leaf_and_distances(self):
+        t_enter, t_exit, node = self.tree.first_hit(self.ray)
+        self.assertGreaterEqual(node, 1)
+        self.assertEqual(self.tree._children[node, 0], -1)
+        box = self.tree._data[node]
+        self.assertAlmostEqual(t_enter, box[0] + 5.0)
+        self.assertAlmostEqual(t_exit, box[3] + 5.0)
+
+    def test_ignored_leaves_are_skipped(self):
+        _, _, first = self.tree.first_hit(self.ray)
+        ignored = np.array([first], dtype=np.int64)
+        _, _, second = self.tree.first_hit(self.ray, ignored=ignored)
+        self.assertNotIn(second, (first, -1))
+        ignored = np.sort(np.array([first, second], dtype=np.int64))
+        self.assertEqual(self.tree.first_hit(self.ray, ignored=ignored)[2], -1)
+
+    def test_clear_ray(self):
+        ray = Ray(p_start=(-5.0, 20.0, 0.5), direction=(1.0, 0.0, 0.0), t_max=20.0)
+        self.assertEqual(self.tree.first_hit(ray), (INF, INF, -1))
+
+
+class _SlopeTerrain(SrtmTerrainModel):
+    """Smooth terrain rising eastwards with a 30 % slope."""
+
+    lon0: float
+    m_per_deg_lon: float
+
+    def elevationAt(self, lat: float, lon: float) -> float:
+        return 1000.0 + 0.3 * (lon - self.lon0) * self.m_per_deg_lon
+
+
+class FastSrtmModelExactLeafTest(unittest.TestCase):
+    """
+    The leaf AABBs are flat-topped blocks at the elevation of their grid post.
+    On a slope, they protrude above the smooth terrain on the downhill side of
+    each post.
+    """
+
+    N = 8
+    SPACING = 0.001  # [°], ~76 m in longitude, ~111 m in latitude at 47°N
+
+    @classmethod
+    def setUpClass(cls):
+        lats = 47.0 + cls.SPACING * np.arange(cls.N)
+        lons = 8.0 + cls.SPACING * np.arange(cls.N)
+        # 111_320 m is the length of one degree of longitude at the equator
+        # (2 pi * 6378137 m / 360, WGS84 equatorial radius). Scaling it by
+        # cos(latitude) gives the length of one degree of longitude at 47°N.
+        cls.srtm = _SlopeTerrain(
+            lon0=8.0, m_per_deg_lon=111_320.0 * math.cos(math.radians(47.0))
+        )
+        data = np.array(
+            [[cls.srtm.elevationAt(lat, lon) for lon in lons] for lat in lats]
+        )
+        bboxes, reference_point = build_bounding_boxes(lats, lons, data, n_jobs=1)
+        cls.tree = HbvTree.from_leaf_bboxes(bboxes, reference_point)
+        cls.lats = lats
+        cls.lons = lons
+
+    def _model(self, **kwargs) -> FastSrtmModel:
+        return FastSrtmModel(tree=self.tree, srtm_model=self.srtm, **kwargs)
+
+    def _contour_ray(self, height_above_terrain: float) -> tuple[Point, Point]:
+        # Northbound along a contour line, a quarter cell downhill (west) of
+        # the posts in column 4: the blocks there are ~6 m above the terrain.
+        lon = self.lons[4] - 0.25 * self.SPACING
+        alt = self.srtm.elevationAt(0.0, lon) + height_above_terrain
+        return (
+            Point(lat=self.lats[2], lon=lon, alt=alt),
+            Point(lat=self.lats[5], lon=lon, alt=alt),
+        )
+
+    def test_box_test_blocks_ray_above_terrain(self):
+        p1, p2 = self._contour_ray(3.0)
+        self.assertFalse(self._model(exact_leaf_test=False).has_line_of_sight(p1, p2))
+
+    def test_exact_test_clears_ray_above_terrain(self):
+        p1, p2 = self._contour_ray(3.0)
+        fast = self._model()
+        self.assertTrue(fast.has_line_of_sight(p1, p2))
+        self.assertTrue(fast.has_line_of_sight(p2, p1))
+
+    def test_exact_test_blocks_ray_below_terrain(self):
+        p1, p2 = self._contour_ray(-3.0)
+        self.assertFalse(self._model().has_line_of_sight(p1, p2))
+
+    def test_exact_test_blocks_ray_into_slope(self):
+        # Eastbound (uphill) and horizontal, starting 3 m above the terrain.
+        alt = self.srtm.elevationAt(0.0, self.lons[2]) + 3.0
+        p1 = Point(lat=self.lats[4], lon=self.lons[2], alt=alt)
+        p2 = Point(lat=self.lats[4], lon=self.lons[5], alt=alt)
+        fast = self._model()
+        self.assertFalse(fast.has_line_of_sight(p1, p2))
+        self.assertFalse(fast.has_line_of_sight(p2, p1))
+
+    def test_falls_back_to_ray_marching(self):
+        p1, p2 = self._contour_ray(3.0)
+        fast = self._model(max_exact_leaf_tests=0)
+        with patch(
+            "theia.terrain.has_line_of_sight_ray_marching", return_value=True
+        ) as ray_marching:
+            self.assertTrue(fast.has_line_of_sight(p1, p2))
+        ray_marching.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
 
