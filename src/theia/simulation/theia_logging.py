@@ -227,8 +227,14 @@ class LogLoader:
         self._red_monostatic_sensors_loaded: list[MonostaticSensor] | None = None
         self._blue_pcl_sensors_loaded: list[PclSensor] | None = None
         self._red_pcl_sensors_loaded: list[PclSensor] | None = None
-        self._load_detections(is_blue=True)
-        self._load_detections(is_blue=False)
+        self._blue_monostatic_radar_detections: (
+            list[MonostaticRadarDetection] | None
+        ) = None
+        self._red_monostatic_radar_detections: list[MonostaticRadarDetection] | None = (
+            None
+        )
+        self._blue_pcl_detections: list[PclDetection] | None = None
+        self._red_pcl_detections: list[PclDetection] | None = None
         self._load_events()
         self._load_situational_pictures()
 
@@ -272,10 +278,16 @@ class LogLoader:
 
     @property
     def blue_monostatic_radar_detections(self) -> list[MonostaticRadarDetection]:
+        if self._blue_monostatic_radar_detections is None:
+            self._blue_monostatic_radar_detections = self._load_monostatic_detections(
+                True
+            )
         return self._blue_monostatic_radar_detections
 
     @property
     def blue_pcl_detections(self) -> list[PclDetection]:
+        if self._blue_pcl_detections is None:
+            self._blue_pcl_detections = self._load_pcl_detections(True)
         return self._blue_pcl_detections
 
     @property
@@ -292,10 +304,16 @@ class LogLoader:
 
     @property
     def red_monostatic_radar_detections(self) -> list[MonostaticRadarDetection]:
+        if self._red_monostatic_radar_detections is None:
+            self._red_monostatic_radar_detections = self._load_monostatic_detections(
+                False
+            )
         return self._red_monostatic_radar_detections
 
     @property
     def red_pcl_detections(self) -> list[PclDetection]:
+        if self._red_pcl_detections is None:
+            self._red_pcl_detections = self._load_pcl_detections(False)
         return self._red_pcl_detections
 
     @property
@@ -393,6 +411,36 @@ class LogLoader:
                 )
             ground_truth[target_id] = ground_truth_path
         return ground_truth
+
+    def _load_monostatic_detections(
+        self, is_blue: bool
+    ) -> list[MonostaticRadarDetection]:
+        monostatic_detections = list(
+            itertools.chain.from_iterable(
+                [
+                    det["active_radar_detections"]
+                    for det in self._data["detections"]
+                    if det["team"] == ("blue" if is_blue else "red")
+                ]
+            )
+        )
+        monostatic_detections = [
+            MonostaticRadarDetection.model_validate(d) for d in monostatic_detections
+        ]
+        return monostatic_detections
+
+    def _load_pcl_detections(self, is_blue: bool) -> list[PclDetection]:
+        pcl_detections = list(
+            itertools.chain.from_iterable(
+                [
+                    det["pcl_detections"]
+                    for det in self._data["detections"]
+                    if det["team"] == ("blue" if is_blue else "red")
+                ]
+            )
+        )
+        pcl_detections = [PclDetection.model_validate(d) for d in pcl_detections]
+        return pcl_detections
 
     def _load_detections(self, is_blue: bool):
         # Monostatic detections.
