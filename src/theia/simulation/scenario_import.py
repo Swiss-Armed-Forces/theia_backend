@@ -652,11 +652,13 @@ class TrackerFactory(pydantic.BaseModel):
 
 
 class DamageModelFactory(pydantic.BaseModel):
-    model_name: Literal["kill_always"]
+    model_name: Literal["kill_always", "kill_never"]
 
     def to_damage_model(self, rng: np.random.Generator) -> AbstractDamageModel:
         if self.model_name == "kill_always":
             return UniformDamageModel(p_kill=1.0, rng=rng)
+        elif self.model_name == "kill_never":
+            return UniformDamageModel(p_kill=0.0, rng=rng)
         else:
             raise RuntimeError(f"Unknown damage model {self.model_name}")
 
