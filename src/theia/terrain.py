@@ -1,8 +1,10 @@
 import abc
 import functools
+import logging
 import math
 import os
 import re
+from typing import ClassVar
 from rasterio.fill import fillnodata
 
 import numba
@@ -15,12 +17,33 @@ from theia.distance import R_EARTH, haversine
 from theia.types import GeoJSONFeature, Point, Trajectory
 
 
+def _elevation_data_dir() -> str:
+    """
+    Return the directory holding the SRTM ``.hgt`` tiles.
+
+    Raises a ``RuntimeError`` (deliberately not a ``FileNotFoundError``, which
+    ``FillTerrainModel`` treats as a tile outside the data coverage) if the
+    directory is not configured or does not exist, so that a misconfigured
+    machine does not silently run on filled elevations.
+    """
+    if ELEVATION_DATA_DIR is None:
+        raise RuntimeError(
+            "Environment variable THEIA_ELEVATION_DATA_DIR is not set; "
+            "it must point to the directory with the SRTM .hgt tiles."
+        )
+    if not os.path.isdir(ELEVATION_DATA_DIR):
+        raise RuntimeError(
+            f"THEIA_ELEVATION_DATA_DIR={ELEVATION_DATA_DIR!r} is not a directory."
+        )
+    return ELEVATION_DATA_DIR
+
+
 @functools.cache
 def load_hgt_file(lat0: int, lon0: int) -> np.ndarray:
     ns = "N" if lat0 >= 0 else "S"
     ew = "E" if lon0 >= 0 else "W"
     filename = f"{ns}{abs(lat0):02d}{ew}{abs(lon0):03d}.hgt"
-    path = f"{ELEVATION_DATA_DIR}/{filename}"
+    path = f"{_elevation_data_dir()}/{filename}"
     size = os.path.getsize(path)
     dim = int(math.sqrt(size / 2))
     assert dim**2 * 2 == size
@@ -151,7 +174,7 @@ class SrtmTerrainModel(AbstractTerrainModel):
         return lat, lon
 
     def covered_region(self) -> list[GeoJSONFeature]:
-        files = os.listdir(ELEVATION_DATA_DIR)
+        files = os.listdir(_elevation_data_dir())
         hgt_files = [f for f in files if f.endswith(".hgt")]
         rectangles: list[GeoJSONFeature] = []
         for file in hgt_files:
@@ -175,10 +198,19 @@ class FillTerrainModel(AbstractTerrainModel, pydantic.BaseModel):
     child: AbstractTerrainModel
     fill_value: float
 
+    _warned_missing_files: ClassVar[set[str]] = set()
+
     def elevationAt(self, lat, lon):
         try:
             return self.child.elevationAt(lat, lon)
-        except:
+        except FileNotFoundError as e:
+            # Missing tile: fill it, but say so once per tile.
+            if e.filename not in self._warned_missing_files:
+                self._warned_missing_files.add(e.filename)
+                logging.warning(
+                    f"No elevation data at {e.filename}; "
+                    f"using fill value {self.fill_value} m."
+                )
             return self.fill_value
 
     def has_line_of_sight(self, p1: Point, p2: Point) -> bool:
