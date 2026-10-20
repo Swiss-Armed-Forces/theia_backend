@@ -94,7 +94,9 @@ def validate_parameters(
         )
 
 
-@dataclass
+# Why eq=False?
+# Without it, the generated __eq__ compares the arrays element-wise and fails.
+@dataclass(eq=False)
 class CruiseMissilePath:
     times: np.ndarray
     """Seconds since launch. Shape (N,)."""
@@ -108,6 +110,18 @@ class CruiseMissilePath:
     """Point where the missile hits the ground at the target."""
     t_impact: float
     """Seconds since launch at which the missile hits the target."""
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, CruiseMissilePath):
+            return NotImplemented
+        return (
+            np.array_equal(self.times, other.times)
+            and np.array_equal(self.lats, other.lats)
+            and np.array_equal(self.lons, other.lons)
+            and np.array_equal(self.alts, other.alts)
+            and self.impact == other.impact
+            and self.t_impact == other.t_impact
+        )
 
 
 def build_terrain_following_path(

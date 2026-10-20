@@ -165,6 +165,12 @@ class FlatTerrainTest(unittest.TestCase):
         self.terrain = FlatTerrain()
         self.path = build(self.terrain)
 
+    def test_equality(self):
+        self.assertEqual(self.path, build(self.terrain))
+        other = build(self.terrain)
+        other.alts = other.alts + 1.0
+        self.assertNotEqual(self.path, other)
+
     def test_start_altitude_ignores_given_altitude(self):
         self.assertAlmostEqual(self.path.alts[0], 400.0 + CRUISE_MAGL)
 
