@@ -1,11 +1,13 @@
 import datetime
 import types
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from theia.simulation.server import create_app
 from theia.simulation.theia_logging import SituationalPictureBuffer
+from theia.test_data import build_flores_monostatic_radar
 from theia.types import (
     ConstantRcsModel,
     Party,
@@ -75,6 +77,42 @@ class ServerApiTest(unittest.TestCase):
         schemas = create_app(None, None).openapi()["components"]["schemas"]
         self.assertIn("TargetInfo", schemas)
         self.assertIn("TargetCategory", schemas)
+
+
+class MonostaticCoverageTest(unittest.TestCase):
+    def test_coverage_starts_at_antenna(self):
+        """The coverage must be calculated from the receiver's antenna position."""
+        radar = build_flores_monostatic_radar(
+            Point(lat=47.0, lon=8.0, alt=500.0), 0, 1, 2
+        )
+        self.assertGreater(radar.receiver.antenna_height, 0.0)
+        director = types.SimpleNamespace(
+            _simulator=types.SimpleNamespace(_terrain_model=None)
+        )
+        client = TestClient(create_app(SituationalPictureBuffer(), director))
+        with (
+            patch(
+                "theia.simulation.server.calculate_maximum_monostatic_range",
+                return_value=10_000.0,
+            ),
+            patch(
+                "theia.simulation.server.calculate_coverage", return_value=[]
+            ) as calculate_coverage,
+        ):
+            response = client.post(
+                "/calculate_monostatic_coverage",
+                params=dict(
+                    target_alt=1000.0,
+                    target_rcs=1.0,
+                    probability_threshold=0.5,
+                    lat_res=0.01,
+                    lon_res=0.01,
+                ),
+                json=radar.model_dump(mode="json"),
+            )
+        self.assertEqual(response.status_code, 200, response.text)
+        point = calculate_coverage.call_args.args[1]
+        self.assertEqual(point, radar.receiver.antenna_point)
 
 
 if __name__ == "__main__":

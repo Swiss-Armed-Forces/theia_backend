@@ -420,6 +420,11 @@ antenna height     = {self.antenna_height} m\
         return self.point.alt
 
     @property
+    def antenna_point(self) -> Point:
+        """Coordinates of the antenna, i. e. ``point`` raised by ``antenna_height``"""
+        return Point(lat=self.lat, lon=self.lon, alt=self.alt + self.antenna_height)
+
+    @property
     def processing_gain(self) -> float:
         """Processing gain [dB]"""
         return 10 * np.log10(self.max_coherent_integration_time * self.bandwidth * 1e6)
@@ -535,6 +540,11 @@ antenna height                    = {self.antenna_height} m\
     def alt(self) -> float:
         """Altitude (meters above sea level) [m]"""
         return self.point.alt
+
+    @property
+    def antenna_point(self) -> Point:
+        """Coordinates of the antenna, i. e. ``point`` raised by ``antenna_height``"""
+        return Point(lat=self.lat, lon=self.lon, alt=self.alt + self.antenna_height)
 
     def antenna_gain(self, frequency: float) -> float:
         """

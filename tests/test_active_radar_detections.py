@@ -82,13 +82,14 @@ def _target(
     elevation_deg: float,
     target_range: float = TARGET_RANGE,
 ) -> Target:
-    """Place a target at the given azimuth/elevation/range as seen from the radar."""
+    """Place a target at the given azimuth/elevation/range as seen from the radar's antenna."""
     az = math.radians(azimuth_deg)
     el = math.radians(elevation_deg)
     east = target_range * math.cos(el) * math.sin(az)
     north = target_range * math.cos(el) * math.cos(az)
     up = target_range * math.sin(el)
-    ecef = EcefToEnuTransformer(RADAR_POINT).enu_to_ecef((east, north, up))
+    antenna_point = _radar().receiver.antenna_point
+    ecef = EcefToEnuTransformer(antenna_point).enu_to_ecef((east, north, up))
     lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(*ecef)
     return Target(
         id=0,
@@ -507,6 +508,42 @@ class MonostaticSnrTest(unittest.TestCase):
         )
         self.assertAlmostEqual(
             self._snr(target_10x) - self._snr(target), 10.0, delta=1e-9
+        )
+
+
+class _LosRecordingTerrain(DummyTerrain):
+    """Terrain with line-of-sight everywhere that records the queried points."""
+
+    def has_line_of_sight(self, p1, p2):
+        self.__dict__.setdefault("queries", []).append((p1, p2))
+        return self.has_los
+
+
+class AntennaHeightTest(unittest.TestCase):
+    """
+    The radar's position must be raised by the antenna height.
+
+    Regression test: The line-of-sight check used to start on the ground, so
+    terrain only marginally higher than the radar site blocked the target.
+    """
+
+    def test_line_of_sight_starts_at_antenna(self):
+        radar = _radar()
+        self.assertGreater(radar.transmitter.antenna_height, 0.0)
+        terrain = _LosRecordingTerrain(has_los=True)
+        calculate_monostatic_snr(
+            terrain,
+            radar,
+            _target(90.0, 10.0),
+            rcs_model=ConstantRcsModel(rcs=1.0),
+            distance_step=30.0,
+            doppler_shift_threshold_hz=ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD,
+            rf_loss=RF_LOSS,
+        )
+        (p_radar, _), = terrain.queries
+        self.assertEqual(p_radar, radar.transmitter.antenna_point)
+        self.assertAlmostEqual(
+            p_radar.alt, RADAR_POINT.alt + radar.transmitter.antenna_height
         )
 
 

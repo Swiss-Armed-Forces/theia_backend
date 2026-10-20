@@ -83,7 +83,7 @@ def calculate_monostatic_detection(
         )
         elevation, azimuth, target_range = (
             MonostaticMeasurementTransformations.cartesian_to_elevation_azimuth_range(
-                radar.receiver.point,
+                radar.receiver.antenna_point,
                 target_position_cartesian,
             )
         )
@@ -164,7 +164,7 @@ def calculate_monostatic_snr(
     """
     rad_lat = radar.transmitter.lat
     rad_lon = radar.transmitter.lon
-    rad_height = radar.transmitter.alt
+    rad_height = radar.transmitter.alt + radar.transmitter.antenna_height
 
     tgt_lat = target.lat
     tgt_lon = target.lon
@@ -180,7 +180,7 @@ def calculate_monostatic_snr(
     )
 
     los_ok = terrain_model.has_line_of_sight(
-        radar.transmitter.point,
+        radar.transmitter.antenna_point,
         target.point,
     )
 

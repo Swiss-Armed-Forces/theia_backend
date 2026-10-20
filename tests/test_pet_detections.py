@@ -216,5 +216,42 @@ class PetTest(unittest.TestCase):
         self.assertGreaterEqual(p_value, 0.05)
 
 
+class _LosRecordingTerrain(DummyTerrain):
+    """Terrain with line-of-sight everywhere that records the queried points."""
+
+    def has_line_of_sight(self, p1, p2):
+        self.__dict__.setdefault("queries", []).append((p1, p2))
+        return self.has_los
+
+
+class PetAntennaHeightTest(unittest.TestCase):
+    def test_line_of_sight_ends_at_receiver_antenna(self):
+        """The receiver's position must be raised by its antenna height."""
+        rx = build_airborne_pet_receiver(0, Point(lat=0, lon=0, alt=0))
+        rx = rx.model_copy(update=dict(antenna_height=10.0))
+        p_tgt = Point(lat=10, lon=10, alt=1000)
+        tx = build_flores_monostatic_radar(
+            p_tgt,
+            sensor_id=0,
+            rx_id=1,
+            tx_id=0,
+        ).transmitter
+        sensor = PetSensor(
+            id=0,
+            transmitter=tx,
+            receiver=rx,
+            target=_target(p_tgt),
+            error_model=PetMeasurementModel(),
+        )
+        terrain = _LosRecordingTerrain(has_los=True)
+        PetDetector(terrain_model=terrain).calculate_pet_detection(
+            sensor,
+            _target(p_tgt),
+            np.random.default_rng(seed=0),
+        )
+        (_, p_rx), = terrain.queries
+        self.assertEqual(p_rx, Point(lat=0, lon=0, alt=10.0))
+
+
 if __name__ == "__main__":
     unittest.main()

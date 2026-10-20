@@ -46,14 +46,14 @@ class PetDetector(pydantic.BaseModel):
         """
         los_ok = self.terrain_model.has_line_of_sight(
             sensor.transmitter.point,
-            sensor.receiver.point,
+            sensor.receiver.antenna_point,
         )
 
         if not los_ok:
             return
 
         dist = line_of_sight_distance(
-            *sensor.receiver.point.as_tuple(),
+            *sensor.receiver.antenna_point.as_tuple(),
             *sensor.transmitter.point.as_tuple(),
         )
 
@@ -90,11 +90,11 @@ class PetDetector(pydantic.BaseModel):
 
         if rng.uniform(low=0, high=1) <= p:
             elev = theia.coordinates.calculate_elevation_angle(
-                sensor.receiver.point,
+                sensor.receiver.antenna_point,
                 target.point,
             )
             azi = theia.coordinates.calculate_azimuth_angle(
-                sensor.receiver.point,
+                sensor.receiver.antenna_point,
                 target.point,
             )
 

@@ -209,7 +209,7 @@ def create_app(
         )
         polygons = calculate_coverage(
             director._simulator._terrain_model,
-            radar.receiver.point,
+            radar.receiver.antenna_point,
             max_dist,
             target_alt,
             lat_res,
