@@ -73,13 +73,17 @@ class FileLogger(AbstractSimulationListener):
         pass
 
     def on_snapshot(self, snapshot):
-        self.snapshots.append(snapshot.model_dump(mode="json"))
+        # TODO:
+        # This generates invalid JSON if any float within a Snapshot was NaN or Inf.
+        self.snapshots.append(json.dumps(snapshot.model_dump(mode="json")))
 
     def on_situational_picture(
         self,
         situational_picture: SituationalPicture,
         is_blue: bool,
     ):
+        if not self._log_situational_picture:
+            return
         self.situational_pictures.append(
             {
                 "team": "blue" if is_blue else "red",
@@ -110,13 +114,15 @@ class FileLogger(AbstractSimulationListener):
 
     def on_end(self):
         data = {
-            "snapshots": self.snapshots,
             "detections": self.detections,
             "events": [e.model_dump(mode="json") for e in self.events],
         }
         if self._log_situational_picture:
             data["situational_pictures"] = self.situational_pictures
-        text = json.dumps(data)
+        # Splice in the already serialised snapshots.
+        text = (
+            '{"snapshots": [' + ", ".join(self.snapshots) + "], " + json.dumps(data)[1:]
+        )
         with open(self._path, "a" if not self._override else "w") as file:
             file.write(text)
 
@@ -301,6 +307,30 @@ class LogLoader:
     @property
     def red_target_ground_truth(self) -> dict[int, GroundTruthPath]:
         return self._red_target_ground_truth
+
+    @property
+    def blue_target_ids(self) -> set[int]:
+        """
+        IDs of all BLUE targets, i.e. the keys of ``blue_target_ground_truth``.
+
+        Much cheaper than the ground truth: reads the raw log instead of
+        validating all snapshots.
+        """
+        return self._target_ids(is_blue=True)
+
+    @property
+    def red_target_ids(self) -> set[int]:
+        """
+        IDs of all RED targets, i.e. the keys of ``red_target_ground_truth``.
+
+        Much cheaper than the ground truth: reads the raw log instead of
+        validating all snapshots.
+        """
+        return self._target_ids(is_blue=False)
+
+    def _target_ids(self, is_blue: bool) -> set[int]:
+        key = "blue_targets" if is_blue else "red_targets"
+        return {t["id"] for s in self._data["snapshots"] for t in s[key]}
 
     @property
     def track_init_events(self) -> list[TrackInitEvent]:
