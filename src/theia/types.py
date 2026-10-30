@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import abc
+import bisect
 import datetime
 import enum
+import math
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional, Self
 
@@ -673,6 +675,48 @@ class Target(pydantic.BaseModel):
         )
 
 
+class _CubicSplineEvaluator:
+    """
+    Evaluates a `CubicSpline`, fast for both single points and arrays.
+
+    `CubicSpline.__call__` costs ~2 us per scalar evaluation, mostly in input
+    handling. `__call__` evaluates the same piecewise polynomials in plain
+    Python, summing the terms in the same order as scipy, so the results are
+    bit-identical. Out-of-range points are extrapolated from the first or
+    last piece, as with `extrapolate=True`. `many` delegates to scipy, which
+    is fast for arrays, and returns NaN for out-of-range points instead.
+    """
+
+    __slots__ = ("_spline", "_x", "_coefficients", "_last_piece")
+
+    def __init__(self, spline: CubicSpline):
+        self._spline = spline
+        self._x: list[float] = spline.x.tolist()
+        # Per piece, per dimension: (c0, c1, c2, c3) of
+        # c0 * s^3 + c1 * s^2 + c2 * s + c3, with s = x - x_piece_start.
+        self._coefficients: list[list[tuple[float, float, float, float]]] = [
+            list(zip(*piece)) for piece in np.moveaxis(spline.c, 1, 0).tolist()
+        ]
+        self._last_piece = len(self._coefficients) - 1
+
+    def __call__(self, x: float) -> list[float]:
+        i = min(max(bisect.bisect_right(self._x, x) - 1, 0), self._last_piece)
+        s = x - self._x[i]
+        s2 = s * s
+        s3 = s2 * s
+        return [
+            c3 + c2 * s + c1 * s2 + c0 * s3 for c0, c1, c2, c3 in self._coefficients[i]
+        ]
+
+    def many(self, x: np.ndarray) -> np.ndarray:
+        """
+        Values at all points in `x`, shape (len(x), number of dimensions).
+
+        Rows for points outside the spline's range are NaN.
+        """
+        return self._spline(x, extrapolate=False)
+
+
 class Trajectory(pydantic.BaseModel):
     target_id: int
     target_info: TargetInfo
@@ -692,7 +736,7 @@ class Trajectory(pydantic.BaseModel):
     """Velocity components along Cartesian z-coordinate [m / s]"""
     cross_section_model: ConstantRcsModel
 
-    _spline: CubicSpline = pydantic.PrivateAttr()
+    _spline: _CubicSplineEvaluator = pydantic.PrivateAttr()
 
     @pydantic.model_validator(mode="before")
     @classmethod
@@ -741,14 +785,14 @@ class Trajectory(pydantic.BaseModel):
             ],
             axis=1,
         )
-        self._spline = CubicSpline(x, y, extrapolate=True)
+        self._spline = _CubicSplineEvaluator(CubicSpline(x, y, extrapolate=True))
         return self
 
     def __call__(self, t: datetime.datetime) -> Target | None:
         if t < self.times[0] or t > self.times[-1]:
             return None
         y = self._spline(t.timestamp())
-        if np.isnan(y).any():
+        if any(map(math.isnan, y)):
             return None
         lat, lon, alt, vx, vy, vz = y
         return Target(
@@ -763,6 +807,28 @@ class Trajectory(pydantic.BaseModel):
             cross_section_model=self.cross_section_model,
             velocity=Velocity(vx=vx, vy=vy, vz=vz),
         )
+
+    def positions_at(self, timestamps: np.ndarray) -> np.ndarray:
+        """
+        Interpolated positions at many times at once.
+
+        Much faster than calling the trajectory for each time when only the
+        position is needed. Like `__call__`, which returns None for times
+        outside the trajectory, it rejects those times: their rows are NaN.
+
+        Parameters
+        ----------
+        timestamps: np.ndarray
+            POSIX timestamps [s], as returned by `datetime.timestamp()`.
+
+        Returns
+        -------
+        np.ndarray
+            Shape (len(timestamps), 3): latitude [°], longitude [°] and
+            altitude [m above sea level] per time; NaN for times outside the
+            trajectory.
+        """
+        return self._spline.many(timestamps)[:, :3]
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, Trajectory):

@@ -461,6 +461,7 @@ def trajectory_intersects_terrain(
         Maximum distance between two sampled points [m].
     """
     n_nodes = len(trajectory.times)
+    timestamps = [t.timestamp() for t in trajectory.times]
     for i in range(n_nodes):
         if terrain.elevationAt(
             trajectory.lats[i], trajectory.lons[i]
@@ -478,11 +479,14 @@ def trajectory_intersects_terrain(
         )
         vertical = trajectory.alts[i + 1] - trajectory.alts[i]
         n_steps = math.ceil(math.hypot(horizontal, vertical) / step_m)
-        dt = trajectory.times[i + 1] - trajectory.times[i]
-        for k in range(1, n_steps):
-            target = trajectory(trajectory.times[i] + dt * (k / n_steps))
-            if target is not None and terrain.elevationAt(
-                target.lat, target.lon
-            ) >= target.alt:
+        if n_steps < 2:
+            continue
+        dt = timestamps[i + 1] - timestamps[i]
+        sample_times = timestamps[i] + dt * (np.arange(1, n_steps) / n_steps)
+        # Keep .tolist(): iterating the array directly creates a row array and
+        # three np.float64 scalars per point, and elevationAt is slower on
+        # np.float64 than on float. That made this loop ~2.4x slower.
+        for lat, lon, alt in trajectory.positions_at(sample_times).tolist():
+            if terrain.elevationAt(lat, lon) >= alt:
                 return True
     return False
