@@ -225,7 +225,7 @@ class Simulator(Trigger, AbstractEventListener):
         return SituationalPicture(
             time=self._t,
             friendly_pet_receivers=self._red_pet_receivers,
-            friendly_radars=self._red_monostatic_radars + self._red_monostatic_radars,
+            friendly_radars=self._red_monostatic_radars + self._red_pcl_sensors,
             friendly_targets=self._red_targets,
             enemy_targets=self._red_tracker.get_tracks(),
         )
