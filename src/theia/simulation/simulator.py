@@ -180,6 +180,9 @@ class Simulator(Trigger, AbstractEventListener):
         """IDs of PET sensors. Keys are (rx ID, tx ID) tuples."""
         self._id_provider = id_provider if id_provider is not None else IdProvider()
         self._shot_association_tolerance = shot_association_tolerance
+        self._is_stop_requested = False
+        """Whether the simulation is to end at the next iteration."""
+        self._has_ended = False
 
         # Allow external reaction to simulation events.
         # Useful e. g. to expose simulation state to an API.
@@ -664,8 +667,14 @@ class Simulator(Trigger, AbstractEventListener):
         """
         start_time = time.time()
 
-        if self._termination_criterion.is_terminated(self.take_snapshot()):
+        if self._has_ended:
+            return False
+
+        if self._is_stop_requested or self._termination_criterion.is_terminated(
+            self.take_snapshot()
+        ):
             self._listener.on_end()
+            self._has_ended = True
             return False
 
         # Reset events.
@@ -796,6 +805,23 @@ class Simulator(Trigger, AbstractEventListener):
             time.sleep(sleep_time)
 
         return True
+
+    def request_stop(self):
+        """
+        End the simulation at the next iteration, regardless of the
+        termination criterion.
+
+        Thread-safe. The listener's ``on_end`` is called by the next
+        :meth:`advance`.
+        """
+        self._is_stop_requested = True
+
+    def has_ended(self) -> bool:
+        """
+        Whether the simulation is over, i. e. the listener's ``on_end`` has been
+        called (for a ``FileLogger``: the log file has been written).
+        """
+        return self._has_ended
 
     def set_speedup(self, speedup_factor: float):
         self._minimum_seconds_per_step = self._dt.seconds / speedup_factor

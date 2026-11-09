@@ -349,6 +349,20 @@ def create_app(
     def is_paused() -> bool:
         return director.is_paused()
 
+    @app.post("/stop")
+    def stop():
+        """
+        End the simulation properly, e. g. so that the log file is written.
+
+        Returns once the simulation has ended. A stopped simulation cannot be
+        resumed; the server keeps serving its final state.
+        """
+        director.stop()
+
+    @app.get("/is_stopped")
+    def is_stopped() -> bool:
+        return director.is_stopped()
+
     @app.get("/speedup")
     def get_speedup_factor() -> float:
         return buffer.get_simulator().get_speedup()

@@ -37,11 +37,16 @@ if __name__ == "__main__":
     )
 
     if args.interactive:
-        app = create_app(buffer, SimulationDirector(simulator))
+        director = SimulationDirector(simulator)
+        app = create_app(buffer, director)
 
         print("Start simulation...")
 
         uvicorn.run(app, host="127.0.0.1", port=8000)
+
+        # The server was shut down (e. g. Ctrl+C): end the simulation
+        # properly so that the log file is written.
+        director.stop()
     else:
         n_iterations = math.ceil(
             (scenario.stop_time - scenario.start_time).seconds / scenario.time_step
@@ -52,6 +57,12 @@ if __name__ == "__main__":
             profiler.enable()
 
         for _ in tqdm(range(n_iterations)):
+            simulator.advance()
+
+        if not simulator.has_ended():
+            # E. g. a game that never terminates by itself: end it so that
+            # the log file is written.
+            simulator.request_stop()
             simulator.advance()
 
         if args.profile:
