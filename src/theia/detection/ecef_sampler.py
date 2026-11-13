@@ -4,12 +4,14 @@ import numpy as np
 from stonesoup.types.detection import Detection
 from stonesoup.updater.kalman import LinearGaussian
 
+from theia.config import INTEL_DETECTION_SIGMA
 from theia.coordinates import (
     CoordinateTransformations,
 )
 from theia.distance import line_of_sight_distance
 from theia.ellipsoid import Ellipsoid
 from theia.types import (
+    IntelDetection,
     MonostaticRadarDetection,
     PclDetection,
     PetDetection,
@@ -260,10 +262,15 @@ class EcefDetectionSampler:
         pcl_detections: list[PclDetection],
         pet_detections: list[PetDetection],
         visual_detections: list[VisualDetection],
+        intel_detections: list[IntelDetection],
         track_exists: bool,
     ) -> Detection | None:
         detection: Detection | None = None
-        if len(visual_detections) > 0:
+        if len(intel_detections) > 0:
+            d = intel_detections[0]
+            s = d.sigma
+            detection = self._sample_position(d.target.point, (s, s, s), d.time)
+        elif len(visual_detections) > 0:
             d = visual_detections[0]
             detection = self._sample_position(
                 d.target.point,

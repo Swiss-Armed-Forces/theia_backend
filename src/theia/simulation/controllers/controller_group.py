@@ -44,6 +44,9 @@ class ControllerGroup(Controller, AbstractEventListener):
         self.visual_sensors = itertools.chain.from_iterable(
             [child.visual_sensors for child in self._controllers]
         )
+        self.intel_sensors = itertools.chain.from_iterable(
+            [child.intel_sensors for child in self._controllers]
+        )
         self.firing_effectors = itertools.chain.from_iterable(
             [child.firing_effectors for child in self._controllers]
         )

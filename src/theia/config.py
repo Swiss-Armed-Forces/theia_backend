@@ -89,6 +89,13 @@ the cubic spline overshoot.
 CM_DIVE_PENETRATION_TOLERANCE = 0.5
 """Cruise missile: tolerated interpolation dip below the terrain during the terminal dive [m]"""
 
+INTEL_DETECTION_SIGMA = 0.1
+"""
+Intel sensing: standard deviation [m] of a position sampled from an intel detection.
+
+Must be > 0 so that the Kalman covariance stays regular.
+"""
+
 FRONTEND_URL = "http://localhost:5173"
 
 

@@ -15,7 +15,7 @@ import shapely
 from matplotlib import pyplot as plt
 from scipy.interpolate import BSpline, CubicSpline, make_interp_spline
 
-from theia.config import UNKNOWN_ID
+from theia.config import INTEL_DETECTION_SIGMA, UNKNOWN_ID
 from theia.util import from_dB
 
 
@@ -603,7 +603,26 @@ class VisualSensor(AbstractSensor):
     """Detection range [m]"""
 
 
-Sensor = MonostaticSensor | PclSensor | PetSensor | VisualSensor
+class IntelSensor(pydantic.BaseModel):
+    """A sensor that knows a target's trajectory and reports its ground truth."""
+
+    id: int
+    trajectory: Trajectory
+    sigma: float = INTEL_DETECTION_SIGMA
+    """Positional uncertainty (standard deviation) of the target [m]."""
+
+    @pydantic.model_validator(mode="after")
+    def _validate_positive_sigma(self):
+        if self.sigma <= 0:
+            raise ValueError("Sigma must be positive")
+        return self
+
+    def detect(self, time: datetime.datetime) -> Target | None:
+        """Return the target's ground truth without uncertainty at `time` (None outside the trajectory's span)."""
+        return self.trajectory(time)
+
+
+Sensor = MonostaticSensor | PclSensor | PetSensor | VisualSensor | IntelSensor
 
 
 class Target(pydantic.BaseModel):
@@ -994,6 +1013,21 @@ class VisualDetection(pydantic.BaseModel):
     """Date and time at which the detection takes place."""
     sensor: VisualSensor
     target: Target
+
+
+class IntelDetection(pydantic.BaseModel):
+    detection_id: int
+    time: datetime.datetime
+    """Date and time at which the detection takes place."""
+    target: Target
+    sigma: float
+    """Spatial uncertainty (standard deviation) [m]"""
+
+    @pydantic.model_validator(mode="after")
+    def _validate_positive_sigma(self):
+        if self.sigma <= 0:
+            raise ValueError("Sigma must be positive")
+        return self
 
 
 class RcsModel(abc.ABC):
@@ -1605,6 +1639,7 @@ class Controller(
     targets: list[Target] = []
     pet_receivers: list[Receiver] = []
     visual_sensors: list[VisualSensor] = []
+    intel_sensors: list[IntelSensor] = []
     firing_effectors: list[tuple[AbstractEffector, Point]] = []
     geojson: dict[str, list[GeoJSONFeature]] = {}
 
@@ -1761,6 +1796,7 @@ class AbstractTracker(abc.ABC, Trigger):
         pcl_detections: list[PclDetection],
         pet_detections: list[PetDetection],
         visual_detections: list[VisualDetection],
+        intel_detections: list[IntelDetection],
         id_provider: IdProvider,  # needed to get unused track IDs
     ):
         """Add detections of a single iteration to this tracker."""

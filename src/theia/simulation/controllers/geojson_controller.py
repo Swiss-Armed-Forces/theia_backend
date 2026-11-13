@@ -38,5 +38,6 @@ class GeoJsonController(Controller, pydantic.BaseModel):
         self.targets = self.child.targets
         self.pet_receivers = self.child.pet_receivers
         self.visual_sensors = self.child.visual_sensors
+        self.intel_sensors = self.child.intel_sensors
         self.firing_effectors = self.child.firing_effectors
         self.geojson = self.child.geojson | self.geojson_features

@@ -38,6 +38,8 @@ from theia.types import (
     Entity,
     Event,
     IdProvider,
+    IntelDetection,
+    IntelSensor,
     KillEvent,
     MonostaticRadarDetection,
     MonostaticSensor,
@@ -164,11 +166,13 @@ class Simulator(Trigger, AbstractEventListener):
         self._blue_monostatic_radars: list[MonostaticSensor] = []
         self._blue_pcl_sensors: list[PclSensor] = []
         self._blue_visual_sensors: list[VisualSensor] = []
+        self._blue_intel_sensors: list[IntelSensor] = []
         self._blue_targets: list[Target] = []
         self._blue_effectors: list[AbstractEffector] = []
         self._red_monostatic_radars: list[MonostaticSensor] = []
         self._red_pcl_sensors: list[PclSensor] = []
         self._red_visual_sensors: list[VisualSensor] = []
+        self._red_intel_sensors: list[IntelSensor] = []
         self._red_targets: list[Target] = []
         self._red_effectors: list[AbstractEffector] = []
         self._blue_pet_receivers: list[Receiver] = []
@@ -418,6 +422,36 @@ class Simulator(Trigger, AbstractEventListener):
                 # TODO: Implement PET clutter sampling.
                 pass
 
+        return detections
+
+    def _calculate_intel_detections(
+        self, is_scanner_blue: bool
+    ) -> list[IntelDetection]:
+        """
+        Calculate intel detections at the current time step.
+        Each intel sensor reports the ground truth of its trajectory's target.
+
+        Parameters
+        ----------
+        is_scanner_blue: bool
+            Whether the scanning part ("hunter") is blue; otherwise it is red
+        """
+        detections: list[IntelDetection] = []
+        sensors = (
+            self._blue_intel_sensors if is_scanner_blue else self._red_intel_sensors
+        )
+        for sensor in sensors:
+            target = sensor.detect(self._t)
+            if target is not None:
+                detections.append(
+                    IntelDetection(
+                        detection_id=self._detection_id,
+                        time=self._t,
+                        target=target,
+                        sigma=sensor.sigma,
+                    )
+                )
+                self._detection_id += 1
         return detections
 
     def _calculate_visual_detections(self, is_scanner_blue: bool) -> list[PetDetection]:
@@ -703,10 +737,12 @@ class Simulator(Trigger, AbstractEventListener):
         self._blue_monostatic_radars = self._blue_controller.monostatic_sensors
         self._blue_pcl_sensors = self._blue_controller.pcl_sensors
         self._blue_visual_sensors = self._blue_controller.visual_sensors
+        self._blue_intel_sensors = self._blue_controller.intel_sensors
         self._blue_targets = self._blue_controller.targets
         self._red_monostatic_radars = self._red_controller.monostatic_sensors
         self._red_pcl_sensors = self._red_controller.pcl_sensors
         self._red_visual_sensors = self._red_controller.visual_sensors
+        self._red_intel_sensors = self._red_controller.intel_sensors
         self._red_targets = self._red_controller.targets
 
         self._blue_pet_receivers = self._blue_controller.pet_receivers
@@ -763,6 +799,8 @@ class Simulator(Trigger, AbstractEventListener):
         red_pet_detections = self._calculate_pet_detections(is_scanner_blue=False)
         blue_visual_detections = self._calculate_visual_detections(is_scanner_blue=True)
         red_visual_detections = self._calculate_visual_detections(is_scanner_blue=False)
+        blue_intel_detections = self._calculate_intel_detections(is_scanner_blue=True)
+        red_intel_detections = self._calculate_intel_detections(is_scanner_blue=False)
 
         # Track.
         self._blue_tracker.add_detections(
@@ -770,6 +808,7 @@ class Simulator(Trigger, AbstractEventListener):
             blue_pcl_detections,
             blue_pet_detections,
             blue_visual_detections,
+            blue_intel_detections,
             self._id_provider,
         )
         self._red_tracker.add_detections(
@@ -777,6 +816,7 @@ class Simulator(Trigger, AbstractEventListener):
             red_pcl_detections,
             red_pet_detections,
             red_visual_detections,
+            red_intel_detections,
             self._id_provider,
         )
 

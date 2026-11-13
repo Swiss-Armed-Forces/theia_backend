@@ -59,5 +59,6 @@ class LivingController(Controller, Generic[T]):
         self.targets = self.child.targets if self._is_alive else []
         self.pet_receivers = self.child.pet_receivers if self._is_alive else []
         self.visual_sensors = self.child.visual_sensors if self._is_alive else []
+        self.intel_sensors = self.child.intel_sensors if self._is_alive else []
         self.firing_effectors = self.child.firing_effectors if self._is_alive else []
         self.geojson = self.child.geojson if self._is_alive else {}
