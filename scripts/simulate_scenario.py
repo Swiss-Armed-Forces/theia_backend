@@ -4,13 +4,12 @@ import math
 import pathlib
 import sys
 
-from tqdm import tqdm
 import uvicorn
+from tqdm import tqdm
 
 from theia.simulation.scenario_import import ScenarioFactory
 from theia.simulation.server import create_app
 from theia.simulation.simulation_director import SimulationDirector
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -48,9 +47,12 @@ if __name__ == "__main__":
         # properly so that the log file is written.
         director.stop()
     else:
-        n_iterations = math.ceil(
-            (scenario.stop_time - scenario.start_time).seconds / scenario.time_step
-        ) + 2
+        n_iterations = (
+            math.ceil(
+                (scenario.stop_time - scenario.start_time).seconds / scenario.time_step
+            )
+            + 2
+        )
 
         if args.profile:
             profiler = cProfile.Profile()
