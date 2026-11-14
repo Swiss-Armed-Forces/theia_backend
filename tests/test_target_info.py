@@ -4,6 +4,7 @@ import unittest
 import pydantic
 
 from theia.types import (
+    AIRBORNE_CATEGORIES,
     ConstantRcsModel,
     Party,
     Point,
@@ -84,6 +85,123 @@ class TargetInfoTest(unittest.TestCase):
             TargetInfo.model_validate_json(info.model_dump_json()),
             info,
         )
+
+
+class IsAirborneTest(unittest.TestCase):
+    _TEMPLATE = "102x1000000000000000"
+    _AIRBORNE = {
+        TargetCategory.INTERCEPTOR,
+        TargetCategory.DRONE_CLASS_I,
+        TargetCategory.DRONE_CLASS_II,
+        TargetCategory.DRONE_CLASS_III,
+        TargetCategory.SHORT_RANGE_BALLISTIC_MISSILE,
+        TargetCategory.MEDIUM_RANGE_BALLISTIC_MISSILE,
+        TargetCategory.INTERMEDIATE_RANGE_BALLISTIC_MISSILE,
+        TargetCategory.CRUISE_MISSILE,
+        TargetCategory.FIGHTER_JET,
+    }
+
+    def test_airborne_categories(self):
+        self.assertEqual(AIRBORNE_CATEGORIES, self._AIRBORNE)
+
+    def test_default_per_category(self):
+        for category in TargetCategory:
+            with self.subTest(category=category):
+                info = TargetInfo(sidc_template=self._TEMPLATE, category=category)
+                self.assertEqual(info.is_airborne, category in self._AIRBORNE)
+                self.assertEqual(
+                    TargetInfos.for_category(category).is_airborne,
+                    category in self._AIRBORNE,
+                )
+
+    def test_default_without_category(self):
+        self.assertFalse(TargetInfo(sidc_template=self._TEMPLATE).is_airborne)
+
+    def test_explicit_value_wins(self):
+        grounded_jet = TargetInfo(
+            sidc_template=self._TEMPLATE,
+            category=TargetCategory.FIGHTER_JET,
+            is_airborne=False,
+        )
+        self.assertFalse(grounded_jet.is_airborne)
+        flying_unknown = TargetInfo(
+            sidc_template=self._TEMPLATE,
+            category=TargetCategory.UNKNOWN,
+            is_airborne=True,
+        )
+        self.assertTrue(flying_unknown.is_airborne)
+
+    def test_catalog(self):
+        self.assertTrue(TargetInfos.FIXED_WING.is_airborne)
+        self.assertTrue(TargetInfos.INTERCEPTOR.is_airborne)
+        for info in (
+            TargetInfos.UNKNOWN,
+            TargetInfos.RADAR,
+            TargetInfos.PCL_RECEIVER,
+            TargetInfos.TRANSMITTER,
+            TargetInfos.GBAD,
+            TargetInfos.CRITICAL_INFRASTRUCTURE,
+            TargetInfos.AIRPORT,
+        ):
+            with self.subTest(info=info):
+                self.assertFalse(info.is_airborne)
+
+    def test_with_party_keeps_value(self):
+        self.assertTrue(TargetInfos.FIXED_WING.with_party(Party.RED).is_airborne)
+        grounded = TargetInfos.FIXED_WING.model_copy(update={"is_airborne": False})
+        self.assertFalse(grounded.with_party(Party.BLUE).is_airborne)
+
+    def test_json_round_trip(self):
+        grounded = TargetInfos.FIXED_WING.model_copy(update={"is_airborne": False})
+        for info in (TargetInfos.FIXED_WING.with_party(Party.RED), grounded):
+            with self.subTest(info=info):
+                data = info.model_dump(mode="json")
+                self.assertEqual(data["is_airborne"], info.is_airborne)
+                self.assertEqual(
+                    TargetInfo.model_validate_json(info.model_dump_json()), info
+                )
+
+    def test_dict_without_key(self):
+        info = TargetInfo.model_validate(
+            {"sidc_template": self._TEMPLATE, "category": TargetCategory.CRUISE_MISSILE}
+        )
+        self.assertTrue(info.is_airborne)
+
+    def test_category_as_string(self):
+        info = TargetInfo.model_validate(
+            {"sidc_template": self._TEMPLATE, "category": "DRONE_CLASS_I"}
+        )
+        self.assertTrue(info.is_airborne)
+        info = TargetInfo.model_validate(
+            {"sidc_template": self._TEMPLATE, "category": "GBAD"}
+        )
+        self.assertFalse(info.is_airborne)
+
+    def test_input_dict_not_mutated(self):
+        data = {"sidc_template": self._TEMPLATE, "category": "FIGHTER_JET"}
+        TargetInfo.model_validate(data)
+        self.assertNotIn("is_airborne", data)
+
+    def test_invalid_category_still_rejected(self):
+        with self.assertRaises(pydantic.ValidationError):
+            TargetInfo.model_validate(
+                {"sidc_template": self._TEMPLATE, "category": "SUBMARINE"}
+            )
+
+    def test_instance_passes_through(self):
+        target = get_target(TargetInfos.FIXED_WING)
+        self.assertTrue(target.info.is_airborne)
+
+    def test_legacy_sidc_is_not_airborne(self):
+        self.assertFalse(TargetInfo.from_sidc("10260100001101000000").is_airborne)
+        data = get_target(TargetInfos.UNKNOWN).model_dump(mode="json")
+        del data["info"]
+        data["sidc"] = "10260100001101000000"
+        self.assertFalse(Target.model_validate(data).info.is_airborne)
+
+    def test_json_schema_has_key(self):
+        schema = TargetInfo.model_json_schema()
+        self.assertIn("is_airborne", schema["properties"])
 
 
 class TargetTest(unittest.TestCase):

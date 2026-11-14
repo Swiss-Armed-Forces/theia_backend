@@ -37,6 +37,26 @@ class TargetCategory(enum.Enum):
     FIGHTER_JET = "FIGHTER_JET"
 
 
+AIRBORNE_CATEGORIES: frozenset[TargetCategory] = frozenset(
+    {
+        TargetCategory.INTERCEPTOR,
+        TargetCategory.DRONE_CLASS_I,
+        TargetCategory.DRONE_CLASS_II,
+        TargetCategory.DRONE_CLASS_III,
+        TargetCategory.SHORT_RANGE_BALLISTIC_MISSILE,
+        TargetCategory.MEDIUM_RANGE_BALLISTIC_MISSILE,
+        TargetCategory.INTERMEDIATE_RANGE_BALLISTIC_MISSILE,
+        TargetCategory.CRUISE_MISSILE,
+        TargetCategory.FIGHTER_JET,
+    }
+)
+"""
+Categories whose entities are airborne by default.
+
+Used to derive `TargetInfo.is_airborne` when it is not given explicitly.
+"""
+
+
 class Party(enum.Enum):
     """Party a target belongs to."""
 
@@ -90,6 +110,24 @@ class TargetInfo(pydantic.BaseModel):
     tags: frozenset[str] = frozenset()
     """Mission- or controller-specific information."""
     party: Party = Party.UNKNOWN
+    is_airborne: bool
+    """
+    Whether the entity is currently in the air.
+
+    The category alone is not enough: e.g. a fighter jet on the ground is not
+    airborne. Defaults to membership of `category` in `AIRBORNE_CATEGORIES`.
+    """
+
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def _default_is_airborne(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or "is_airborne" in data:
+            return data
+        try:
+            category = TargetCategory(data.get("category", TargetCategory.UNKNOWN))
+        except ValueError:
+            return data  # Let the field validation report the invalid category.
+        return {**data, "is_airborne": category in AIRBORNE_CATEGORIES}
 
     @pydantic.field_validator("sidc_template")
     @classmethod
