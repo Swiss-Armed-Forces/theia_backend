@@ -12,8 +12,16 @@ from theia.types import (
 
 
 class ControllerGroup(Controller, AbstractEventListener):
-    def __init__(self, controllers: list[Controller]):
-        super().__init__()
+    def __init__(self, controllers: list[Controller], **data):
+        """
+        Parameters
+        ----------
+        controllers: list[Controller]
+            Initial children.
+        **data:
+            Values of pydantic fields declared by subclasses.
+        """
+        super().__init__(**data)
         self._controllers = controllers
         self._relais = EventRelais()
         for c in controllers:
