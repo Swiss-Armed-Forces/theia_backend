@@ -26,7 +26,10 @@ class StaticGbadController(Controller):
     projectile rather than resolving damage immediately (real-world examples
     being the IRIS-T SL or the MIM-104 Patriot launcher families).
 
-    This controller attacks only the assigned track.
+    This controller attacks only the assigned track, and only if that track
+    is airborne (``track.target_info.is_airborne``); otherwise no shot is
+    offered. A GBAD cannot engage ground targets (e.g. a Patriot launcher
+    cannot engage a fighter jet on the ground).
 
     Notes
     -----
@@ -88,13 +91,12 @@ class StaticGbadController(Controller):
                 ),
                 None,
             )
-            if track is not None:
+            # Never engage a track on the ground (see class docstring).
+            if track is not None and track.target_info.is_airborne:
                 # Queried at situational_picture.time, not +dt.
                 # See "Fight before updating the world" in Simulator.advance.
                 x, vx, y, vy, z, vz = track(situational_picture.time)
-                lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(
-                    x, y, z
-                )
+                lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
                 target_position = Point(lat=lat, lon=lon, alt=alt)
 
                 if isinstance(self.effector, DirectFireEffector):

@@ -13,6 +13,7 @@ from theia.types import (
     Point,
     SituationalPicture,
     Target,
+    TargetInfo,
     TargetInfos,
     Track,
     Velocity,
@@ -42,10 +43,16 @@ t0 = datetime.datetime.fromtimestamp(0)
 t1 = datetime.datetime.fromtimestamp(1)
 
 
-def get_situational_picture_in_range() -> SituationalPicture:
+GROUNDED_JET = TargetInfos.FIXED_WING.model_copy(update={"is_airborne": False})
+"""A fighter jet on the ground: never to be engaged by a GBAD."""
+
+
+def get_situational_picture_in_range(
+    info: TargetInfo = TargetInfos.FIXED_WING,
+) -> SituationalPicture:
     track = Track(
         id="0",
-        target_info=TargetInfos.UNKNOWN,
+        target_info=info,
         states=[
             (
                 t0,
@@ -60,7 +67,7 @@ def get_situational_picture_in_range() -> SituationalPicture:
     # Used to check whether the controller just takes the first track or actually searches.
     red_herring = Track(
         id="1",
-        target_info=TargetInfos.UNKNOWN,
+        target_info=TargetInfos.FIXED_WING,
         states=[
             (
                 t0,
@@ -178,6 +185,14 @@ class StaticGbadControllerDirectFireTest(unittest.TestCase):
         self.assertAlmostEqual(p.lon, 8.53707)
         self.assertAlmostEqual(p.alt, 1000.0)
 
+    def test_assigned_ground_track_is_not_engaged(self):
+        for info in (TargetInfos.UNKNOWN, GROUNDED_JET):
+            with self.subTest(info=info):
+                controller = get_direct_controller("0")
+                picture = get_situational_picture_in_range(info)
+                controller.update(picture, datetime.timedelta(seconds=1))
+                self.assertEqual(controller.firing_effectors, [])
+
     def test_as_target(self):
         controller = get_direct_controller(None)
         picture = get_situational_picture_in_range()
@@ -228,6 +243,15 @@ class StaticGbadControllerIndirectFireTest(unittest.TestCase):
         self.assertAlmostEqual(p.lat, 47.37348)
         self.assertAlmostEqual(p.lon, 8.53707)
         self.assertAlmostEqual(p.alt, 1000.0)
+
+    def test_assigned_ground_track_is_not_engaged(self):
+        for info in (TargetInfos.UNKNOWN, GROUNDED_JET):
+            with self.subTest(info=info):
+                controller = get_indirect_controller("0")
+                picture = get_situational_picture_in_range(info)
+                controller.update(picture, datetime.timedelta(seconds=1))
+                self.assertEqual(controller.firing_effectors, [])
+                self.assertIsNone(controller.effector.assigned_track_id)
 
     def test_as_target(self):
         controller = get_indirect_controller(None)

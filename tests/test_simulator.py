@@ -285,7 +285,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
         # correspond to multiple targets, or to clutter).
         track = Track(
             id="6",
-            target_info=TargetInfos.UNKNOWN,
+            target_info=TargetInfos.FIXED_WING.with_party(Party.RED),
             states=[
                 (t0, np.array([x, 0.0, y, 0.0, z, 0.0])),
                 (
@@ -411,7 +411,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
         )
         track = Track(
             id="6",
-            target_info=TargetInfos.UNKNOWN,
+            target_info=TargetInfos.FIXED_WING.with_party(Party.RED),
             states=[
                 (t0, np.array([x, 0.0, y, 0.0, z, 0.0])),
                 (
@@ -534,7 +534,7 @@ class TrackingErrorWastesAmmoTest(unittest.TestCase):
         )
         track = Track(
             id="9",
-            target_info=TargetInfos.UNKNOWN,
+            target_info=TargetInfos.FIXED_WING.with_party(Party.RED),
             states=[
                 (t0, np.array([x, 0.0, y, 0.0, z, 0.0])),
                 (

@@ -15,6 +15,12 @@ class StaticGbadCoordinator(ControllerGroup):
     """
     Assigns each track to the closest effector.
 
+    Only airborne tracks (``track.target_info.is_airborne``) are assigned.
+    Tracks on the ground are never assigned, even if they are the only or
+    closest track in range and line of sight. A GBAD cannot engage ground
+    targets (e.g. a Patriot launcher cannot engage a fighter jet on the
+    ground).
+
     Target assignment is assumed to be instantaneous, i. e. the effector can
     fire in the same turn as it is assigned a new target.
     """
@@ -33,6 +39,8 @@ class StaticGbadCoordinator(ControllerGroup):
         for c in self._controllers:
             c.child.assigned_track_id = None
         for track in tracks:
+            if not track.target_info.is_airborne:
+                continue
             x, vx, y, vy, z, vz = track(situational_picture.time)
             lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
             min_d = np.inf

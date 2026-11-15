@@ -14,6 +14,7 @@ from theia.types import (
     Party,
     Point,
     SituationalPicture,
+    TargetInfo,
     TargetInfos,
     Track,
 )
@@ -47,12 +48,18 @@ class FlatTerrain(AbstractTerrainModel):
         return p1 not in self.blocked and p2 not in self.blocked
 
 
-def get_track(track_id: str, p: Point) -> Track:
+AIRBORNE = TargetInfos.FIXED_WING
+"""Airborne track info; GBADs engage airborne tracks only."""
+GROUND = TargetInfos.UNKNOWN
+"""Non-airborne track info (legacy/UNKNOWN infos are not airborne)."""
+
+
+def get_track(track_id: str, p: Point, info: TargetInfo = AIRBORNE) -> Track:
     x, y, z = CoordinateTransformations.geodetic_to_cartesian(p.lat, p.lon, p.alt)
     state = np.array([x, 0.0, y, 0.0, z, 0.0])
     return Track(
         id=track_id,
-        target_info=TargetInfos.UNKNOWN,
+        target_info=info,
         states=[(t0, state), (t1, state)],
     )
 
@@ -228,6 +235,52 @@ class StaticGbadCoordinatorTest(unittest.TestCase):
         firing = list(coordinator.firing_effectors)
         self.assertEqual(len(firing), 1)
         self.assertIs(firing[0][0], far.child.effector)
+
+
+class StaticGbadCoordinatorAirborneOnlyTest(unittest.TestCase):
+    def test_only_ground_track_is_not_assigned(self):
+        terrain = FlatTerrain()
+        c = get_controller(1, P_NEAR, terrain)
+        coordinator = StaticGbadCoordinator([c], terrain)
+
+        coordinator.update(get_picture([get_track("g", P_TRACK, GROUND)]), dt)
+
+        self.assertIsNone(assigned(c))
+        self.assertEqual(list(coordinator.firing_effectors), [])
+
+    def test_closest_ground_track_is_skipped_airborne_one_assigned(self):
+        # The ground track is closer to the only effector than the airborne
+        # one, and both are in range and LOS. It comes last, so it would
+        # overwrite the airborne track's assignment if it were not skipped.
+        terrain = FlatTerrain()
+        c = get_controller(1, P_NEAR, terrain)
+        coordinator = StaticGbadCoordinator([c], terrain)
+
+        coordinator.update(
+            get_picture(
+                [
+                    get_track("a", P_OTHER_TRACK, AIRBORNE),
+                    get_track("g", P_TRACK, GROUND),
+                ]
+            ),
+            dt,
+        )
+
+        self.assertEqual(assigned(c), "a")
+        firing = list(coordinator.firing_effectors)
+        self.assertEqual(len(firing), 1)
+        self.assertAlmostEqual(firing[0][1].lon, P_OTHER_TRACK.lon)
+
+    def test_fighter_jet_on_the_ground_is_not_assigned(self):
+        terrain = FlatTerrain()
+        c = get_controller(1, P_NEAR, terrain)
+        coordinator = StaticGbadCoordinator([c], terrain)
+        grounded_jet = TargetInfos.FIXED_WING.model_copy(update={"is_airborne": False})
+
+        coordinator.update(get_picture([get_track("j", P_TRACK, grounded_jet)]), dt)
+
+        self.assertIsNone(assigned(c))
+        self.assertEqual(list(coordinator.firing_effectors), [])
 
 
 if __name__ == "__main__":
