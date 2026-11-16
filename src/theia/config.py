@@ -101,3 +101,10 @@ FRONTEND_URL = "http://localhost:5173"
 
 UNKNOWN_ID = -1
 UNKNOWN_TIME = datetime.datetime.fromtimestamp(0, datetime.UTC)
+UNKNOWN_RCS = -1.0
+"""
+Radar cross section [m^2] of a target whose RCS is unknown, e.g. a target
+revealed by intel.
+
+Negative, so it cannot be mistaken for a physical value.
+"""
