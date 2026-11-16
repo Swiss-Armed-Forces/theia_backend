@@ -42,6 +42,10 @@ from theia.simulation.controllers.monostatic_radar_controller import (
 from theia.simulation.controllers.static_gbad_controller import StaticGbadController
 from theia.simulation.controllers.static_gbad_coordinator import StaticGbadCoordinator
 from theia.simulation.damage_model import AbstractDamageModel, UniformDamageModel
+from theia.simulation.path_generators import (
+    build_trajectory,
+    convert_to_geodetic,
+)
 from theia.simulation.simulator import Simulator, TimeCriterion
 from theia.simulation.theia_logging import (
     CompositeSimulationListener,
@@ -750,12 +754,12 @@ class BallisticMissileFactory(pydantic.BaseModel):
     target_id: int
     effector_id: int
     rcs: float
-    alpha: Optional[float] = 45.0
+    alpha: float | None = 45.0
     """Launch angle w. r. t. LOS [°]"""
     category: TargetCategory = TargetCategory.SHORT_RANGE_BALLISTIC_MISSILE
 
     def model_post_init(self, __context):
-        self._v0, self._times, self._trajectory_data = _build_trajectory(
+        self._v0, self._times, self._trajectory_data = build_trajectory(
             np.deg2rad(self.alpha),
             self.p_start,
             self.p_stop,
@@ -780,7 +784,7 @@ class BallisticMissileFactory(pydantic.BaseModel):
         return LivingController(child=bm, target_id=bm.trajectory.target_id)
 
     def get_trajectory(self, is_blue: bool) -> Trajectory:
-        points = _convert_to_geodetic(self.p_start, self.p_stop, self._trajectory_data)
+        points = convert_to_geodetic(self.p_start, self.p_stop, self._trajectory_data)
         return Trajectory(
             target_id=self.target_id,
             target_info=TargetInfos.for_category(self.category).with_party(
@@ -952,68 +956,6 @@ class CruiseMissileFactory(pydantic.BaseModel):
         )
 
 
-def _build_trajectory(alpha: float, p_start: Point, p_stop: Point, dt: int = 1):
-    """
-    Calculate a ballistic trajectory that connects the start and stop point.
-
-    The only force considered is gravity.
-
-    Parameters
-    ----------
-    alpha: float
-        Start angle of the ballistic motion [rad] in the 2D coordinate system
-        (see "Returns")
-    p_start: Point
-        Start point of the trajectory
-    p_stop: Point
-        Stop point of the trajectory
-    dt: int
-        Number of seconds to use for representing the trajectory
-
-    Returns
-    -------
-    v0: float
-        Initial velocity [m/s]
-    times: np.ndarray
-        Time steps of the trajectory [s]. Shape (N,).
-    trajectory: np.ndarray
-        Points along the trajectory at 10s resolution. Shape (N, 2).
-        Column 0 contains the horizontal component, column 1 the vertical component
-        of the trajectory.
-        The coordinate system is spanned by the LOS from start to end point and
-        the parto of radial direction at the start point that is orthogonal to the LOS.
-    """
-    distance = line_of_sight_distance(*p_start.as_tuple(), *p_stop.as_tuple())
-
-    p_start_ecef = np.array(
-        CoordinateTransformations.geodetic_to_cartesian(*p_start.as_tuple())
-    )
-    p_stop_ecef = np.array(
-        CoordinateTransformations.geodetic_to_cartesian(*p_stop.as_tuple())
-    )
-    direction = p_stop_ecef - p_start_ecef
-    direction /= np.linalg.norm(direction)
-
-    v0 = np.sqrt(9.81 * distance / (2 * np.cos(alpha) * np.sin(alpha)))
-    t_stop = 2 * np.sin(alpha) * v0 / 9.81
-
-    times = np.arange(0, t_stop, dt).tolist() + [t_stop]
-    xs = []
-    ys = []
-    for t in times:
-        x = np.cos(alpha) * v0 * t
-        y = np.sin(alpha) * v0 * t - 0.5 * 9.81 * t**2
-        xs.append(x)
-        ys.append(y)
-
-    if t_stop % 1 != 0:
-        times.append(np.ceil(t_stop))
-        xs.append(xs[-1])
-        ys.append(ys[-1])
-
-    return v0, times, np.vstack([xs, ys]).T
-
-
 def _build_earth_curvature(p_start, p_stop, altitude=0):
     distance = line_of_sight_distance(*p_start.as_tuple(), *p_stop.as_tuple())
 
@@ -1035,32 +977,6 @@ def _build_earth_curvature(p_start, p_stop, altitude=0):
         ys.append(y)
 
     return np.vstack([xs, ys]).T
-
-
-def _convert_to_geodetic(
-    p_start: Point,
-    p_stop: Point,
-    trajectory: np.ndarray,
-) -> list[Point]:
-    p_start_ecef = np.array(
-        CoordinateTransformations.geodetic_to_cartesian(*p_start.as_tuple())
-    )
-    p_stop_ecef = np.array(
-        CoordinateTransformations.geodetic_to_cartesian(*p_stop.as_tuple())
-    )
-
-    x_direction = p_stop_ecef - p_start_ecef
-    x_direction /= np.linalg.norm(x_direction)
-    y_direction = p_start_ecef / np.linalg.norm(p_start_ecef)
-    y_direction -= np.dot(x_direction, y_direction) * x_direction
-    assert np.isclose(np.dot(x_direction, y_direction), 0)
-
-    points: list[Point] = []
-    for x, y in trajectory:
-        p_ecef = p_start_ecef + x * x_direction + y * y_direction
-        p = CoordinateTransformations.cartesian_to_geodetic(*p_ecef)
-        points.append(Point(lat=p[0], lon=p[1], alt=p[2]))
-    return points
 
 
 def build_scenario(
