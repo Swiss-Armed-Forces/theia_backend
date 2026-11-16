@@ -49,6 +49,7 @@ from theia.types import (
     PetMeasurementModel,
     PetSensor,
     Receiver,
+    SimulationContext,
     SituationalPicture,
     Snapshot,
     Target,
@@ -191,6 +192,11 @@ class Simulator(Trigger, AbstractEventListener):
         # Allow external reaction to simulation events.
         # Useful e. g. to expose simulation state to an API.
         self.set_listener(listener)
+
+        # Give the controllers access to this simulation's context.
+        context = SimulationContext(id_provider=self._id_provider)
+        self._blue_controller.bind(context)
+        self._red_controller.bind(context)
 
         # Broadcast events to controllers.
         self.register_event_listener(self._blue_controller)

@@ -7,6 +7,7 @@ from theia.types import (
     Event,
     EventRelais,
     GeoJSONFeature,
+    SimulationContext,
     SituationalPicture,
 )
 
@@ -27,6 +28,10 @@ class GeoJsonController(Controller, pydantic.BaseModel):
 
     def register_event_listener(self, listener):
         self._relais.register_event_listener(listener)
+
+    def bind(self, context: SimulationContext):
+        super().bind(context)
+        self.child.bind(context)
 
     def add_controller(self, controller: Controller):
         self.child.add_controller(controller)

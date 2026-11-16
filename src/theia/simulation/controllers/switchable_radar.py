@@ -7,6 +7,7 @@ from theia.types import (
     Controller,
     Event,
     EventRelais,
+    SimulationContext,
     SituationalPicture,
 )
 
@@ -30,6 +31,10 @@ class SwitchableMonostaticRadarController(Controller):
         super().model_post_init(context)
         self._relais = EventRelais()
         self.child.register_event_listener(self._relais)
+
+    def bind(self, context: SimulationContext):
+        super().bind(context)
+        self.child.bind(context)
 
     def on_event(self, event: Event):
         self.child.on_event(event)

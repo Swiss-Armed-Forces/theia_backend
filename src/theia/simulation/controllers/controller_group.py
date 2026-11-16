@@ -7,6 +7,7 @@ from theia.types import (
     Controller,
     Event,
     EventRelais,
+    SimulationContext,
     SituationalPicture,
 )
 
@@ -27,9 +28,16 @@ class ControllerGroup(Controller, AbstractEventListener):
         for c in controllers:
             c.register_event_listener(self._relais)
 
+    def bind(self, context: SimulationContext):
+        super().bind(context)
+        for c in self._controllers:
+            c.bind(context)
+
     def add_controller(self, controller: Controller):
         self._controllers.append(controller)
         controller.register_event_listener(self._relais)
+        if self._simulation_context is not None:
+            controller.bind(self._simulation_context)
 
     def update(self, situational_picture: SituationalPicture, dt: datetime.datetime):
         self._controllers = [

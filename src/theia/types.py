@@ -1681,6 +1681,35 @@ class Controller(
     firing_effectors: list[tuple[AbstractEffector, Point]] = []
     geojson: dict[str, list[GeoJSONFeature]] = {}
 
+    _simulation_context: SimulationContext | None = pydantic.PrivateAttr(default=None)
+
+    def bind(self, context: SimulationContext):
+        """
+        Bind this controller to the simulation it runs in.
+
+        Called by the `Simulator` on its root controllers. Controllers that
+        hold child controllers must override this method and bind their
+        children, too.
+        """
+        self._simulation_context = context
+
+    @property
+    def simulation_context(self) -> SimulationContext:
+        """
+        Context of the simulation this controller runs in.
+
+        Raises
+        ------
+        TheiaException
+            If the controller has not been bound to a simulation yet.
+        """
+        if self._simulation_context is None:
+            raise TheiaException(
+                f"{type(self).__name__} is not bound to a simulation; "
+                "see Controller.bind"
+            )
+        return self._simulation_context
+
     @abc.abstractmethod
     def update(
         self,
@@ -1824,6 +1853,29 @@ class IdProvider:
             raise ValueError(f"Duplicate {entity.name} ID: {id}")
         self._used_ids[entity].add(id)
         self._free_ids[entity] = max(self._free_ids[entity], id + 1)
+
+
+@dataclass(frozen=True)
+class SimulationContext:
+    """
+    Context of a running simulation that controllers may use.
+
+    The `Simulator` binds its context to its root controllers (see
+    `Controller.bind`), so every controller sees the context of the
+    simulation it runs in. The context is not part of a controller's
+    serialised state.
+    """
+
+    id_provider: IdProvider
+    """The simulation's identity provider."""
+
+    def __deepcopy__(self, memo) -> SimulationContext:
+        # Do not copy a SimulationContext.
+        # This function might be called when a Controller is deep-copied, which
+        # would destroy the bindings e. g. of the IdProvider.
+        # A copied IdProvider would hand out IDs that are already in use.
+        # Therefore, a SimulationContext cannot be deepcopied.
+        return self
 
 
 class AbstractTracker(abc.ABC, Trigger):
