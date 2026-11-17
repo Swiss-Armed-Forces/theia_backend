@@ -542,6 +542,22 @@ class CampSite(pydantic.BaseModel):
             party=Party.from_is_blue(is_blue),
         )
 
+
+class TransportTime(pydantic.BaseModel):
+    """
+    One-way route for moving stock between two camp sites.
+
+    A return trip needs its own entry.
+    """
+
+    source_site_id: int
+    target_site_id: int
+    seconds_until_leave: float = pydantic.Field(ge=0)
+    """Time to break camp at the source site [s]"""
+    seconds_underway: float = pydantic.Field(ge=0)
+    """Time in transit [s]"""
+
+
 class MonostaticCoverageCalcSettings(pydantic.BaseModel):
     targetAlt: float
     targetRcs: float
@@ -614,6 +630,8 @@ class OrderOfBattle(pydantic.BaseModel):
     cruise_missiles: list[CruiseMissileFactory] = []
     camp_sites: list[CampSite] = []
     """Sites with counted stock."""
+    transport_times: list[TransportTime] = []
+    """Routes along which stock can be moved between camp sites"""
     unused_id_sensor: int
     unused_id_receiver: int
     unused_id_transmitter: int
@@ -632,7 +650,22 @@ class OrderOfBattle(pydantic.BaseModel):
             if site.id in sites:
                 raise ValueError(f"Duplicate camp site ID: {site.id}")
             sites[site.id] = site
+        for route in self.transport_times:
+            for site_id in (route.source_site_id, route.target_site_id):
+                if site_id not in sites:
+                    raise ValueError(
+                        f"Transport route refers to unknown camp site {site_id}"
+                    )
+            source = sites[route.source_site_id]
+            target = sites[route.target_site_id]
+            if source.ammo.type != target.ammo.type:
+                raise ValueError(
+                    f"Transport route {source.id} -> {target.id} connects "
+                    f"different ammunition types ({source.ammo.type} and "
+                    f"{target.ammo.type})"
+                )
         return self
+
     @staticmethod
     def from_file(orbat_file: str) -> OrderOfBattle:
         with open(orbat_file, "r") as file:
@@ -803,6 +836,9 @@ class OrderOfBattle(pydantic.BaseModel):
             site_id_mapping[site.id] = id_provider.increment(Entity.CAMP_SITE)
             site.id = site_id_mapping[site.id]
             site.target_id = id_provider.increment(Entity.TARGET)
+        for route in self.transport_times:
+            route.source_site_id = site_id_mapping[route.source_site_id]
+            route.target_site_id = site_id_mapping[route.target_site_id]
 
     def _trajectory_time_spans(
         self,
@@ -848,6 +884,7 @@ class OrderOfBattle(pydantic.BaseModel):
             + orbat2.critical_infrastructure,
             cruise_missiles=orbat1.cruise_missiles + orbat2.cruise_missiles,
             camp_sites=orbat1.camp_sites + orbat2.camp_sites,
+            transport_times=orbat1.transport_times + orbat2.transport_times,
             unused_id_sensor=id_provider.increment(Entity.SENSOR),
             unused_id_receiver=id_provider.increment(Entity.RECEIVER),
             unused_id_transmitter=id_provider.increment(Entity.TRANSMITTER),

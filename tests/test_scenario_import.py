@@ -724,6 +724,14 @@ def get_game_orbat() -> OrderOfBattle:
         get_camp_site(1, 20),
         get_camp_site(2, 21, can_launch=False, n_ammo=50),
     ]
+    orbat.transport_times = [
+        TransportTime(
+            source_site_id=2,
+            target_site_id=1,
+            seconds_until_leave=60.0,
+            seconds_underway=600.0,
+        )
+    ]
     return orbat
 
 
@@ -734,6 +742,7 @@ class OrderOfBattleCampSitesTest(unittest.TestCase):
             del data[key]
         orbat = OrderOfBattle.model_validate(data)
         self.assertEqual(orbat.camp_sites, [])
+        self.assertEqual(orbat.transport_times, [])
         self.assertFalse(orbat.is_user_controlled)
 
     def test_round_trip(self):
@@ -760,11 +769,25 @@ class OrderOfBattleCampSitesTest(unittest.TestCase):
         data["camp_sites"][1]["id"] = 1
         with self.assertRaises(pydantic.ValidationError):
             OrderOfBattle.model_validate(data)
+
+    def test_route_to_unknown_site_is_rejected(self):
+        data = get_game_orbat().model_dump(mode="json")
+        data["transport_times"][0]["target_site_id"] = 99
+        with self.assertRaises(pydantic.ValidationError):
+            OrderOfBattle.model_validate(data)
+
     def test_negative_stock_is_rejected(self):
         data = get_game_orbat().model_dump(mode="json")
         data["camp_sites"][0]["n_ammo"] = -1
         with self.assertRaises(pydantic.ValidationError):
             OrderOfBattle.model_validate(data)
+
+    def test_route_between_different_ammo_types_is_rejected(self):
+        data = get_game_orbat().model_dump(mode="json")
+        data["camp_sites"][0]["ammo"] = {"type": "ballistic_missile", "rcs": 1.0}
+        with self.assertRaises(pydantic.ValidationError):
+            OrderOfBattle.model_validate(data)
+
     def test_update_id_provider_registers_site_target_ids(self):
         id_provider = IdProvider()
         get_game_orbat().update_id_provider(id_provider)
@@ -788,16 +811,31 @@ class OrderOfBattleCampSitesTest(unittest.TestCase):
         orbat = get_game_orbat()
         orbat.reindex(id_provider)
         self.assertEqual([s.id for s in orbat.camp_sites], [3, 4])
+        # The route still leads from the depot (formerly 2) to the launch site
+        # (formerly 1).
+        self.assertEqual(
+            [(r.source_site_id, r.target_site_id) for r in orbat.transport_times],
+            [(4, 3)],
+        )
 
     def test_merge_keeps_camp_sites(self):
         merged = OrderOfBattle.merge(get_game_orbat(), get_order_of_battle([]))
         self.assertEqual(len(merged.camp_sites), 2)
+        self.assertEqual(len(merged.transport_times), 1)
         self.assertEqual(merged.unused_id_camp_site, 3)
 
     def test_merge_renumbers_camp_sites_of_second_orbat(self):
         merged = OrderOfBattle.merge(get_game_orbat(), get_game_orbat())
         self.assertEqual([s.id for s in merged.camp_sites], [1, 2, 3, 4])
+        self.assertEqual(
+            [(r.source_site_id, r.target_site_id) for r in merged.transport_times],
+            [(2, 1), (4, 3)],
+        )
         sites = {s.id: s for s in merged.camp_sites}
+        for route in merged.transport_times:
+            with self.subTest(route=route):
+                self.assertFalse(sites[route.source_site_id].can_launch)
+                self.assertTrue(sites[route.target_site_id].can_launch)
         self.assertEqual(merged.unused_id_camp_site, 5)
 
     def _load(self, data: dict) -> OrderOfBattle:
