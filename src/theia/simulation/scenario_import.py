@@ -791,7 +791,7 @@ class BallisticMissileFactory(pydantic.BaseModel):
                 Party.from_is_blue(is_blue)
             ),
             times=[
-                datetime.datetime.fromtimestamp(t, tz=datetime.UTC) for t in self._times
+                self.t_start + datetime.timedelta(seconds=float(t)) for t in self._times
             ],
             lats=[p.lat for p in points],
             lons=[p.lon for p in points],

@@ -391,14 +391,18 @@ class OrderOfBattleMergeTest(unittest.TestCase):
         merged1, merged2 = result.ballistic_missiles
 
         def without_ids(dump: dict) -> dict:
-            return {k: v for k, v in dump.items() if k not in ("target_id", "effector_id")}
+            return {
+                k: v for k, v in dump.items() if k not in ("target_id", "effector_id")
+            }
 
         # orbat1's missile is carried over unchanged, including its ids.
         self.assertEqual(merged1.model_dump(), missile1_before)
 
         # orbat2's missile keeps every field (start/stop points, launch time,
         # terrain, rcs, alpha) except its ids, which get reindexed.
-        self.assertEqual(without_ids(merged2.model_dump()), without_ids(missile2_before))
+        self.assertEqual(
+            without_ids(merged2.model_dump()), without_ids(missile2_before)
+        )
 
         # Reindexed ids must not collide with orbat1's (or each other's).
         # This means there must be no duplicate IDs.
@@ -481,6 +485,19 @@ class BallisticMissileFactoryCategoryTest(unittest.TestCase):
         trajectory = factory.get_trajectory(is_blue=True)
         self.assertEqual(trajectory.target_info.category, TargetCategory.CRUISE_MISSILE)
         self.assertEqual(trajectory.target_info.party, Party.BLUE)
+
+
+class BallisticMissileFactoryTimeTest(unittest.TestCase):
+    def test_trajectory_starts_at_launch_time(self):
+        factory = get_ballistic_missile_factory(1, 2)
+        trajectory = factory.get_trajectory(is_blue=True)
+        self.assertEqual(trajectory.times[0], factory.t_start)
+        self.assertEqual(len(trajectory.times), len(factory._times))
+        # timedelta has a resolution of 1 µs.
+        for time, seconds in zip(trajectory.times, factory._times):
+            self.assertAlmostEqual(
+                (time - factory.t_start).total_seconds(), seconds, delta=1e-6
+            )
 
 
 class CruiseMissileFactoryTest(unittest.TestCase):
