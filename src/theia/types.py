@@ -6,7 +6,7 @@ import datetime
 import enum
 import math
 from dataclasses import dataclass, field
-from typing import Any, Literal, Optional, Self
+from typing import TYPE_CHECKING, Any, Literal, Optional, Self
 
 import numpy as np
 import pydantic
@@ -17,6 +17,9 @@ from scipy.interpolate import BSpline, CubicSpline, make_interp_spline
 
 from theia.config import INTEL_DETECTION_SIGMA, UNKNOWN_ID
 from theia.util import from_dB
+
+if TYPE_CHECKING:
+    from theia.simulation.actions import Action
 
 
 class TargetCategory(enum.Enum):
@@ -1717,6 +1720,17 @@ class Controller(
         dt: datetime.timedelta,
     ):
         raise NotImplementedError()
+
+    def assign_action(self, action: Action) -> bool:
+        """
+        Give an order to this controller.
+
+        Returns
+        -------
+        bool
+            Whether this controller supports actions.
+        """
+        return False
 
 
 class Snapshot(pydantic.BaseModel):

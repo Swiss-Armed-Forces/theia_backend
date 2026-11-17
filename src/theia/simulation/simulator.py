@@ -26,6 +26,7 @@ from theia.effectors import (
     TooManyInFlightException,
 )
 from theia.radar_equation import calculate_maximum_monostatic_range
+from theia.simulation.actions import Action
 from theia.simulation.controllers.homing_effector import HomingSystem
 from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.damage_model import AbstractDamageModel
@@ -243,6 +244,21 @@ class Simulator(Trigger, AbstractEventListener):
             enemy_targets=self._red_tracker.get_tracks(),
         )
 
+    def _root_controller(self, is_blue: bool) -> Controller:
+        return self._blue_controller if is_blue else self._red_controller
+
+    def assign_action(self, is_blue: bool, action: Action) -> bool:
+        """
+        Give an order to a side.
+
+        Returns
+        -------
+        bool
+            Whether the side accepts actions, i. e. whether it is
+            user-controlled. Whether the action is possible is only decided
+            when it is executed; a rejection is reported as an event.
+        """
+        return self._root_controller(is_blue).assign_action(action)
     def take_snapshot(self) -> Snapshot:
         return Snapshot(
             time=self._t,
