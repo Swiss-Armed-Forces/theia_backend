@@ -1809,6 +1809,7 @@ class Entity(enum.Enum):
     SENSOR = 7
     TRANSMITTER = 8
     RECEIVER = 9
+    CAMP_SITE = 10
 
 
 class IdProvider:
@@ -1828,6 +1829,7 @@ class IdProvider:
             Entity.SENSOR: 0,
             Entity.TRANSMITTER: 0,
             Entity.RECEIVER: 0,
+            Entity.CAMP_SITE: 0,
         }
         self._names = {}
         self._used_ids: dict[Entity, set[int]] = {

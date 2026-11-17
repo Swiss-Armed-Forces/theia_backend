@@ -39,6 +39,9 @@ is in the bistatic or the forward scattering regime.
 RCS_FOR_RANGE_CALCULATION = 1.0
 """Radar cross section [m^2] to be used for monostatic range calculations by default."""
 
+BM_COMBAT_RANGE = 100.0
+"""Ballistic missile: distance to its goal within which the missile attacks (detonates) [m]"""
+
 CM_DEFAULT_MIN_FLIGHT_PATH_ANGLE = -10.0
 """Cruise missile: default steepest descent while cruising [°]"""
 CM_DEFAULT_MAX_FLIGHT_PATH_ANGLE = 15.0

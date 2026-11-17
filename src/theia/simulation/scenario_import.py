@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import abc
 import datetime
 import json
-from typing import Literal, Optional
+from typing import Annotated, ClassVar, Literal, Optional
 
 import matplotlib
 import numpy as np
@@ -10,11 +11,13 @@ import pydantic
 
 import theia
 from theia.config import (
+    BM_COMBAT_RANGE,
     CM_COMBAT_RANGE,
     CM_DEFAULT_MAX_FLIGHT_PATH_ANGLE,
     CM_DEFAULT_MIN_FLIGHT_PATH_ANGLE,
     CM_DEFAULT_SAMPLE_SPACING,
     CM_DEFAULT_TERMINAL_DIVE_ANGLE,
+    DRONE_DEFAULT_COMBAT_RANGE,
     TERRAIN_HBV_DATA_DIR,
 )
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
@@ -39,10 +42,18 @@ from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
 )
+from theia.simulation.controllers.player_controller import PlayerController
 from theia.simulation.controllers.static_gbad_controller import StaticGbadController
 from theia.simulation.controllers.static_gbad_coordinator import StaticGbadCoordinator
+from theia.simulation.controllers.switchable_radar import (
+    SwitchableMonostaticRadarController,
+)
 from theia.simulation.damage_model import AbstractDamageModel, UniformDamageModel
 from theia.simulation.path_generators import (
+    BallisticGenerator,
+    ClimbCruiseDiveGenerator,
+    PathGenerator,
+    TerrainFollowingGenerator,
     build_trajectory,
     convert_to_geodetic,
 )
@@ -69,6 +80,7 @@ from theia.types import (
     Point,
     Polarization,
     TargetCategory,
+    TargetInfo,
     TargetInfos,
     Trajectory,
 )
@@ -323,6 +335,213 @@ class CriticalInfrastructureFactory(pydantic.BaseModel):
         return LivingController(child=c, target_id=self.target_id)
 
 
+class _AmmoTemplateBase(pydantic.BaseModel, abc.ABC):
+    """
+    Physical settings of a round, shared by all rounds of a camp site.
+
+    Position, launch time and IDs are only filled in at launch, see
+    :meth:`to_controller`.
+
+    A subclass must implement :meth:`default_path_generator` and the abstract
+    properties, either as a property or as a ``ClassVar`` constant; otherwise
+    it cannot be instantiated.
+    """
+
+    rcs: float
+    """Radar cross section [m^2]"""
+
+    @abc.abstractmethod
+    def default_path_generator(self) -> PathGenerator:
+        """Path generator used when a launch does not specify one."""
+        raise NotImplementedError()
+
+    @property
+    @abc.abstractmethod
+    def round_name(self) -> str:
+        """Name of the round's effector"""
+        raise NotImplementedError()
+
+    @property
+    @abc.abstractmethod
+    def round_speed(self) -> float:
+        """Speed passed to the path generator [m/s]"""
+        raise NotImplementedError()
+
+    @property
+    @abc.abstractmethod
+    def round_combat_range(self) -> float:
+        """Distance to its goal within which the round attacks [m]"""
+        raise NotImplementedError()
+
+    @property
+    @abc.abstractmethod
+    def round_target_info(self) -> TargetInfo:
+        """Target info of the round, without party"""
+        raise NotImplementedError()
+
+    def to_controller(
+        self,
+        target_id: int,
+        effector_id: int,
+        p_start: Point,
+        destination: Point,
+        t_start: datetime.datetime,
+        path_generator: PathGenerator | None,
+        terrain: AbstractTerrainModel,
+        is_blue: bool,
+    ) -> LivingController[FixedPathOneWayDrone]:
+        """
+        Launch a round: build its fixed path and its one-shot effector.
+
+        Raises
+        ------
+        ValueError
+            If no path can be built for the given start and destination.
+        """
+        generator = (
+            self.default_path_generator() if path_generator is None else path_generator
+        )
+        path = generator.generate(
+            p_start,
+            destination,
+            t_start,
+            self.round_speed,
+            terrain,
+        )
+        n = len(path.times)
+        trajectory = Trajectory(
+            target_id=target_id,
+            target_info=self.round_target_info.with_party(Party.from_is_blue(is_blue)),
+            times=path.times,
+            lats=path.lats,
+            lons=path.lons,
+            alts=path.alts,
+            # Velocities are not modelled, like for the scripted rounds.
+            vxs=[0.0] * n,
+            vys=[0.0] * n,
+            vzs=[0.0] * n,
+            cross_section_model=ConstantRcsModel(rcs=self.rcs),
+        )
+        round_controller = FixedPathOneWayDrone(
+            effector=DirectFireEffector(
+                id=effector_id,
+                name=self.round_name,
+                point=p_start,
+                combat_range=self.round_combat_range,
+                n_attacks_left=1,
+                terrain=terrain,
+                # One-shot round - no rate-of-fire limit applies.
+                cadence=float("inf"),
+            ),
+            trajectory=trajectory,
+            assigned_goal=path.end_point,
+            terrain=terrain,
+        )
+        return LivingController(child=round_controller, target_id=target_id)
+
+
+class BallisticMissileTemplate(_AmmoTemplateBase):
+    type: Literal["ballistic_missile"] = "ballistic_missile"
+    category: TargetCategory = TargetCategory.SHORT_RANGE_BALLISTIC_MISSILE
+
+    round_name: ClassVar[str] = "ballistic missile"
+    round_speed: ClassVar[float] = 0.0
+    """The ballistic path follows from the launch angle and the distance."""
+    round_combat_range: ClassVar[float] = BM_COMBAT_RANGE
+
+    def default_path_generator(self) -> PathGenerator:
+        return BallisticGenerator()
+
+    @property
+    def round_target_info(self) -> TargetInfo:
+        return TargetInfos.for_category(self.category)
+
+
+class CruiseMissileTemplate(_AmmoTemplateBase):
+    type: Literal["cruise_missile"] = "cruise_missile"
+    speed: float = pydantic.Field(gt=0)
+    """Constant speed along the path [m/s]"""
+    category: TargetCategory = TargetCategory.CRUISE_MISSILE
+
+    round_name: ClassVar[str] = "cruise missile"
+    round_combat_range: ClassVar[float] = CM_COMBAT_RANGE
+
+    def default_path_generator(self) -> PathGenerator:
+        return TerrainFollowingGenerator()
+
+    @property
+    def round_speed(self) -> float:
+        return self.speed
+
+    @property
+    def round_target_info(self) -> TargetInfo:
+        return TargetInfos.for_category(self.category)
+
+
+class OneWayDroneTemplate(_AmmoTemplateBase):
+    type: Literal["oneway_drone"] = "oneway_drone"
+    speed: float = pydantic.Field(gt=0)
+    """Constant speed along the path [m/s]"""
+    combat_range: float = DRONE_DEFAULT_COMBAT_RANGE
+    """Distance to its goal within which the drone attacks [m]"""
+
+    round_name: ClassVar[str] = "one-way drone"
+
+    def default_path_generator(self) -> PathGenerator:
+        return ClimbCruiseDiveGenerator()
+
+    @property
+    def round_speed(self) -> float:
+        return self.speed
+
+    @property
+    def round_combat_range(self) -> float:
+        return self.combat_range
+
+    @property
+    def round_target_info(self) -> TargetInfo:
+        return TargetInfos.for_category(TargetCategory.DRONE_CLASS_I)
+
+
+AmmoTemplate = Annotated[
+    BallisticMissileTemplate | CruiseMissileTemplate | OneWayDroneTemplate,
+    pydantic.Field(discriminator="type"),
+]
+
+
+class CampSite(pydantic.BaseModel):
+    """
+    Place where a side keeps counted stock of one ammunition type.
+
+    A launch site (``can_launch=True``) can launch its stock; a depot cannot.
+    The site itself is a target: if it is destroyed, its stock is lost.
+    """
+
+    id: int
+    """Camp site ID, unique within the order of battle"""
+    name: str
+    point: Point
+    target_id: int
+    """ID to be used to represent this site as a detectable target"""
+    rcs: float
+    """Radar cross section of the site [m^2]"""
+    n_ammo: int = pydantic.Field(ge=0)
+    """Number of rounds in stock at the start"""
+    ammo: AmmoTemplate
+    can_launch: bool
+    seconds_between_launches: float = pydantic.Field(ge=0)
+    """Reload time between two launches [s]"""
+
+    def target_info(self, is_blue: bool) -> TargetInfo:
+        """Categorical information of the site as a target."""
+        return TargetInfo(
+            sidc_template=TargetInfos.UNKNOWN.sidc_template,
+            tags=frozenset(
+                {"camp_site", "launch_site" if self.can_launch else "depot"}
+            ),
+            party=Party.from_is_blue(is_blue),
+        )
+
 class MonostaticCoverageCalcSettings(pydantic.BaseModel):
     targetAlt: float
     targetRcs: float
@@ -393,12 +612,27 @@ class OrderOfBattle(pydantic.BaseModel):
     ballistic_missiles: list[BallisticMissileFactory]
     critical_infrastructure: list[CriticalInfrastructureFactory] = []
     cruise_missiles: list[CruiseMissileFactory] = []
+    camp_sites: list[CampSite] = []
+    """Sites with counted stock."""
     unused_id_sensor: int
     unused_id_receiver: int
     unused_id_transmitter: int
     unused_id_effector: int
     unused_target_id: int
+    unused_id_camp_site: int = 0
+    """
+    Next free camp site ID. Defaults to 0 for ORBAT files written before camp
+    sites existed, which have none.
+    """
 
+    @pydantic.model_validator(mode="after")
+    def _check_camp_sites(self) -> OrderOfBattle:
+        sites: dict[int, CampSite] = {}
+        for site in self.camp_sites:
+            if site.id in sites:
+                raise ValueError(f"Duplicate camp site ID: {site.id}")
+            sites[site.id] = site
+        return self
     @staticmethod
     def from_file(orbat_file: str) -> OrderOfBattle:
         with open(orbat_file, "r") as file:
@@ -413,6 +647,7 @@ class OrderOfBattle(pydantic.BaseModel):
             and orbat.unused_id_transmitter >= id_provider._free_ids[Entity.TRANSMITTER]
             and orbat.unused_id_effector >= id_provider._free_ids[Entity.EFFECTOR]
             and orbat.unused_target_id >= id_provider._free_ids[Entity.TARGET]
+            and orbat.unused_id_camp_site >= id_provider._free_ids[Entity.CAMP_SITE]
         )
         if not consistent_ids:
             raise ValueError("ORBAT file is inconsistent: Unused IDs are used")
@@ -511,6 +746,9 @@ class OrderOfBattle(pydantic.BaseModel):
         for missile in self.cruise_missiles:
             id_provider.register_entity(Entity.EFFECTOR, missile.effector_id)
             id_provider.register_entity(Entity.TARGET, missile.target_id)
+        for site in self.camp_sites:
+            id_provider.register_entity(Entity.CAMP_SITE, site.id)
+            id_provider.register_entity(Entity.TARGET, site.target_id)
 
     def reindex(self, id_provider: IdProvider):
         sensor_id_mapping: dict[int, int] = {}
@@ -560,6 +798,11 @@ class OrderOfBattle(pydantic.BaseModel):
         for missile in self.cruise_missiles:
             missile.effector_id = id_provider.increment(Entity.EFFECTOR)
             missile.target_id = id_provider.increment(Entity.TARGET)
+        site_id_mapping: dict[int, int] = {}
+        for site in self.camp_sites:
+            site_id_mapping[site.id] = id_provider.increment(Entity.CAMP_SITE)
+            site.id = site_id_mapping[site.id]
+            site.target_id = id_provider.increment(Entity.TARGET)
 
     def _trajectory_time_spans(
         self,
@@ -604,11 +847,13 @@ class OrderOfBattle(pydantic.BaseModel):
             critical_infrastructure=orbat1.critical_infrastructure
             + orbat2.critical_infrastructure,
             cruise_missiles=orbat1.cruise_missiles + orbat2.cruise_missiles,
+            camp_sites=orbat1.camp_sites + orbat2.camp_sites,
             unused_id_sensor=id_provider.increment(Entity.SENSOR),
             unused_id_receiver=id_provider.increment(Entity.RECEIVER),
             unused_id_transmitter=id_provider.increment(Entity.TRANSMITTER),
             unused_id_effector=id_provider.increment(Entity.EFFECTOR),
             unused_target_id=id_provider.increment(Entity.TARGET),
+            unused_id_camp_site=id_provider.increment(Entity.CAMP_SITE),
         )
 
     @staticmethod
@@ -771,7 +1016,7 @@ class BallisticMissileFactory(pydantic.BaseModel):
                 id=self.effector_id,
                 name="ballistic missile",
                 point=self.p_start,
-                combat_range=100.0,
+                combat_range=BM_COMBAT_RANGE,
                 n_attacks_left=1,
                 terrain=self.terrain.to_terrain(),
                 # One-shot missile - no rate-of-fire limit applies.

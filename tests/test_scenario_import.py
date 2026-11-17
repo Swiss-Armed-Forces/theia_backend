@@ -1,28 +1,40 @@
 import datetime
+import json
+import os
+import tempfile
 import unittest
+from typing import ClassVar
 
 import numpy as np
 import pydantic
 
+from theia.config import BM_COMBAT_RANGE, CM_COMBAT_RANGE
 from theia.distance import line_of_sight_distance
 from theia.effectors import DirectFireEffector, IndirectFireEffector
-from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
 from theia.simulation.controllers.critical_infrastructure_controller import (
     CriticalInfrastructureController,
 )
+from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
 from theia.simulation.controllers.living_controller import LivingController
+from theia.simulation.path_generators import BallisticGenerator
 from theia.simulation.scenario_import import (
     BallisticMissileFactory,
+    BallisticMissileTemplate,
+    CampSite,
     CriticalInfrastructureFactory,
     CruiseMissileFactory,
+    CruiseMissileTemplate,
     DirectFireEffectorFactory,
     FixedPathOneWayDroneFactory,
     IndirectFireEffectorFactory,
+    OneWayDroneTemplate,
     OrderOfBattle,
     SimulationResults,
     StaticGbadFactory,
     TerrainFactory,
     Trajectory,
+    TransportTime,
+    _AmmoTemplateBase,
 )
 from theia.terrain import SrtmTerrainModel
 from theia.types import (
@@ -667,7 +679,8 @@ class OrderOfBattleCruiseMissileTest(unittest.TestCase):
                 isinstance(c, LivingController)
                 and isinstance(c.child, FixedPathOneWayDrone)
                 and c.target_id == 1
-                and c.child.trajectory.target_info.category == TargetCategory.CRUISE_MISSILE
+                and c.child.trajectory.target_info.category
+                == TargetCategory.CRUISE_MISSILE
                 for c in children
             )
         )
@@ -685,5 +698,159 @@ class FixedPathOneWayDroneFactoryTest(unittest.TestCase):
         self.assertEqual(factory.trajectory.target_info.party, Party.UNKNOWN)
 
 
+def get_camp_site(
+    site_id: int,
+    target_id: int,
+    ammo=None,
+    n_ammo: int = 5,
+    can_launch: bool = True,
+):
+    return CampSite(
+        id=site_id,
+        name=f"site {site_id}",
+        point=p,
+        target_id=target_id,
+        rcs=10.0,
+        n_ammo=n_ammo,
+        ammo=OneWayDroneTemplate(rcs=0.1, speed=50.0) if ammo is None else ammo,
+        can_launch=can_launch,
+        seconds_between_launches=10.0,
+    )
+
+
+def get_game_orbat() -> OrderOfBattle:
+    orbat = get_order_of_battle([])
+    orbat.camp_sites = [
+        get_camp_site(1, 20),
+        get_camp_site(2, 21, can_launch=False, n_ammo=50),
+    ]
+    return orbat
+
+
+class OrderOfBattleCampSitesTest(unittest.TestCase):
+    def test_legacy_orbat_loads_with_defaults(self):
+        data = get_order_of_battle([]).model_dump(mode="json")
+        for key in ("camp_sites", "transport_times"):
+            del data[key]
+        orbat = OrderOfBattle.model_validate(data)
+        self.assertEqual(orbat.camp_sites, [])
+        self.assertFalse(orbat.is_user_controlled)
+
+    def test_round_trip(self):
+        orbat = get_game_orbat()
+        orbat.camp_sites.append(
+            get_camp_site(3, 22, ammo=BallisticMissileTemplate(rcs=1.0))
+        )
+        orbat.camp_sites.append(
+            get_camp_site(4, 23, ammo=CruiseMissileTemplate(rcs=0.1, speed=250.0))
+        )
+        parsed = OrderOfBattle.model_validate_json(orbat.model_dump_json())
+        self.assertEqual(parsed, orbat)
+        self.assertEqual(
+            [type(s.ammo) for s in parsed.camp_sites],
+            [
+                OneWayDroneTemplate,
+                OneWayDroneTemplate,
+                BallisticMissileTemplate,
+                CruiseMissileTemplate,
+            ],
+        )
+    def test_duplicate_site_ids_are_rejected(self):
+        data = get_game_orbat().model_dump(mode="json")
+        data["camp_sites"][1]["id"] = 1
+        with self.assertRaises(pydantic.ValidationError):
+            OrderOfBattle.model_validate(data)
+    def test_negative_stock_is_rejected(self):
+        data = get_game_orbat().model_dump(mode="json")
+        data["camp_sites"][0]["n_ammo"] = -1
+        with self.assertRaises(pydantic.ValidationError):
+            OrderOfBattle.model_validate(data)
+    def test_update_id_provider_registers_site_target_ids(self):
+        id_provider = IdProvider()
+        get_game_orbat().update_id_provider(id_provider)
+        self.assertEqual(id_provider._used_ids[Entity.TARGET], {20, 21})
+
+    def test_update_id_provider_registers_site_ids(self):
+        id_provider = IdProvider()
+        get_game_orbat().update_id_provider(id_provider)
+        self.assertEqual(id_provider._used_ids[Entity.CAMP_SITE], {1, 2})
+
+    def test_reindex_reindexes_site_target_ids(self):
+        id_provider = IdProvider()
+        id_provider.register_entity(Entity.TARGET, 21)
+        orbat = get_game_orbat()
+        orbat.reindex(id_provider)
+        self.assertEqual([s.target_id for s in orbat.camp_sites], [22, 23])
+
+    def test_reindex_reindexes_site_ids_and_routes(self):
+        id_provider = IdProvider()
+        id_provider.register_entity(Entity.CAMP_SITE, 2)
+        orbat = get_game_orbat()
+        orbat.reindex(id_provider)
+        self.assertEqual([s.id for s in orbat.camp_sites], [3, 4])
+
+    def test_merge_keeps_camp_sites(self):
+        merged = OrderOfBattle.merge(get_game_orbat(), get_order_of_battle([]))
+        self.assertEqual(len(merged.camp_sites), 2)
+        self.assertEqual(merged.unused_id_camp_site, 3)
+
+    def test_merge_renumbers_camp_sites_of_second_orbat(self):
+        merged = OrderOfBattle.merge(get_game_orbat(), get_game_orbat())
+        self.assertEqual([s.id for s in merged.camp_sites], [1, 2, 3, 4])
+        sites = {s.id: s for s in merged.camp_sites}
+        self.assertEqual(merged.unused_id_camp_site, 5)
+
+    def _load(self, data: dict) -> OrderOfBattle:
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "orbat.json")
+            with open(path, "w") as file:
+                json.dump(data, file)
+            return OrderOfBattle.from_file(path)
+
+    def test_from_file_accepts_consistent_site_ids(self):
+        orbat = get_game_orbat()
+        orbat.unused_id_camp_site = 3
+        orbat.unused_target_id = 22
+        self.assertEqual(self._load(orbat.model_dump(mode="json")), orbat)
+
+    def test_from_file_rejects_used_unused_site_id(self):
+        orbat = get_game_orbat()
+        orbat.unused_id_camp_site = 2
+        orbat.unused_target_id = 22
+        with self.assertRaises(ValueError):
+            self._load(orbat.model_dump(mode="json"))
+
+    def test_from_file_without_camp_sites_needs_no_site_id(self):
+        data = get_order_of_battle([]).model_dump(mode="json")
+        del data["unused_id_camp_site"]
+        self.assertEqual(self._load(data).unused_id_camp_site, 0)
+
+
+class AmmoTemplateTest(unittest.TestCase):
+    # Properties, since pydantic rejects class attributes without annotation.
+    # The concrete templates cover implementing them as ClassVar constants.
+    MEMBERS: ClassVar[dict] = {
+        "default_path_generator": lambda self: BallisticGenerator(),
+        "round_name": property(lambda self: "test round"),
+        "round_speed": property(lambda self: 1.0),
+        "round_combat_range": property(lambda self: 1.0),
+        "round_target_info": property(lambda self: TargetInfos.UNKNOWN),
+    }
+
+    def test_base_is_abstract(self):
+        with self.assertRaises(TypeError):
+            _AmmoTemplateBase(rcs=1.0)
+
+    def test_complete_subclass_can_be_instantiated(self):
+        template_class = type("Complete", (_AmmoTemplateBase,), dict(self.MEMBERS))
+        self.assertEqual(template_class(rcs=1.0).round_name, "test round")
+
+    def test_subclass_missing_a_member_cannot_be_instantiated(self):
+        for missing in self.MEMBERS:
+            with self.subTest(missing=missing):
+                members = {k: v for k, v in self.MEMBERS.items() if k != missing}
+                template_class = type("Incomplete", (_AmmoTemplateBase,), members)
+                with self.assertRaises(TypeError):
+                    template_class(rcs=1.0)
 if __name__ == "__main__":
     unittest.main()
