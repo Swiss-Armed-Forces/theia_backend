@@ -57,7 +57,12 @@ from theia.simulation.path_generators import (
     build_trajectory,
     convert_to_geodetic,
 )
-from theia.simulation.simulator import Simulator, TimeCriterion
+from theia.simulation.simulator import (
+    NeverCriterion,
+    Simulator,
+    TerminationCriterion,
+    TimeCriterion,
+)
 from theia.simulation.theia_logging import (
     CompositeSimulationListener,
     FileLogger,
@@ -947,6 +952,31 @@ class DamageModelFactory(pydantic.BaseModel):
             raise RuntimeError(f"Unknown damage model {self.model_name}")
 
 
+class TimeTermination(pydantic.BaseModel):
+    """Stop the simulation after ``stop_time``."""
+
+    type: Literal["time"] = "time"
+    stop_time: datetime.datetime
+
+    def to_criterion(self) -> TerminationCriterion:
+        return TimeCriterion(end_time=self.stop_time)
+
+
+class NeverTermination(pydantic.BaseModel):
+    """Run until the simulation is stopped from outside, e. g. for a game."""
+
+    type: Literal["never"] = "never"
+
+    def to_criterion(self) -> TerminationCriterion:
+        return NeverCriterion()
+
+
+Termination = Annotated[
+    TimeTermination | NeverTermination,
+    pydantic.Field(discriminator="type"),
+]
+
+
 class ScenarioFactory(pydantic.BaseModel):
     name: str
     start_time: datetime.datetime
@@ -966,6 +996,13 @@ class ScenarioFactory(pydantic.BaseModel):
     """List of GeoJSON objects for BLUE that belong to the same tag."""
     red_geojson: dict[str, list[GeoJSONFeature]] = {}
     """List of GeoJSON objects for RED that belong to the same tag."""
+    termination: Termination | None = None
+    """When the simulation stops. ``None`` means after ``stop_time``."""
+
+    def termination_criterion(self) -> TerminationCriterion:
+        if self.termination is None:
+            return TimeCriterion(end_time=self.stop_time)
+        return self.termination.to_criterion()
 
     def update_id_provider(self, id_provider: IdProvider):
         self.blue_orbat.update_id_provider(id_provider)
@@ -1014,7 +1051,7 @@ class ScenarioFactory(pydantic.BaseModel):
             red_tracker=self.red_tracker.to_tracker(rng),
             start_time=self.start_time,
             time_step=datetime.timedelta(seconds=self.time_step),
-            termination_criterion=TimeCriterion(end_time=self.stop_time),
+            termination_criterion=self.termination_criterion(),
             min_time_per_step=min_time_step,
             rng=rng,
             listener=listener,

@@ -35,6 +35,7 @@ from theia.simulation.scenario_import import (
     Trajectory,
     TransportTime,
     _AmmoTemplateBase,
+    build_scenario,
 )
 from theia.terrain import SrtmTerrainModel
 from theia.types import (
@@ -890,5 +891,62 @@ class AmmoTemplateTest(unittest.TestCase):
                 template_class = type("Incomplete", (_AmmoTemplateBase,), members)
                 with self.assertRaises(TypeError):
                     template_class(rcs=1.0)
+
+
+class TerminationTest(unittest.TestCase):
+    def get_scenario(self, **kwargs):
+        return build_scenario(
+            "test",
+            TerrainFactory(terrain_name="SRTM"),
+            0,
+            get_order_of_battle(
+                [], ballistic_missiles=[get_ballistic_missile_factory(1, 1)]
+            ),
+            get_order_of_battle([]),
+            **kwargs,
+        )
+
+    def test_absent_means_stop_time(self):
+        scenario = self.get_scenario()
+        self.assertIsNone(scenario.termination)
+        data = scenario.model_dump(mode="json")
+        del data["termination"]
+        scenario = ScenarioFactory.model_validate(data)
+        criterion = scenario.termination_criterion()
+        self.assertIsInstance(criterion, TimeCriterion)
+        self.assertEqual(criterion._end_time, scenario.stop_time)
+
+    def test_time_and_never(self):
+        scenario = self.get_scenario()
+        stop_time = datetime.datetime(2030, 1, 1, tzinfo=datetime.UTC)
+        data = scenario.model_dump(mode="json")
+
+        data["termination"] = {"type": "time", "stop_time": stop_time.isoformat()}
+        parsed = ScenarioFactory.model_validate(data)
+        self.assertEqual(parsed.termination, TimeTermination(stop_time=stop_time))
+        criterion = parsed.termination_criterion()
+        self.assertIsInstance(criterion, TimeCriterion)
+        self.assertEqual(criterion._end_time, stop_time)
+
+        data["termination"] = {"type": "never"}
+        parsed = ScenarioFactory.model_validate(data)
+        self.assertEqual(parsed.termination, NeverTermination())
+        self.assertIsInstance(parsed.termination_criterion(), NeverCriterion)
+        self.assertEqual(
+            ScenarioFactory.model_validate_json(parsed.model_dump_json()).termination,
+            NeverTermination(),
+        )
+
+    def test_build_without_mobile_parts_still_raises(self):
+        with self.assertRaises(ValueError):
+            build_scenario(
+                "empty",
+                TerrainFactory(terrain_name="SRTM"),
+                0,
+                get_order_of_battle([]),
+                get_order_of_battle([]),
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
