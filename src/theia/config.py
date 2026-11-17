@@ -88,6 +88,28 @@ the cubic spline overshoot.
 """
 CM_DIVE_PENETRATION_TOLERANCE = 0.5
 """Cruise missile: tolerated interpolation dip below the terrain during the terminal dive [m]"""
+CM_DEFAULT_CRUISE_MAGL = 50.0
+"""
+Cruise missile: default nominal cruise height above ground level [m] of a
+round launched in the interactive game without an explicit path generator.
+"""
+
+DRONE_DEFAULT_CRUISE_ALT_MASL = 5000.0
+"""One-way drone: default cruise altitude of the climb-cruise-dive path [m above sea level]"""
+DRONE_DEFAULT_DIVE_START_DISTANCE = 1000.0
+"""
+One-way drone: default distance along the ground track before the target at
+which the terminal dive starts [m]
+"""
+DRONE_DEFAULT_CLIMB_ANGLE = 10.0
+"""One-way drone: default flight-path angle of the initial climb [°]"""
+DRONE_DEFAULT_COMBAT_RANGE = 100.0
+"""One-way drone: distance to its goal within which the drone attacks (detonates) [m]"""
+DRONE_SAMPLE_SPACING = 100.0
+"""
+One-way drone: maximum distance between trajectory samples along the ground
+track of the climb-cruise-dive path [m]
+"""
 
 INTEL_DETECTION_SIGMA = 0.1
 """
