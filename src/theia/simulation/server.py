@@ -7,7 +7,6 @@ import os
 import pathlib
 from enum import Enum
 from functools import cache
-from typing import Optional
 
 import numpy as np
 import pydantic
@@ -81,8 +80,8 @@ class ExtrapolatedTrack(pydantic.BaseModel):
     """Resolved SIDC, ready to be rendered"""
     info: TargetInfo
     """Perceived categorical information about the tracked target"""
-    receiver: Optional[Receiver] = None
-    transmitter: Optional[Transmitter] = None
+    receiver: Receiver | None = None
+    transmitter: Transmitter | None = None
 
 
 class ExtrapolatedSituationalPicture(pydantic.BaseModel):
@@ -130,7 +129,7 @@ def create_app(
 
             track_points = []
             for t, y in zip(times, states, strict=True):
-                x, vx, y, vy, z, vz = y
+                x, _vx, y, _vy, z, _vz = y
                 lat, lon, alt = CoordinateTransformations.cartesian_to_geodetic(x, y, z)
                 # p = Point(lat=lat, lon=lon, alt=alt)
                 # v_east, v_north, v_up = CoordinateTransformations.ecef_to_enu(
@@ -372,7 +371,7 @@ def create_app(
         buffer.get_simulator().set_speedup(speedup_factor)
 
     @app.get("/events")
-    def get_events(t_start: Optional[datetime.datetime] = None) -> list[EventMessage]:
+    def get_events(t_start: datetime.datetime | None = None) -> list[EventMessage]:
         no_constraint = t_start is None
         return [
             EventMessage.from_event(e)
