@@ -32,6 +32,7 @@ from theia.detection.pet import PetDetector
 from theia.distance import line_of_sight_distance
 from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.grids import LatLonHeightGrid
+from theia.simulation.controllers.camp_site_controller import CampSiteController
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.critical_infrastructure_controller import (
     CriticalInfrastructureController,
@@ -547,6 +548,21 @@ class CampSite(pydantic.BaseModel):
             party=Party.from_is_blue(is_blue),
         )
 
+    def to_controller(self, is_blue: bool) -> LivingController[CampSiteController]:
+        # The controller owns a copy, so this site keeps its initial stock.
+        return LivingController(
+            child=CampSiteController(
+                camp_site=self.model_copy(deep=True), is_blue=is_blue
+            ),
+            target_id=self.target_id,
+        )
+
+
+# TODO: Fix this ugly workaround cleanly.
+# CampSiteController refers to CampSite, which cannot be imported there at
+# runtime (circular import).
+CampSiteController.model_rebuild()
+
 
 class TransportTime(pydantic.BaseModel):
     """
@@ -647,6 +663,12 @@ class OrderOfBattle(pydantic.BaseModel):
     Next free camp site ID. Defaults to 0 for ORBAT files written before camp
     sites existed, which have none.
     """
+    is_user_controlled: bool = False
+    """
+    Whether a player commands this side with actions. If so, ``to_controller``
+    returns a ``PlayerController``. Defaults to False for ORBAT files written
+    before players existed.
+    """
 
     @pydantic.model_validator(mode="after")
     def _check_camp_sites(self) -> OrderOfBattle:
@@ -699,6 +721,20 @@ class OrderOfBattle(pydantic.BaseModel):
         monostatic_controllers = [
             s.to_controller(is_blue) for s in self.monostatic_sensors
         ]
+        if self.is_user_controlled:
+            # The player can switch the radars on and off.
+            monostatic_controllers = [
+                LivingController(
+                    child=SwitchableMonostaticRadarController(
+                        child=living.child,
+                        sensor_id=factory.sensor.id,
+                    ),
+                    target_id=living.target_id,
+                )
+                for factory, living in zip(
+                    self.monostatic_sensors, monostatic_controllers, strict=True
+                )
+            ]
 
         ##########################
         # TODO: Load PCL sensors.
@@ -725,8 +761,9 @@ class OrderOfBattle(pydantic.BaseModel):
         infra_controllers = [
             c.to_controller(is_blue) for c in self.critical_infrastructure
         ]
+        camp_site_controllers = [s.to_controller(is_blue) for s in self.camp_sites]
 
-        return GeoJsonController(
+        tree = GeoJsonController(
             child=ControllerGroup(
                 controllers=monostatic_controllers
                 + static_deployment_controllers
@@ -734,8 +771,19 @@ class OrderOfBattle(pydantic.BaseModel):
                 + bm_controllers
                 + cm_controllers
                 + infra_controllers
+                + camp_site_controllers
             ),
             geojson_features=self.simulationResults.to_geojson_dict(),
+        )
+        if not self.is_user_controlled:
+            return ControllerGroup(controllers=[tree])
+        return PlayerController(
+            controllers=[tree],
+            is_blue=is_blue,
+            terrain=terrain,
+            camp_sites=camp_site_controllers,
+            transport_times=self.transport_times,
+            radars=monostatic_controllers,
         )
 
     def update_id_provider(self, id_provider: IdProvider):
@@ -896,6 +944,7 @@ class OrderOfBattle(pydantic.BaseModel):
             unused_id_effector=id_provider.increment(Entity.EFFECTOR),
             unused_target_id=id_provider.increment(Entity.TARGET),
             unused_id_camp_site=id_provider.increment(Entity.CAMP_SITE),
+            is_user_controlled=orbat1.is_user_controlled or orbat2.is_user_controlled,
         )
 
     @staticmethod
@@ -1318,13 +1367,20 @@ def build_scenario(
         t_min = orbat_red.t_min if t_min is None else min(t_min, orbat_red.t_min)
         t_max = orbat_red.t_max if t_max is None else max(t_max, orbat_red.t_max)
 
+    is_game = orbat_blue.is_user_controlled or orbat_red.is_user_controlled
     if t_min is None or t_max is None:
-        raise ValueError("No mobile parts in the simulation!")
+        if not is_game:
+            raise ValueError("No mobile parts in the simulation!")
+        # A game needs no scripted mobile parts: the players launch them.
+        t_min = datetime.datetime.now(datetime.UTC).replace(microsecond=0)
+        t_max = t_min
 
     t_max = datetime.datetime.fromtimestamp(
         np.ceil(t_max.timestamp() + 1),
         datetime.UTC,
     )
+    # A game runs until it is stopped from outside.
+    termination = NeverTermination() if is_game else None
 
     tracker_params = PseudoTrackerParams(
         removal_patience=10,
@@ -1354,5 +1410,6 @@ def build_scenario(
         terrain_model=terrain_factory,
         damage_model=DamageModelFactory(model_name="kill_always"),
         seed=seed,
+        termination=termination,
     )
     return scenario

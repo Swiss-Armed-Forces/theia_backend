@@ -17,6 +17,7 @@ from theia.types import (
     PclDetection,
     PclSensor,
     PetDetection,
+    ShipmentLostEvent,
     Shot,
     SituationalPicture,
     Snapshot,
@@ -349,6 +350,10 @@ class LogLoader:
         return [e for e in self._events if type(e) is KillEvent]
 
     @property
+    def shipment_lost_events(self) -> list[ShipmentLostEvent]:
+        return [e for e in self._events if isinstance(e, ShipmentLostEvent)]
+
+    @property
     def t_max(self) -> datetime.datetime:
         return self._snapshots[-1].time
 
@@ -462,7 +467,7 @@ class LogLoader:
 
     def _load_events(self):
         self._events = TypeAdapter(
-            list[TrackInitEvent | Shot | KillEvent | TextEvent]
+            list[TrackInitEvent | Shot | KillEvent | ShipmentLostEvent | TextEvent]
         ).validate_python(self._data["events"])
 
 

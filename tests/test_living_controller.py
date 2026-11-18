@@ -65,6 +65,11 @@ class LivingControllerTest(unittest.TestCase):
         self._controller.on_event(KillEvent(id=3, time=get_t0(), target_id=2))
         self.assertFalse(self._controller._is_alive)
 
+    def test_is_alive_property(self):
+        self.assertTrue(self._controller.is_alive)
+        self._controller.on_event(KillEvent(id=3, time=get_t0(), target_id=2))
+        self.assertFalse(self._controller.is_alive)
+
     def test_dead(self):
         self.assertTrue(self._controller._is_alive)
         self._controller.on_event(KillEvent(id=3, time=get_t0(), target_id=2))

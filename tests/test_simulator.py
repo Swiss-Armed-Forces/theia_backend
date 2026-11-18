@@ -736,5 +736,105 @@ class MonostaticRotationTimeTest(unittest.TestCase):
         )
 
 
+class PlayerSideTest(unittest.TestCase):
+    """A side commanded by a player inside the simulator."""
+
+    def setUp(self):
+        from tests.test_player_controller import RADAR_SENSOR_ID, build_orbat
+        from theia.simulation.scenario_import import (
+            DirectFireEffectorFactory,
+            OrderOfBattle,
+            StaticGbadFactory,
+        )
+        from theia.types import IdProvider
+
+        self.radar_sensor_id = RADAR_SENSOR_ID
+
+        terrain = DummyTerrain(has_los=True)
+        blue_orbat = build_orbat()
+        red_orbat = OrderOfBattle(
+            monostatic_sensors=[],
+            pcl_sensors=[],
+            gbads=[
+                StaticGbadFactory(
+                    target_id=50,
+                    rcs=1.0,
+                    gbad=DirectFireEffectorFactory(
+                        id=50,
+                        name="gbad",
+                        point=Point(lat=46.95, lon=8.01, alt=1.0),
+                        combat_range=100_000.0,
+                        n_attacks_left=5,
+                        cadence=1.0,
+                    ),
+                )
+            ],
+            simulationResults={
+                "monostaticCoverages": [],
+                "pclMinDetectableRcsGrids": [],
+            },
+            oneway_drones=[],
+            ballistic_missiles=[],
+            unused_id_sensor=100,
+            unused_id_receiver=100,
+            unused_id_transmitter=100,
+            unused_id_effector=100,
+            unused_target_id=100,
+        )
+        id_provider = IdProvider()
+        self.id_provider = id_provider
+        blue_orbat.update_id_provider(id_provider)
+        red_orbat.update_id_provider(id_provider)
+        rng = np.random.Generator(np.random.PCG64(seed=1))
+        t0 = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+        self.simulator = Simulator(
+            pcl_detector=PclDetector(),
+            pet_detector=PetDetector(terrain_model=terrain),
+            blue_controller=blue_orbat.to_controller(terrain, True),
+            red_controller=red_orbat.to_controller(terrain, False),
+            blue_tracker=DummyTracker(),
+            red_tracker=DummyTracker(),
+            start_time=t0,
+            time_step=datetime.timedelta(seconds=1),
+            min_time_per_step=datetime.timedelta(seconds=0),
+            termination_criterion=TimeCriterion(t0 + datetime.timedelta(seconds=1000)),
+            rng=rng,
+            listener=InMemoryLogger(),
+            terrain_model=terrain,
+            damage_model=UniformDamageModel(1.0, rng),
+            simulate_clutter=False,
+            id_provider=id_provider,
+        )
+
+    def test_user_controlled(self):
+        self.assertTrue(self.simulator.is_user_controlled(True))
+        self.assertFalse(self.simulator.is_user_controlled(False))
+
+    def test_assign_action_forwards_to_root(self):
+        from theia.simulation.actions import ToggleMonostaticRadarAction
+
+        action = ToggleMonostaticRadarAction(
+            sensor_id=self.radar_sensor_id, new_is_on=False
+        )
+        self.assertTrue(self.simulator.assign_action(True, action))
+        self.assertFalse(self.simulator.assign_action(False, action))
+
+    def test_launch_uses_the_simulation_id_provider(self):
+        from tests.test_player_controller import DESTINATION, LAUNCH_SITE_ID
+        from theia.simulation.actions import LaunchAction
+        from theia.types import Entity
+
+        next_target_id = self.id_provider._free_ids[Entity.TARGET]
+        self.simulator.assign_action(
+            True, LaunchAction(site_id=LAUNCH_SITE_ID, destination=DESTINATION)
+        )
+        self.simulator.advance()
+        self.simulator.advance()
+        self.assertIn(next_target_id, {t.id for t in self.simulator._blue_targets})
+        self.assertEqual(self.id_provider._free_ids[Entity.TARGET], next_target_id + 1)
+
+
+
+
 if __name__ == "__main__":
     unittest.main()

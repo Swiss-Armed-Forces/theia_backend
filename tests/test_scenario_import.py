@@ -8,7 +8,6 @@ from typing import ClassVar
 import numpy as np
 import pydantic
 
-from theia.config import BM_COMBAT_RANGE, CM_COMBAT_RANGE
 from theia.distance import line_of_sight_distance
 from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.simulation.controllers.critical_infrastructure_controller import (
@@ -27,16 +26,20 @@ from theia.simulation.scenario_import import (
     DirectFireEffectorFactory,
     FixedPathOneWayDroneFactory,
     IndirectFireEffectorFactory,
+    NeverTermination,
     OneWayDroneTemplate,
     OrderOfBattle,
+    ScenarioFactory,
     SimulationResults,
     StaticGbadFactory,
     TerrainFactory,
+    TimeTermination,
     Trajectory,
     TransportTime,
     _AmmoTemplateBase,
     build_scenario,
 )
+from theia.simulation.simulator import NeverCriterion, TimeCriterion
 from theia.terrain import SrtmTerrainModel
 from theia.types import (
     ConstantRcsModel,
@@ -674,7 +677,8 @@ class OrderOfBattleCruiseMissileTest(unittest.TestCase):
             [], cruise_missiles=[get_cruise_missile_factory(1, 2)]
         )
         controller = orbat.to_controller(srtm, is_blue=True)
-        children = controller.child._controllers
+        [tree] = controller._controllers
+        children = tree.child._controllers
         self.assertTrue(
             any(
                 isinstance(c, LivingController)
@@ -733,13 +737,14 @@ def get_game_orbat() -> OrderOfBattle:
             seconds_underway=600.0,
         )
     ]
+    orbat.is_user_controlled = True
     return orbat
 
 
 class OrderOfBattleCampSitesTest(unittest.TestCase):
     def test_legacy_orbat_loads_with_defaults(self):
         data = get_order_of_battle([]).model_dump(mode="json")
-        for key in ("camp_sites", "transport_times"):
+        for key in ("camp_sites", "transport_times", "is_user_controlled"):
             del data[key]
         orbat = OrderOfBattle.model_validate(data)
         self.assertEqual(orbat.camp_sites, [])
@@ -765,6 +770,8 @@ class OrderOfBattleCampSitesTest(unittest.TestCase):
                 CruiseMissileTemplate,
             ],
         )
+        self.assertTrue(parsed.is_user_controlled)
+
     def test_duplicate_site_ids_are_rejected(self):
         data = get_game_orbat().model_dump(mode="json")
         data["camp_sites"][1]["id"] = 1
@@ -824,6 +831,13 @@ class OrderOfBattleCampSitesTest(unittest.TestCase):
         self.assertEqual(len(merged.camp_sites), 2)
         self.assertEqual(len(merged.transport_times), 1)
         self.assertEqual(merged.unused_id_camp_site, 3)
+
+    def test_merge_is_user_controlled_if_either_orbat_is(self):
+        game = get_game_orbat()
+        plain = get_order_of_battle([])
+        self.assertTrue(OrderOfBattle.merge(game, plain).is_user_controlled)
+        self.assertTrue(OrderOfBattle.merge(plain, game).is_user_controlled)
+        self.assertFalse(OrderOfBattle.merge(plain, plain).is_user_controlled)
 
     def test_merge_renumbers_camp_sites_of_second_orbat(self):
         merged = OrderOfBattle.merge(get_game_orbat(), get_game_orbat())
@@ -936,6 +950,16 @@ class TerminationTest(unittest.TestCase):
             ScenarioFactory.model_validate_json(parsed.model_dump_json()).termination,
             NeverTermination(),
         )
+
+    def test_build_game_scenario(self):
+        scenario = build_scenario(
+            "game",
+            TerrainFactory(terrain_name="SRTM"),
+            0,
+            get_game_orbat(),
+            get_order_of_battle([]),
+        )
+        self.assertEqual(scenario.termination, NeverTermination())
 
     def test_build_without_mobile_parts_still_raises(self):
         with self.assertRaises(ValueError):

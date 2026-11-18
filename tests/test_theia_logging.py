@@ -7,12 +7,15 @@ import unittest
 from theia.simulation.theia_logging import FileLogger, LogLoader
 from theia.types import (
     ConstantRcsModel,
+    KillEvent,
     Party,
     Point,
+    ShipmentLostEvent,
     SituationalPicture,
     Snapshot,
     Target,
     TargetInfos,
+    TextEvent,
     Velocity,
 )
 
@@ -135,6 +138,37 @@ class LogLoaderTargetIdsTest(unittest.TestCase):
             self.loader.red_target_ids,
             set(self.loader.red_target_ground_truth.keys()),
         )
+
+
+class LogLoaderEventsTest(unittest.TestCase):
+    def test_events_keep_their_type(self):
+        t = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+        events = [
+            KillEvent(id=1, time=t, target_id=7),
+            ShipmentLostEvent(
+                id=2,
+                time=t,
+                party=Party.RED,
+                shipment_id=3,
+                source_site_id=4,
+                source_site_name="depot",
+                target_site_id=5,
+                target_site_name="launch site",
+                destroyed_site_id=5,
+                count=6,
+            ),
+            TextEvent(id=3, time=t, text="hello"),
+        ]
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = os.path.join(directory.name, "run.log.json")
+        logger = FileLogger(path)
+        logger.on_events(events)
+        logger.on_end()
+        loader = LogLoader(path)
+        self.assertEqual(loader._events, events)
+        self.assertEqual(loader.shipment_lost_events, [events[1]])
+        self.assertEqual(loader.kill_events, [events[0]])
 
 
 if __name__ == "__main__":

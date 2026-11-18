@@ -36,6 +36,11 @@ class LivingController(Controller, Generic[T]):
         self._relais = EventRelais()
         self.child.register_event_listener(self._relais)
 
+    @property
+    def is_alive(self) -> bool:
+        """Whether the corresponding ``KillEvent`` has not been received yet."""
+        return self._is_alive
+
     def on_event(self, event: Event):
         if isinstance(event, KillEvent) and event.target_id == self.target_id:
             if self._is_alive:

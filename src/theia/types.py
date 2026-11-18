@@ -1526,6 +1526,41 @@ class KillEvent(Event):
         return f"Target {self.target_id} 💀"
 
 
+class ShipmentLostEvent(Event):
+    """
+    Fired when a shipment of stock is lost because a camp site is destroyed.
+
+    This happens if the source site is destroyed while the shipment is still
+    breaking camp, or if the shipment arrives at a destroyed target site. The
+    shipment's rounds are lost.
+    """
+
+    party: Party
+    """Side that owned the shipment"""
+    shipment_id: int
+    source_site_id: int
+    source_site_name: str
+    target_site_id: int
+    target_site_name: str
+    destroyed_site_id: int
+    """ID of the destroyed camp site: either ``source_site_id`` or ``target_site_id``"""
+    count: int
+    """Number of rounds lost"""
+
+    @property
+    def destroyed_site_name(self) -> str:
+        if self.destroyed_site_id == self.source_site_id:
+            return self.source_site_name
+        return self.target_site_name
+
+    def __str__(self) -> str:
+        return (
+            f"[{self.party.value}] shipment #{self.shipment_id} lost: "
+            f"{self.count} rounds, camp site {self.destroyed_site_name} "
+            f"(#{self.destroyed_site_id}) is destroyed"
+        )
+
+
 class TimerEvent(Event):
     """Fired when a timer expires."""
 
