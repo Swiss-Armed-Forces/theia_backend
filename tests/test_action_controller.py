@@ -169,7 +169,7 @@ class ActionControllerTestBase(unittest.TestCase):
         orbat.update_id_provider(self.id_provider)
         self.controller = orbat.to_controller(DummyTerrain(has_los=True), True)
         self.assertIsInstance(self.controller, ActionController)
-        self.context = SimulationContext(id_provider=self.id_provider)
+        self.context = SimulationContext(id_provider=self.id_provider, start_time=T0)
         self.controller.bind(self.context)
         self.recorder = _Recorder()
         self.controller.register_event_listener(self.recorder)
@@ -571,6 +571,10 @@ class OutputTest(ActionControllerTestBase):
         self.step()
         self.assertEqual(self.controller.intel_sensors, [sensor])
 
+    def test_status_time_is_that_of_the_latest_update(self):
+        self.step(3)
+        self.assertEqual(self.controller.get_status().time, self.time - DT)
+
 
 class BindingTest(ActionControllerTestBase):
     def test_child_tree_is_bound(self):
@@ -584,6 +588,19 @@ class BindingTest(ActionControllerTestBase):
         # Launched rounds are added to the ActionController itself.
         [tree, round_controller] = self.controller._controllers
         self.assertIs(round_controller.simulation_context, self.context)
+
+    def test_status_before_first_update_has_start_time(self):
+        controller = build_orbat().to_controller(DummyTerrain(has_los=True), True)
+        start_time = T0 + datetime.timedelta(hours=1)
+        controller.bind(
+            SimulationContext(id_provider=IdProvider(), start_time=start_time)
+        )
+        self.assertEqual(controller.get_status().time, start_time)
+
+    def test_status_requires_binding(self):
+        controller = build_orbat().to_controller(DummyTerrain(has_los=True), True)
+        with self.assertRaises(TheiaException):
+            controller.get_status()
 
     def test_launch_requires_binding(self):
         controller = build_orbat().to_controller(DummyTerrain(has_los=True), True)

@@ -114,7 +114,8 @@ def get_controller(
     controller = ShooterRevealController(is_blue=is_blue, valid_time=VALID_TIME)
     controller.bind(
         SimulationContext(
-            id_provider=id_provider if id_provider is not None else IdProvider()
+            id_provider=id_provider if id_provider is not None else IdProvider(),
+            start_time=t0,
         )
     )
     return controller

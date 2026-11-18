@@ -205,7 +205,9 @@ class Simulator(Trigger, AbstractEventListener):
         self.set_listener(listener)
 
         # Give the controllers access to this simulation's context.
-        context = SimulationContext(id_provider=self._id_provider)
+        context = SimulationContext(
+            id_provider=self._id_provider, start_time=start_time
+        )
         self._blue_controller.bind(context)
         self._red_controller.bind(context)
 

@@ -1970,6 +1970,8 @@ class SimulationContext:
 
     id_provider: IdProvider
     """The simulation's identity provider."""
+    start_time: datetime.datetime
+    """Simulation time at which the simulation starts."""
 
     def __deepcopy__(self, memo) -> SimulationContext:
         # Do not copy a SimulationContext.

@@ -41,7 +41,7 @@ class LeafController(Controller):
 
 class ControllerBindingTest(unittest.TestCase):
     def setUp(self):
-        self.context = SimulationContext(id_provider=IdProvider())
+        self.context = SimulationContext(id_provider=IdProvider(), start_time=T0)
 
     def test_unbound_controller_raises(self):
         with self.assertRaises(TheiaException):
@@ -148,6 +148,7 @@ class SimulatorBindsControllersTest(unittest.TestCase):
         )
         context = blue_leaf.simulation_context
         self.assertIs(context.id_provider, id_provider)
+        self.assertEqual(context.start_time, T0)
         for controller in (blue, red, red_tree, blue_leaf, red_leaf):
             self.assertIs(controller.simulation_context, context)
 

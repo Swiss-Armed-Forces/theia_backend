@@ -157,7 +157,7 @@ class ActionController(ControllerGroup):
         self._lock = threading.RLock()
         """Guards the camp sites and shipments against concurrent reads."""
         self._time: datetime.datetime | None = None
-        """Time of the latest update"""
+        """Time of the latest update; ``None`` before the first update"""
 
     # ------------------------------------------------------------------
     # Controller interface
@@ -192,8 +192,23 @@ class ActionController(ControllerGroup):
         return list(self._transport_times)
 
     def get_status(self) -> CampSitesStatus:
+        """
+        Live state of the camp sites and shipments.
+
+        Its time is that of the latest update, or the simulation's start time
+        before the first update.
+
+        Raises
+        ------
+        TheiaException
+            If the controller has not been bound to a simulation yet.
+        """
         with self._lock:
-            time = self._time or datetime.datetime.fromtimestamp(0, datetime.UTC)
+            time = (
+                self._time
+                if self._time is not None
+                else self.simulation_context.start_time
+            )
             return CampSitesStatus(
                 time=time,
                 sites=[
