@@ -4,15 +4,25 @@ import os
 import tempfile
 import unittest
 
+from theia.simulation.actions import (
+    ActionExecutedEvent,
+    ActionRejectedEvent,
+    LaunchAction,
+    MoveStockAction,
+    RejectionReason,
+)
 from theia.simulation.theia_logging import FileLogger, LogLoader
 from theia.types import (
     ConstantRcsModel,
     KillEvent,
     Party,
     Point,
+    ShipmentArrivedEvent,
+    ShipmentDepartedEvent,
     ShipmentLostEvent,
     SituationalPicture,
     Snapshot,
+    StockLostEvent,
     Target,
     TargetInfos,
     TextEvent,
@@ -143,21 +153,50 @@ class LogLoaderTargetIdsTest(unittest.TestCase):
 class LogLoaderEventsTest(unittest.TestCase):
     def test_events_keep_their_type(self):
         t = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+        shipment = dict(
+            party=Party.RED,
+            shipment_id=3,
+            source_site_id=4,
+            source_site_name="depot",
+            target_site_id=5,
+            target_site_name="launch site",
+            count=6,
+        )
         events = [
             KillEvent(id=1, time=t, target_id=7),
-            ShipmentLostEvent(
-                id=2,
+            ShipmentLostEvent(id=2, time=t, **shipment, destroyed_site_id=5),
+            TextEvent(id=3, time=t, text="hello"),
+            LaunchAction(
+                id=4,
+                time=t,
+                party=Party.BLUE,
+                site_id=1,
+                destination=Point(lat=47.0, lon=8.0, alt=0.0),
+            ),
+            ActionExecutedEvent(
+                id=5, time=t, party=Party.BLUE, action_id=4, result="launched"
+            ),
+            MoveStockAction(
+                id=6,
                 time=t,
                 party=Party.RED,
-                shipment_id=3,
-                source_site_id=4,
-                source_site_name="depot",
-                target_site_id=5,
-                target_site_name="launch site",
-                destroyed_site_id=5,
-                count=6,
+                source_site_id=1,
+                target_site_id=2,
+                count=3,
             ),
-            TextEvent(id=3, time=t, text="hello"),
+            ActionRejectedEvent(
+                id=7,
+                time=t,
+                party=Party.RED,
+                action_id=6,
+                reason=RejectionReason.NO_ROUTE,
+                message="no route from camp site 1 to 2",
+            ),
+            ShipmentDepartedEvent(id=8, time=t, **shipment),
+            ShipmentArrivedEvent(id=9, time=t, **shipment, n_ammo=5),
+            StockLostEvent(
+                id=10, time=t, party=Party.RED, site_id=4, site_name="depot", count=2
+            ),
         ]
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
@@ -169,6 +208,12 @@ class LogLoaderEventsTest(unittest.TestCase):
         self.assertEqual(loader._events, events)
         self.assertEqual(loader.shipment_lost_events, [events[1]])
         self.assertEqual(loader.kill_events, [events[0]])
+        self.assertEqual(loader.text_events, [events[2]])
+        self.assertEqual(loader.actions, [events[3], events[5]])
+        self.assertEqual(loader.action_executed_events, [events[4]])
+        self.assertEqual(loader.action_rejected_events, [events[6]])
+        self.assertEqual(loader.shipment_events, [events[1], events[7], events[8]])
+        self.assertEqual(loader.stock_lost_events, [events[9]])
 
 
 if __name__ == "__main__":

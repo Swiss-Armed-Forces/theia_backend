@@ -1,5 +1,5 @@
 """
-Root controller of a side that is commanded by a player.
+Root controller of a side that is commanded with actions.
 """
 
 from __future__ import annotations
@@ -15,8 +15,11 @@ import pydantic
 from theia.config import UNKNOWN_ID
 from theia.simulation.actions import (
     Action,
+    ActionExecutedEvent,
+    ActionRejectedEvent,
     LaunchAction,
     MoveStockAction,
+    RejectionReason,
     ToggleMonostaticRadarAction,
 )
 from theia.simulation.controllers.camp_site_controller import CampSiteController
@@ -32,9 +35,11 @@ from theia.types import (
     Event,
     Party,
     Point,
+    ShipmentArrivedEvent,
+    ShipmentDepartedEvent,
     ShipmentLostEvent,
     SituationalPicture,
-    TextEvent,
+    StockLostEvent,
 )
 
 if TYPE_CHECKING:
@@ -91,17 +96,26 @@ class CampSitesStatus(pydantic.BaseModel):
 class _Rejection(Exception):
     """An action cannot be executed in the current state."""
 
+    def __init__(self, reason: RejectionReason, message: str):
+        super().__init__(message)
+        self.reason = reason
+        self.message = message
 
-class PlayerController(ControllerGroup):
+
+class ActionController(ControllerGroup):
     """
-    Root controller of a side that a player commands with actions.
+    Root controller of a side that is commanded with actions.
+
+    It only executes actions; who gives them (a player via the server, or an AI)
+    is up to the caller of :meth:`assign_action`.
 
     Its children are the side's controllers, including the camp sites (counted
     stock) and the switchable radars; launched rounds are added to it, too. It
     adds the shipments between the camp sites. Actions are queued by
     :meth:`assign_action`, which is thread-safe, and executed at the start of
-    the next :meth:`update`. All checks happen at execution; a rejected action
-    is reported as an event.
+    the next :meth:`update`. All checks happen at execution. An executed
+    action is logged as an event (with ``id``, ``time`` and ``party`` filled
+    in), followed by an ``ActionExecutedEvent`` or an ``ActionRejectedEvent``.
     """
 
     def __init__(
@@ -125,7 +139,7 @@ class PlayerController(ControllerGroup):
         """
         super().__init__(controllers)
         self._is_blue = is_blue
-        self._side = Party.from_is_blue(is_blue).value
+        self._party = Party.from_is_blue(is_blue)
         self._terrain = terrain
         self._sites: dict[int, LivingController[CampSiteController]] = {
             s.child.camp_site.id: s for s in camp_sites
@@ -209,29 +223,64 @@ class PlayerController(ControllerGroup):
                 action = self._actions.get_nowait()
             except queue.Empty:
                 return
-            action_json = action.model_dump_json()
-            self._emit(time, f"[ACTION {self._side}] received: {action_json}")
-            try:
-                if isinstance(action, LaunchAction):
-                    result = self._execute_launch(action, time)
-                elif isinstance(action, MoveStockAction):
-                    result = self._execute_move_stock(action, time)
-                elif isinstance(action, ToggleMonostaticRadarAction):
-                    result = self._execute_toggle_radar(action)
-                else:
-                    raise _Rejection(f"unknown action type {type(action).__name__}")
-            except _Rejection as e:
-                self._emit(time, f"[ACTION {self._side}] rejected ({e}): {action_json}")
+            self._execute_action(action, time)
+
+    def _execute_action(self, action: Action, time: datetime.datetime):
+        # Own the ID, so that the outcome can refer to the action even before
+        # the simulator has seen it. Copy, so that the actor's object stays as
+        # it was given.
+        action = action.model_copy(
+            update={
+                "id": self.simulation_context.id_provider.increment(Entity.EVENT),
+                "time": time,
+                "party": self._party,
+            }
+        )
+        self._broadcast_event(action)
+        try:
+            if isinstance(action, LaunchAction):
+                result = self._execute_launch(action, time)
+            elif isinstance(action, MoveStockAction):
+                result = self._execute_move_stock(action, time)
+            elif isinstance(action, ToggleMonostaticRadarAction):
+                result = self._execute_toggle_radar(action)
             else:
-                self._emit(time, f"[ACTION {self._side}] executed: {result}")
+                raise _Rejection(
+                    RejectionReason.UNKNOWN_ACTION_TYPE,
+                    f"unknown action type {type(action).__name__}",
+                )
+        except _Rejection as e:
+            self._broadcast_event(
+                ActionRejectedEvent(
+                    id=UNKNOWN_ID,
+                    time=time,
+                    party=self._party,
+                    action_id=action.id,
+                    reason=e.reason,
+                    message=e.message,
+                )
+            )
+        else:
+            self._broadcast_event(
+                ActionExecutedEvent(
+                    id=UNKNOWN_ID,
+                    time=time,
+                    party=self._party,
+                    action_id=action.id,
+                    result=result,
+                )
+            )
 
     def _get_site(self, site_id: int) -> LivingController[CampSiteController]:
         site = self._sites.get(site_id)
         if site is None:
-            raise _Rejection(f"unknown camp site {site_id}")
+            raise _Rejection(
+                RejectionReason.UNKNOWN_CAMP_SITE, f"unknown camp site {site_id}"
+            )
         if not site.is_alive:
             raise _Rejection(
-                f"camp site {site.child.camp_site.name} (#{site_id}) is destroyed"
+                RejectionReason.CAMP_SITE_DESTROYED,
+                f"camp site {site.child.camp_site.name} (#{site_id}) is destroyed",
             )
         return site
 
@@ -239,12 +288,15 @@ class PlayerController(ControllerGroup):
         site = self._get_site(action.site_id)
         name = f"{site.child.camp_site.name} (#{site.child.camp_site.id})"
         if not site.child.camp_site.can_launch:
-            raise _Rejection(f"{name} cannot launch")
+            raise _Rejection(RejectionReason.CANNOT_LAUNCH, f"{name} cannot launch")
         if site.child.camp_site.n_ammo < 1:
-            raise _Rejection(f"{name} has no stock")
+            raise _Rejection(RejectionReason.NO_STOCK, f"{name} has no stock")
         seconds_until_ready = site.child.seconds_until_ready(time)
         if seconds_until_ready > 0:
-            raise _Rejection(f"{name} is reloading for {seconds_until_ready:.0f} s")
+            raise _Rejection(
+                RejectionReason.RELOADING,
+                f"{name} is reloading for {seconds_until_ready:.0f} s",
+            )
 
         id_provider = self.simulation_context.id_provider
         target_id = id_provider.increment(Entity.TARGET)
@@ -261,7 +313,9 @@ class PlayerController(ControllerGroup):
                 is_blue=self._is_blue,
             )
         except ValueError as e:
-            raise _Rejection(f"no flight path: {e}") from e
+            raise _Rejection(
+                RejectionReason.NO_FLIGHT_PATH, f"no flight path: {e}"
+            ) from e
 
         self.add_controller(controller)
         site.child.camp_site.n_ammo -= 1
@@ -280,13 +334,15 @@ class PlayerController(ControllerGroup):
         route = self._routes.get((action.source_site_id, action.target_site_id))
         if route is None:
             raise _Rejection(
+                RejectionReason.NO_ROUTE,
                 f"no route from camp site {action.source_site_id} "
-                f"to {action.target_site_id}"
+                f"to {action.target_site_id}",
             )
         if action.count > source.child.camp_site.n_ammo:
             raise _Rejection(
+                RejectionReason.INSUFFICIENT_STOCK,
                 f"{source.child.camp_site.name} (#{source.child.camp_site.id}) has only "
-                f"{source.child.camp_site.n_ammo} rounds in stock"
+                f"{source.child.camp_site.n_ammo} rounds in stock",
             )
 
         source.child.camp_site.n_ammo -= action.count
@@ -313,9 +369,15 @@ class PlayerController(ControllerGroup):
     def _execute_toggle_radar(self, action: ToggleMonostaticRadarAction) -> str:
         living = self._radars.get(action.sensor_id)
         if living is None:
-            raise _Rejection(f"unknown monostatic radar {action.sensor_id}")
+            raise _Rejection(
+                RejectionReason.UNKNOWN_RADAR,
+                f"unknown monostatic radar {action.sensor_id}",
+            )
         if not living.is_alive:
-            raise _Rejection(f"radar {action.sensor_id} is destroyed")
+            raise _Rejection(
+                RejectionReason.RADAR_DESTROYED,
+                f"radar {action.sensor_id} is destroyed",
+            )
         living.child.is_on = action.new_is_on
         return (
             f"radar {action.sensor_id} switched {'on' if action.new_is_on else 'off'}"
@@ -333,7 +395,9 @@ class PlayerController(ControllerGroup):
                 and time >= shipment.departure_time
             ):
                 shipment.state = ShipmentState.UNDERWAY
-                self._emit(time, f"[{self._side}] shipment #{shipment.id} departed")
+                self._broadcast_event(
+                    ShipmentDepartedEvent(**self._shipment_fields(shipment, time))
+                )
             if (
                 shipment.state == ShipmentState.UNDERWAY
                 and time >= shipment.arrival_time
@@ -342,11 +406,11 @@ class PlayerController(ControllerGroup):
                 target = self._sites[shipment.target_site_id]
                 if target.is_alive:
                     target.child.camp_site.n_ammo += shipment.count
-                    self._emit(
-                        time,
-                        f"[{self._side}] shipment #{shipment.id} arrived at "
-                        f"{target.child.camp_site.name} (#{target.child.camp_site.id}): "
-                        f"+{shipment.count} rounds, {target.child.camp_site.n_ammo} in stock",
+                    self._broadcast_event(
+                        ShipmentArrivedEvent(
+                            **self._shipment_fields(shipment, time),
+                            n_ammo=target.child.camp_site.n_ammo,
+                        )
                     )
                 else:
                     self._broadcast_shipment_lost(
@@ -370,14 +434,17 @@ class PlayerController(ControllerGroup):
                 and s.state == ShipmentState.BREAKING_CAMP
             ]
             self._shipments = [s for s in self._shipments if s not in lost_shipments]
-        details = "".join(
-            f", shipment #{s.id} ({s.count} rounds)" for s in lost_shipments
-        )
-        self._emit(
-            time,
-            f"[{self._side}] camp site {site.child.camp_site.name} (#{site.child.camp_site.id}) "
-            f"destroyed; lost: {lost_stock} rounds in stock{details}",
-        )
+        if lost_stock > 0:
+            self._broadcast_event(
+                StockLostEvent(
+                    id=UNKNOWN_ID,
+                    time=time,
+                    party=self._party,
+                    site_id=site.child.camp_site.id,
+                    site_name=site.child.camp_site.name,
+                    count=lost_stock,
+                )
+            )
         for shipment in lost_shipments:
             self._broadcast_shipment_lost(shipment, site.child.camp_site.id, time)
 
@@ -390,24 +457,27 @@ class PlayerController(ControllerGroup):
     ):
         self._broadcast_event(
             ShipmentLostEvent(
-                id=UNKNOWN_ID,
-                time=time,
-                party=Party.from_is_blue(self._is_blue),
-                shipment_id=shipment.id,
-                source_site_id=shipment.source_site_id,
-                source_site_name=self._site_name(shipment.source_site_id),
-                target_site_id=shipment.target_site_id,
-                target_site_name=self._site_name(shipment.target_site_id),
+                **self._shipment_fields(shipment, time),
                 destroyed_site_id=destroyed_site_id,
-                count=shipment.count,
             )
+        )
+
+    def _shipment_fields(self, shipment: Shipment, time: datetime.datetime) -> dict:
+        """Fields common to all ``ShipmentEvent``s."""
+        return dict(
+            id=UNKNOWN_ID,
+            time=time,
+            party=self._party,
+            shipment_id=shipment.id,
+            source_site_id=shipment.source_site_id,
+            source_site_name=self._site_name(shipment.source_site_id),
+            target_site_id=shipment.target_site_id,
+            target_site_name=self._site_name(shipment.target_site_id),
+            count=shipment.count,
         )
 
     def _site_name(self, site_id: int) -> str:
         return self._sites[site_id].child.camp_site.name
-
-    def _emit(self, time: datetime.datetime, text: str):
-        self._broadcast_event(TextEvent(id=UNKNOWN_ID, time=time, text=text))
 
     def _broadcast_event(self, event: Event):
         # Own events take the same path as the children's events.

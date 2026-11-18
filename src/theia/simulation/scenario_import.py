@@ -32,6 +32,7 @@ from theia.detection.pet import PetDetector
 from theia.distance import line_of_sight_distance
 from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.grids import LatLonHeightGrid
+from theia.simulation.controllers.action_controller import ActionController
 from theia.simulation.controllers.camp_site_controller import CampSiteController
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.critical_infrastructure_controller import (
@@ -43,7 +44,6 @@ from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
 )
-from theia.simulation.controllers.player_controller import PlayerController
 from theia.simulation.controllers.static_gbad_controller import StaticGbadController
 from theia.simulation.controllers.static_gbad_coordinator import StaticGbadCoordinator
 from theia.simulation.controllers.switchable_radar import (
@@ -666,7 +666,7 @@ class OrderOfBattle(pydantic.BaseModel):
     is_user_controlled: bool = False
     """
     Whether a player commands this side with actions. If so, ``to_controller``
-    returns a ``PlayerController``. Defaults to False for ORBAT files written
+    returns a ``ActionController``. Defaults to False for ORBAT files written
     before players existed.
     """
 
@@ -777,7 +777,7 @@ class OrderOfBattle(pydantic.BaseModel):
         )
         if not self.is_user_controlled:
             return ControllerGroup(controllers=[tree])
-        return PlayerController(
+        return ActionController(
             controllers=[tree],
             is_blue=is_blue,
             terrain=terrain,

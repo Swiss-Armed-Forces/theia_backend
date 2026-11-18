@@ -26,10 +26,10 @@ from theia.effectors import (
 )
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.actions import Action
+from theia.simulation.controllers.action_controller import ActionController
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.homing_effector import HomingSystem
 from theia.simulation.controllers.living_controller import LivingController
-from theia.simulation.controllers.player_controller import PlayerController
 from theia.simulation.damage_model import AbstractDamageModel
 from theia.terrain import AbstractTerrainModel
 from theia.types import (
@@ -271,7 +271,7 @@ class Simulator(Trigger, AbstractEventListener):
         return self._root_controller(is_blue).assign_action(action)
 
     def is_user_controlled(self, is_blue: bool) -> bool:
-        return isinstance(self._root_controller(is_blue), PlayerController)
+        return isinstance(self._root_controller(is_blue), ActionController)
 
     def take_snapshot(self) -> Snapshot:
         return Snapshot(

@@ -2,8 +2,10 @@ import unittest
 
 import pydantic
 
+from theia.config import UNKNOWN_ID, UNKNOWN_TIME
 from theia.simulation.actions import (
     Action,
+    AnyAction,
     LaunchAction,
     MoveStockAction,
     ToggleMonostaticRadarAction,
@@ -12,9 +14,9 @@ from theia.simulation.path_generators import (
     BallisticGenerator,
     ClimbCruiseDiveGenerator,
 )
-from theia.types import Point
+from theia.types import Event, Party, Point
 
-ACTION = pydantic.TypeAdapter(Action)
+ACTION = pydantic.TypeAdapter(AnyAction)
 
 
 class ActionTest(unittest.TestCase):
@@ -75,6 +77,15 @@ class ActionTest(unittest.TestCase):
             }
         )
         self.assertEqual(launch.path_generator, BallisticGenerator(alpha=60.0))
+
+    def test_actions_are_events(self):
+        action = ToggleMonostaticRadarAction(sensor_id=4, new_is_on=False)
+        self.assertIsInstance(action, Action)
+        self.assertIsInstance(action, Event)
+        # Filled in by the ActionController on execution.
+        self.assertEqual(action.id, UNKNOWN_ID)
+        self.assertEqual(action.time, UNKNOWN_TIME)
+        self.assertEqual(action.party, Party.UNKNOWN)
 
     def test_unknown_type_is_rejected(self):
         with self.assertRaises(pydantic.ValidationError):

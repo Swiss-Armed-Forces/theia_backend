@@ -7,6 +7,12 @@ from pydantic import TypeAdapter
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 
 from theia.coordinates import CoordinateTransformations
+from theia.simulation.actions import (
+    Action,
+    ActionExecutedEvent,
+    ActionRejectedEvent,
+    AnyAction,
+)
 from theia.simulation.simulator import AbstractSimulationListener, Simulator
 from theia.types import (
     Event,
@@ -17,10 +23,14 @@ from theia.types import (
     PclDetection,
     PclSensor,
     PetDetection,
+    ShipmentArrivedEvent,
+    ShipmentDepartedEvent,
+    ShipmentEvent,
     ShipmentLostEvent,
     Shot,
     SituationalPicture,
     Snapshot,
+    StockLostEvent,
     Target,
     TextEvent,
     TrackInitEvent,
@@ -350,8 +360,28 @@ class LogLoader:
         return [e for e in self._events if type(e) is KillEvent]
 
     @property
+    def shipment_events(self) -> list[ShipmentEvent]:
+        return [e for e in self._events if isinstance(e, ShipmentEvent)]
+
+    @property
+    def stock_lost_events(self) -> list[StockLostEvent]:
+        return [e for e in self._events if isinstance(e, StockLostEvent)]
+
+    @property
     def shipment_lost_events(self) -> list[ShipmentLostEvent]:
         return [e for e in self._events if isinstance(e, ShipmentLostEvent)]
+
+    @property
+    def actions(self) -> list[Action]:
+        return [e for e in self._events if isinstance(e, Action)]
+
+    @property
+    def action_executed_events(self) -> list[ActionExecutedEvent]:
+        return [e for e in self._events if isinstance(e, ActionExecutedEvent)]
+
+    @property
+    def action_rejected_events(self) -> list[ActionRejectedEvent]:
+        return [e for e in self._events if isinstance(e, ActionRejectedEvent)]
 
     @property
     def t_max(self) -> datetime.datetime:
@@ -467,7 +497,19 @@ class LogLoader:
 
     def _load_events(self):
         self._events = TypeAdapter(
-            list[TrackInitEvent | Shot | KillEvent | ShipmentLostEvent | TextEvent]
+            list[
+                AnyAction
+                | ActionExecutedEvent
+                | ActionRejectedEvent
+                | TrackInitEvent
+                | Shot
+                | KillEvent
+                | ShipmentArrivedEvent
+                | ShipmentLostEvent
+                | ShipmentDepartedEvent
+                | StockLostEvent
+                | TextEvent
+            ]
         ).validate_python(self._data["events"])
 
 

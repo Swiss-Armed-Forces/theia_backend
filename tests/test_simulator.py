@@ -13,6 +13,7 @@ from theia.data_loading_testing import load_pcl_reference_data
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.effectors import DirectFireEffector, IndirectFireEffector
+from theia.simulation.actions import ActionExecutedEvent, ToggleMonostaticRadarAction
 from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.homing_effector import HomingSystem
 from theia.simulation.controllers.living_controller import LivingController
@@ -748,7 +749,7 @@ class PlayerSideTest(unittest.TestCase):
     """A side commanded by a player inside the simulator."""
 
     def setUp(self):
-        from tests.test_player_controller import RADAR_SENSOR_ID, build_orbat
+        from tests.test_action_controller import RADAR_SENSOR_ID, build_orbat
         from theia.simulation.scenario_import import (
             DirectFireEffectorFactory,
             OrderOfBattle,
@@ -828,7 +829,7 @@ class PlayerSideTest(unittest.TestCase):
         self.assertFalse(self.simulator.assign_action(False, action))
 
     def test_launch_uses_the_simulation_id_provider(self):
-        from tests.test_player_controller import DESTINATION, LAUNCH_SITE_ID
+        from tests.test_action_controller import DESTINATION, LAUNCH_SITE_ID
         from theia.simulation.actions import LaunchAction
         from theia.types import Entity
 
@@ -840,6 +841,27 @@ class PlayerSideTest(unittest.TestCase):
         self.simulator.advance()
         self.assertIn(next_target_id, {t.id for t in self.simulator._blue_targets})
         self.assertEqual(self.id_provider._free_ids[Entity.TARGET], next_target_id + 1)
+
+    def test_action_is_logged(self):
+        self.simulator.assign_action(
+            True,
+            ToggleMonostaticRadarAction(
+                sensor_id=self.radar_sensor_id, new_is_on=False
+            ),
+        )
+        self.simulator.advance()
+        [action] = [
+            e
+            for e in self.simulator._events
+            if isinstance(e, ToggleMonostaticRadarAction)
+        ]
+        [executed] = [
+            e for e in self.simulator._events if isinstance(e, ActionExecutedEvent)
+        ]
+        self.assertEqual(action.party, Party.BLUE)
+        self.assertEqual(action.time, self.simulator._t - self.simulator._dt)
+        self.assertEqual(executed.action_id, action.id)
+        self.assertNotEqual(action.id, executed.id)
 
 
 class SimulatorRootControllerTest(unittest.TestCase):

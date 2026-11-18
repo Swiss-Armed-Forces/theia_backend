@@ -27,7 +27,7 @@ class CampSiteController(Controller):
     Camp site of a side during the game.
 
     The site is a target. Its ``camp_site.n_ammo`` is the current stock, which
-    the ``PlayerController`` changes by launches and shipments. The controller
+    the ``ActionController`` changes by launches and shipments. The controller
     must own its ``CampSite`` (pass a copy) so that the order of battle keeps
     its initial stock. Wrap it in a ``LivingController`` to make it killable.
     """

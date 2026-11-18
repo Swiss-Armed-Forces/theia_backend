@@ -1526,26 +1526,55 @@ class KillEvent(Event):
         return f"Target {self.target_id} 💀"
 
 
-class ShipmentLostEvent(Event):
-    """
-    Fired when a shipment of stock is lost because a camp site is destroyed.
-
-    This happens if the source site is destroyed while the shipment is still
-    breaking camp, or if the shipment arrives at a destroyed target site. The
-    shipment's rounds are lost.
-    """
+class ShipmentEvent(Event):
+    """Base class of the events of a shipment of stock between two camp sites."""
 
     party: Party
-    """Side that owned the shipment"""
+    """Side that owns the shipment"""
     shipment_id: int
     source_site_id: int
     source_site_name: str
     target_site_id: int
     target_site_name: str
+    count: int
+    """Number of rounds shipped"""
+
+    def _describe(self) -> str:
+        return (
+            f"[{self.party.value}] shipment #{self.shipment_id} of {self.count} "
+            f"rounds from {self.source_site_name} (#{self.source_site_id}) "
+            f"to {self.target_site_name} (#{self.target_site_id})"
+        )
+
+
+class ShipmentDepartedEvent(ShipmentEvent):
+    """Fired when a shipment has broken camp and leaves its source site."""
+
+    def __str__(self) -> str:
+        return f"{self._describe()} departed"
+
+
+class ShipmentArrivedEvent(ShipmentEvent):
+    """Fired when a shipment arrives at its (intact) target site."""
+
+    n_ammo: int
+    """Rounds in stock at the target site after the arrival"""
+
+    def __str__(self) -> str:
+        return f"{self._describe()} arrived: {self.n_ammo} rounds in stock"
+
+
+class ShipmentLostEvent(ShipmentEvent):
+    """
+    Fired when a shipment of stock is lost because a camp site is destroyed.
+
+    This happens if the source site is destroyed while the shipment is still
+    breaking camp, or if the shipment arrives at a destroyed target site. The
+    shipment's rounds (``count``) are lost.
+    """
+
     destroyed_site_id: int
     """ID of the destroyed camp site: either ``source_site_id`` or ``target_site_id``"""
-    count: int
-    """Number of rounds lost"""
 
     @property
     def destroyed_site_name(self) -> str:
@@ -1558,6 +1587,28 @@ class ShipmentLostEvent(Event):
             f"[{self.party.value}] shipment #{self.shipment_id} lost: "
             f"{self.count} rounds, camp site {self.destroyed_site_name} "
             f"(#{self.destroyed_site_id}) is destroyed"
+        )
+
+
+class StockLostEvent(Event):
+    """
+    Fired when a camp site with stock is destroyed: its stock is lost.
+
+    The kill itself is a ``KillEvent``; shipments that were still breaking camp
+    at the site are reported as ``ShipmentLostEvent``s.
+    """
+
+    party: Party
+    """Side that owned the stock"""
+    site_id: int
+    site_name: str
+    count: int
+    """Number of rounds lost"""
+
+    def __str__(self) -> str:
+        return (
+            f"[{self.party.value}] {self.count} rounds in stock lost: camp site "
+            f"{self.site_name} (#{self.site_id}) is destroyed"
         )
 
 

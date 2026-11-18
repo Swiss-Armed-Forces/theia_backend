@@ -2,18 +2,23 @@ import datetime
 import threading
 import unittest
 
+from theia.config import UNKNOWN_ID, UNKNOWN_TIME
 from theia.simulation.actions import (
+    Action,
+    ActionExecutedEvent,
+    ActionRejectedEvent,
     LaunchAction,
     MoveStockAction,
+    RejectionReason,
     ToggleMonostaticRadarAction,
+)
+from theia.simulation.controllers.action_controller import (
+    ActionController,
+    ShipmentState,
 )
 from theia.simulation.controllers.intel_controller import IntelController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
-)
-from theia.simulation.controllers.player_controller import (
-    PlayerController,
-    ShipmentState,
 )
 from theia.simulation.scenario_import import (
     CampSite,
@@ -35,11 +40,13 @@ from theia.types import (
     KillEvent,
     Party,
     Point,
+    ShipmentArrivedEvent,
+    ShipmentDepartedEvent,
     ShipmentLostEvent,
     SimulationContext,
     SituationalPicture,
+    StockLostEvent,
     TargetInfos,
-    TextEvent,
     TheiaException,
     Trajectory,
 )
@@ -139,13 +146,20 @@ class _Recorder(AbstractEventListener):
     def on_event(self, event: Event):
         self.events.append(event)
 
-    def texts(self, marker: str) -> list[str]:
-        return [
-            e.text for e in self.events if isinstance(e, TextEvent) and marker in e.text
-        ]
+    def of_type[T](self, event_type: type[T]) -> list[T]:
+        return [e for e in self.events if isinstance(e, event_type)]
+
+    def actions(self) -> list[Action]:
+        return [e for e in self.events if isinstance(e, Action)]
+
+    def results(self) -> list[str]:
+        return [e.result for e in self.events if isinstance(e, ActionExecutedEvent)]
+
+    def rejections(self) -> list[RejectionReason]:
+        return [e.reason for e in self.events if isinstance(e, ActionRejectedEvent)]
 
 
-class PlayerControllerTestBase(unittest.TestCase):
+class ActionControllerTestBase(unittest.TestCase):
     def setUp(self):
         self.build()
 
@@ -154,7 +168,7 @@ class PlayerControllerTestBase(unittest.TestCase):
         self.id_provider = IdProvider()
         orbat.update_id_provider(self.id_provider)
         self.controller = orbat.to_controller(DummyTerrain(has_los=True), True)
-        self.assertIsInstance(self.controller, PlayerController)
+        self.assertIsInstance(self.controller, ActionController)
         self.context = SimulationContext(id_provider=self.id_provider)
         self.controller.bind(self.context)
         self.recorder = _Recorder()
@@ -188,7 +202,7 @@ class PlayerControllerTestBase(unittest.TestCase):
         return {t.id for t in self.controller.targets}
 
 
-class LaunchTest(PlayerControllerTestBase):
+class LaunchTest(ActionControllerTestBase):
     def launch(self, site_id: int = LAUNCH_SITE_ID):
         self.act(LaunchAction(site_id=site_id, destination=DESTINATION))
 
@@ -198,7 +212,7 @@ class LaunchTest(PlayerControllerTestBase):
         self.launch()
         self.assertEqual(self.site(LAUNCH_SITE_ID).n_ammo, 1)
         self.assertEqual(len(self.target_ids()), n_targets + 1)
-        self.assertEqual(len(self.recorder.texts("executed")), 1)
+        self.assertEqual(len(self.recorder.results()), 1)
         # New IDs come from the shared ID provider.
         self.assertIn(next_target_id, self.target_ids())
         self.assertEqual(self.id_provider._free_ids[Entity.TARGET], next_target_id + 1)
@@ -232,8 +246,7 @@ class LaunchTest(PlayerControllerTestBase):
         self.launch()
         self.launch()
         self.assertEqual(self.site(LAUNCH_SITE_ID).n_ammo, 1)
-        [rejection] = self.recorder.texts("rejected")
-        self.assertIn("reloading", rejection)
+        self.assertEqual(self.recorder.rejections(), [RejectionReason.RELOADING])
         # The rejected launch is not held back for later.
         self.step(int(SECONDS_BETWEEN_LAUNCHES) + 1)
         self.assertEqual(self.site(LAUNCH_SITE_ID).n_ammo, 1)
@@ -249,14 +262,12 @@ class LaunchTest(PlayerControllerTestBase):
     def test_launch_from_depot_is_rejected(self):
         self.launch(DEPOT_ID)
         self.assertEqual(self.site(DEPOT_ID).n_ammo, 10)
-        [rejection] = self.recorder.texts("rejected")
-        self.assertIn("cannot launch", rejection)
+        self.assertEqual(self.recorder.rejections(), [RejectionReason.CANNOT_LAUNCH])
 
     def test_launch_with_empty_stock_is_rejected(self):
         self.build(n_launch_site=0)
         self.launch()
-        [rejection] = self.recorder.texts("rejected")
-        self.assertIn("no stock", rejection)
+        self.assertEqual(self.recorder.rejections(), [RejectionReason.NO_STOCK])
 
     def test_launch_of_stock_in_transit_is_rejected(self):
         self.act(
@@ -265,27 +276,60 @@ class LaunchTest(PlayerControllerTestBase):
             )
         )
         self.launch()
-        [rejection] = self.recorder.texts("rejected")
-        self.assertIn("no stock", rejection)
+        self.assertEqual(self.recorder.rejections(), [RejectionReason.NO_STOCK])
 
     def test_unknown_site_is_rejected(self):
         self.launch(site_id=99)
-        [rejection] = self.recorder.texts("rejected")
-        self.assertIn("unknown camp site", rejection)
+        self.assertEqual(
+            self.recorder.rejections(), [RejectionReason.UNKNOWN_CAMP_SITE]
+        )
 
     def test_every_action_is_logged(self):
         self.launch()
         self.launch(DEPOT_ID)
-        self.assertEqual(len(self.recorder.texts("received")), 2)
-        self.assertEqual(len(self.recorder.texts("executed")), 1)
-        self.assertEqual(len(self.recorder.texts("rejected")), 1)
+        self.assertEqual(len(self.recorder.actions()), 2)
+        self.assertEqual(len(self.recorder.results()), 1)
+        self.assertEqual(len(self.recorder.rejections()), 1)
         self.assertEqual(
             [e.time for e in self.recorder.events],
             [T0 + DT, T0 + DT, T0 + 2 * DT, T0 + 2 * DT],
         )
 
+    def test_action_is_logged_before_its_outcome(self):
+        action = LaunchAction(site_id=LAUNCH_SITE_ID, destination=DESTINATION)
+        self.act(action)
+        self.act(action)
+        launch, executed, relaunch, rejected = self.recorder.events
+        self.assertIsInstance(launch, LaunchAction)
+        self.assertIsInstance(executed, ActionExecutedEvent)
+        self.assertIsInstance(relaunch, LaunchAction)
+        self.assertIsInstance(rejected, ActionRejectedEvent)
+        # The outcome refers to its action.
+        self.assertNotEqual(launch.id, relaunch.id)
+        self.assertEqual(executed.action_id, launch.id)
+        self.assertEqual(rejected.action_id, relaunch.id)
+        self.assertEqual(rejected.reason, RejectionReason.RELOADING)
+        # The controller fills in ID, time and party.
+        self.assertEqual(launch.time, T0 + DT)
+        self.assertEqual(launch.party, Party.BLUE)
+        self.assertEqual(executed.party, Party.BLUE)
+        self.assertEqual(launch.site_id, LAUNCH_SITE_ID)
+        # The actor's object is left untouched.
+        self.assertEqual(action.id, UNKNOWN_ID)
+        self.assertEqual(action.time, UNKNOWN_TIME)
+        self.assertEqual(action.party, Party.UNKNOWN)
 
-class MoveStockTest(PlayerControllerTestBase):
+    def test_action_party_is_overwritten(self):
+        self.act(
+            LaunchAction(
+                site_id=LAUNCH_SITE_ID, destination=DESTINATION, party=Party.RED
+            )
+        )
+        [action] = self.recorder.actions()
+        self.assertEqual(action.party, Party.BLUE)
+
+
+class MoveStockTest(ActionControllerTestBase):
     def move(self, count: int = 3):
         self.act(
             MoveStockAction(
@@ -331,17 +375,37 @@ class MoveStockTest(PlayerControllerTestBase):
         self.assertEqual(self.site(LAUNCH_SITE_ID).n_ammo, 5)
         self.assertEqual(self.controller.get_status().shipments, [])
 
+    def test_move_events(self):
+        self.move()
+        self.step(int(SECONDS_UNTIL_LEAVE + SECONDS_UNDERWAY) + 1)
+        [departed] = self.recorder.of_type(ShipmentDepartedEvent)
+        [arrived] = self.recorder.of_type(ShipmentArrivedEvent)
+        self.assertLess(departed.time, arrived.time)
+        for event in (departed, arrived):
+            self.assertEqual(event.party, Party.BLUE)
+            self.assertEqual(event.shipment_id, 0)
+            self.assertEqual(event.source_site_id, DEPOT_ID)
+            self.assertEqual(event.source_site_name, "depot")
+            self.assertEqual(event.target_site_id, LAUNCH_SITE_ID)
+            self.assertEqual(event.target_site_name, "launch site")
+            self.assertEqual(event.count, 3)
+        self.assertEqual(arrived.n_ammo, 5)
+        self.assertIn("departed", str(departed))
+        self.assertIn("arrived: 5 rounds in stock", str(arrived))
+        self.assertEqual(self.recorder.of_type(ShipmentLostEvent), [])
+
     def test_move_more_than_stock_is_rejected(self):
         self.move(count=11)
         self.assertEqual(self.site(DEPOT_ID).n_ammo, 10)
-        self.assertEqual(len(self.recorder.texts("rejected")), 1)
+        self.assertEqual(
+            self.recorder.rejections(), [RejectionReason.INSUFFICIENT_STOCK]
+        )
 
     def test_move_without_route_is_rejected(self):
         self.act(
             MoveStockAction(source_site_id=DEPOT_ID, target_site_id=DEPOT_ID, count=1)
         )
-        [rejection] = self.recorder.texts("rejected")
-        self.assertIn("no route", rejection)
+        self.assertEqual(self.recorder.rejections(), [RejectionReason.NO_ROUTE])
 
     def test_shipment_to_destroyed_site_is_lost(self):
         self.move()
@@ -351,7 +415,7 @@ class MoveStockTest(PlayerControllerTestBase):
         self.step(int(SECONDS_UNTIL_LEAVE + SECONDS_UNDERWAY) + 1)
         self.assertEqual(self.site(LAUNCH_SITE_ID).n_ammo, 0)
         self.assertEqual(self.controller.get_status().shipments, [])
-        [event] = [e for e in self.recorder.events if isinstance(e, ShipmentLostEvent)]
+        [event] = self.recorder.of_type(ShipmentLostEvent)
         self.assertEqual(event.party, Party.BLUE)
         self.assertEqual(event.shipment_id, 0)
         self.assertEqual(event.source_site_id, DEPOT_ID)
@@ -367,7 +431,7 @@ class MoveStockTest(PlayerControllerTestBase):
         )
 
 
-class CampSiteKillTest(PlayerControllerTestBase):
+class CampSiteKillTest(ActionControllerTestBase):
     def test_kill_destroys_stock_and_shipments_breaking_camp(self):
         self.act(
             MoveStockAction(
@@ -383,10 +447,13 @@ class CampSiteKillTest(PlayerControllerTestBase):
         self.assertEqual(depot.n_ammo, 0)
         self.assertEqual(self.controller.get_status().shipments, [])
         self.assertNotIn(DEPOT_TARGET_ID, self.target_ids())
-        [text] = self.recorder.texts("destroyed")
-        self.assertIn("6 rounds in stock", text)
-        self.assertIn("shipment #0 (4 rounds)", text)
-        [event] = [e for e in self.recorder.events if isinstance(e, ShipmentLostEvent)]
+        [stock_lost] = self.recorder.of_type(StockLostEvent)
+        self.assertEqual(stock_lost.party, Party.BLUE)
+        self.assertEqual(stock_lost.site_id, DEPOT_ID)
+        self.assertEqual(stock_lost.site_name, "depot")
+        self.assertEqual(stock_lost.count, 6)
+        self.assertIn("6 rounds in stock lost", str(stock_lost))
+        [event] = self.recorder.of_type(ShipmentLostEvent)
         self.assertEqual(event.party, Party.BLUE)
         self.assertEqual(event.shipment_id, 0)
         self.assertEqual(event.source_site_id, DEPOT_ID)
@@ -422,11 +489,12 @@ class CampSiteKillTest(PlayerControllerTestBase):
             KillEvent(id=1, time=self.time, target_id=LAUNCH_SITE_TARGET_ID)
         )
         self.act(LaunchAction(site_id=LAUNCH_SITE_ID, destination=DESTINATION))
-        [rejection] = self.recorder.texts("rejected")
-        self.assertIn("destroyed", rejection)
+        self.assertEqual(
+            self.recorder.rejections(), [RejectionReason.CAMP_SITE_DESTROYED]
+        )
 
 
-class RadarToggleTest(PlayerControllerTestBase):
+class RadarToggleTest(ActionControllerTestBase):
     def radar(self) -> MonostaticRadarController:
         [radar] = self.controller._radars.values()
         return radar.child.child
@@ -460,11 +528,19 @@ class RadarToggleTest(PlayerControllerTestBase):
 
     def test_unknown_radar_is_rejected(self):
         self.act(ToggleMonostaticRadarAction(sensor_id=99, new_is_on=False))
-        [rejection] = self.recorder.texts("rejected")
-        self.assertIn("unknown monostatic radar", rejection)
+        self.assertEqual(self.recorder.rejections(), [RejectionReason.UNKNOWN_RADAR])
+
+    def test_destroyed_radar_is_rejected(self):
+        self.controller.on_event(
+            KillEvent(id=1, time=self.time, target_id=RADAR_TARGET_ID)
+        )
+        self.act(
+            ToggleMonostaticRadarAction(sensor_id=RADAR_SENSOR_ID, new_is_on=False)
+        )
+        self.assertEqual(self.recorder.rejections(), [RejectionReason.RADAR_DESTROYED])
 
 
-class OutputTest(PlayerControllerTestBase):
+class OutputTest(ActionControllerTestBase):
     def test_camp_sites_are_targets(self):
         self.assertIn(LAUNCH_SITE_TARGET_ID, self.target_ids())
         self.assertIn(DEPOT_TARGET_ID, self.target_ids())
@@ -496,7 +572,7 @@ class OutputTest(PlayerControllerTestBase):
         self.assertEqual(self.controller.intel_sensors, [sensor])
 
 
-class BindingTest(PlayerControllerTestBase):
+class BindingTest(ActionControllerTestBase):
     def test_child_tree_is_bound(self):
         [tree] = self.controller._controllers
         self.assertIs(tree.simulation_context, self.context)
@@ -505,7 +581,7 @@ class BindingTest(PlayerControllerTestBase):
 
     def test_launched_round_is_bound(self):
         self.act(LaunchAction(site_id=LAUNCH_SITE_ID, destination=DESTINATION))
-        # Launched rounds are added to the PlayerController itself.
+        # Launched rounds are added to the ActionController itself.
         [tree, round_controller] = self.controller._controllers
         self.assertIs(round_controller.simulation_context, self.context)
 
@@ -527,7 +603,7 @@ class BindingTest(PlayerControllerTestBase):
             )
 
 
-class ConcurrencyTest(PlayerControllerTestBase):
+class ConcurrencyTest(ActionControllerTestBase):
     def test_concurrent_assign_action(self):
         n_threads = 8
         n_per_thread = 50
@@ -549,8 +625,8 @@ class ConcurrencyTest(PlayerControllerTestBase):
         for t in threads:
             t.join()
         self.step()
-        self.assertEqual(len(self.recorder.texts("received")), n_threads * n_per_thread)
-        self.assertEqual(len(self.recorder.texts("executed")), n_threads * n_per_thread)
+        self.assertEqual(len(self.recorder.actions()), n_threads * n_per_thread)
+        self.assertEqual(len(self.recorder.results()), n_threads * n_per_thread)
 
 
 class LegacyOrbatTest(unittest.TestCase):
@@ -559,13 +635,13 @@ class LegacyOrbatTest(unittest.TestCase):
         orbat.camp_sites = []
         orbat.transport_times = []
         controller = orbat.to_controller(DummyTerrain(has_los=True), True)
-        self.assertIsInstance(controller, PlayerController)
+        self.assertIsInstance(controller, ActionController)
 
-    def test_not_user_controlled_no_player_controller(self):
+    def test_not_user_controlled_no_action_controller(self):
         orbat = build_orbat()
         orbat.is_user_controlled = False
         controller = orbat.to_controller(DummyTerrain(has_los=True), True)
-        self.assertNotIsInstance(controller, PlayerController)
+        self.assertNotIsInstance(controller, ActionController)
         self.assertFalse(
             controller.assign_action(
                 ToggleMonostaticRadarAction(sensor_id=RADAR_SENSOR_ID, new_is_on=False)
