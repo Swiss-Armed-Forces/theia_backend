@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import os
 import tempfile
 import unittest
@@ -771,6 +772,24 @@ class OrderOfBattleCampSitesTest(unittest.TestCase):
             ],
         )
         self.assertTrue(parsed.is_user_controlled)
+
+    def test_camp_sites_without_user_control_warn(self):
+        data = get_game_orbat().model_dump(mode="json")
+        data["is_user_controlled"] = False
+        with self.assertLogs(level=logging.WARNING) as logs:
+            OrderOfBattle.model_validate(data)
+        [message] = logs.output
+        self.assertIn("2 camp site(s)", message)
+        self.assertIn("not user-controlled", message)
+
+    def test_no_warning_if_user_controlled_or_without_camp_sites(self):
+        for data in (
+            get_game_orbat().model_dump(mode="json"),
+            get_order_of_battle([]).model_dump(mode="json"),
+        ):
+            with self.subTest(is_user_controlled=data["is_user_controlled"]):
+                with self.assertNoLogs(level=logging.WARNING):
+                    OrderOfBattle.model_validate(data)
 
     def test_duplicate_site_ids_are_rejected(self):
         data = get_game_orbat().model_dump(mode="json")

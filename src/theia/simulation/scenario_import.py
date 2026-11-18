@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import datetime
 import json
+import logging
 from typing import Annotated, ClassVar, Literal, Optional
 
 import matplotlib
@@ -691,6 +692,12 @@ class OrderOfBattle(pydantic.BaseModel):
                     f"different ammunition types ({source.ammo.type} and "
                     f"{target.ammo.type})"
                 )
+        if self.camp_sites and not self.is_user_controlled:
+            logging.warning(
+                f"Order of battle has {len(self.camp_sites)} camp site(s) but is "
+                "not user-controlled: the camp sites are simulated as targets "
+                "only; nobody can launch from them or move their stock."
+            )
         return self
 
     @staticmethod
