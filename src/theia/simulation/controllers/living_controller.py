@@ -54,9 +54,6 @@ class LivingController(Controller, Generic[T]):
         super().bind(context)
         self.child.bind(context)
 
-    def add_controller(self, controller: Controller):
-        self.child.add_controller(controller)
-
     def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
         if self._is_alive:
             self.child.update(situational_picture, dt)

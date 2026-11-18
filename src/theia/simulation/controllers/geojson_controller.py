@@ -33,9 +33,6 @@ class GeoJsonController(Controller, pydantic.BaseModel):
         super().bind(context)
         self.child.bind(context)
 
-    def add_controller(self, controller: Controller):
-        self.child.add_controller(controller)
-
     def update(self, situational_picture: SituationalPicture, dt: datetime.timedelta):
         self.child.update(situational_picture, dt)
         self.monostatic_sensors = self.child.monostatic_sensors

@@ -21,9 +21,6 @@ class FakeChildController(Controller):
     def on_event(self, event: Event):
         pass
 
-    def add_controller(self, controller: Controller):
-        pass
-
 
 def get_dummy_situational_picture() -> SituationalPicture:
     return SituationalPicture(
@@ -64,21 +61,13 @@ class GeoJsonControllerTest(unittest.TestCase):
             self._controller.on_event(event)
             mock_on_event.assert_called_once_with(self._child, event)
 
-    def test_add_controller_forwards_to_child(self):
-        grandchild = FakeChildController()
-        with patch.object(
-            FakeChildController, "add_controller", autospec=True
-        ) as mock_add:
-            self._controller.add_controller(grandchild)
-            mock_add.assert_called_once_with(self._child, grandchild)
-
     def test_update_merges_child_state_and_own_geojson_features(self):
-        own_feature = [GeoJSONFeature(
-            geometry=GeoJSONPolygon(coordinates=[[[0.0, 0.0]]])
-        )]
-        child_feature = [GeoJSONFeature(
-            geometry=GeoJSONPolygon(coordinates=[[[1.0, 1.0]]])
-        )]
+        own_feature = [
+            GeoJSONFeature(geometry=GeoJSONPolygon(coordinates=[[[0.0, 0.0]]]))
+        ]
+        child_feature = [
+            GeoJSONFeature(geometry=GeoJSONPolygon(coordinates=[[[1.0, 1.0]]]))
+        ]
         self._controller.geojson_features = {"own": own_feature}
         self._child.geojson = {"child": child_feature}
 
