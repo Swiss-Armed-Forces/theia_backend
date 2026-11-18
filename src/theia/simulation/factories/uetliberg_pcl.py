@@ -15,7 +15,7 @@ from theia.simulation.factories.abstract_simulator_factory import (
 from theia.simulation.simulator import TerminationCriterion, TimeCriterion
 from theia.simulation.trackers.pseudo_tracker import PseudoTracker
 from theia.test_data import load_pcl_example
-from theia.types import AbstractTracker, Controller, Party, TargetInfos
+from theia.types import AbstractTracker, Party, TargetInfos
 
 
 class UetlibergPclSimulatorFactory(AbstractSimulatorFactory):
@@ -51,12 +51,12 @@ class UetlibergPclSimulatorFactory(AbstractSimulatorFactory):
             start_time=self._get_start_time(),
         )
 
-    def _get_blue_controller(self) -> Controller:
+    def _get_blue_controller(self) -> ControllerGroup:
         return ControllerGroup(
             [PclSensorController(sensor) for sensor in self._sensors]
         )
 
-    def _get_red_controller(self) -> Controller:
+    def _get_red_controller(self) -> ControllerGroup:
         return ControllerGroup(
             [
                 WaypointTargetController.from_trajectory(

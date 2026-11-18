@@ -86,11 +86,15 @@ class SimulatorTest(unittest.TestCase):
         simulator = Simulator(
             pcl_detector=PclDetector(),
             pet_detector=PetDetector(terrain_model=terrain),
-            blue_controller=MonostaticRadarController(
-                len(scripted_target_controller._controllers) + 1,
-                radar,
-                True,
-                ConstantRcsModel(rcs=1.0),
+            blue_controller=ControllerGroup(
+                [
+                    MonostaticRadarController(
+                        len(scripted_target_controller._controllers) + 1,
+                        radar,
+                        True,
+                        ConstantRcsModel(rcs=1.0),
+                    )
+                ]
             ),
             red_controller=scripted_target_controller,
             blue_tracker=DummyTracker(),
@@ -141,11 +145,15 @@ class SimulatorTest(unittest.TestCase):
         simulator = Simulator(
             pcl_detector=PclDetector(),
             pet_detector=PetDetector(terrain_model=terrain),
-            blue_controller=MonostaticRadarController(
-                len(scripted_target_controller._controllers) + 1,
-                radar,
-                True,
-                ConstantRcsModel(rcs=1.0),
+            blue_controller=ControllerGroup(
+                [
+                    MonostaticRadarController(
+                        len(scripted_target_controller._controllers) + 1,
+                        radar,
+                        True,
+                        ConstantRcsModel(rcs=1.0),
+                    )
+                ]
             ),
             red_controller=scripted_target_controller,
             blue_tracker=DummyTracker(),
@@ -333,7 +341,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
             pcl_detector=PclDetector(),
             pet_detector=PetDetector(terrain_model=terrain),
             blue_controller=blue_group,
-            red_controller=red_stub,
+            red_controller=ControllerGroup([red_stub]),
             blue_tracker=_FixedTrackTracker(track),
             red_tracker=DummyTracker(),
             start_time=t0,
@@ -460,7 +468,7 @@ class SimulatorIndirectFireTest(unittest.TestCase):
             pcl_detector=PclDetector(),
             pet_detector=PetDetector(terrain_model=terrain),
             blue_controller=blue_group,
-            red_controller=red_stub,
+            red_controller=ControllerGroup([red_stub]),
             blue_tracker=_FixedTrackTracker(track),
             red_tracker=DummyTracker(),
             start_time=t0,
@@ -553,7 +561,7 @@ class TrackingErrorWastesAmmoTest(unittest.TestCase):
             pcl_detector=PclDetector(),
             pet_detector=PetDetector(terrain_model=terrain),
             blue_controller=blue_controller,
-            red_controller=red_stub,
+            red_controller=ControllerGroup([red_stub]),
             blue_tracker=blue_tracker,
             red_tracker=DummyTracker(),
             start_time=t0,
@@ -834,6 +842,35 @@ class PlayerSideTest(unittest.TestCase):
         self.assertEqual(self.id_provider._free_ids[Entity.TARGET], next_target_id + 1)
 
 
+class SimulatorRootControllerTest(unittest.TestCase):
+    def test_root_controllers_must_be_groups(self):
+        terrain = DummyTerrain(has_los=True)
+        rng = np.random.Generator(np.random.PCG64(seed=1))
+        t0 = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+        leaf = _StationaryTargetController(
+            target_id=1, point=Point(lat=47.0, lon=8.0, alt=0.0)
+        )
+        for blue, red in (
+            (leaf, ControllerGroup([])),
+            (ControllerGroup([]), leaf),
+        ):
+            with self.assertRaises(TypeError):
+                Simulator(
+                    pcl_detector=PclDetector(),
+                    pet_detector=PetDetector(terrain_model=terrain),
+                    blue_controller=blue,
+                    red_controller=red,
+                    blue_tracker=DummyTracker(),
+                    red_tracker=DummyTracker(),
+                    start_time=t0,
+                    time_step=datetime.timedelta(seconds=1),
+                    min_time_per_step=datetime.timedelta(seconds=0),
+                    termination_criterion=TimeCriterion(t0),
+                    rng=rng,
+                    listener=InMemoryLogger(),
+                    terrain_model=terrain,
+                    damage_model=UniformDamageModel(1.0, rng),
+                )
 
 
 if __name__ == "__main__":

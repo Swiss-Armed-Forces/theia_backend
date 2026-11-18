@@ -23,7 +23,6 @@ from theia.test_data import get_uetliberg_radar
 from theia.types import (
     AbstractTracker,
     ConstantRcsModel,
-    Controller,
     Party,
     TargetInfos,
 )
@@ -60,15 +59,19 @@ class UetlibergOpenskySimulatorFactory(AbstractSimulatorFactory):
             removal_patience=30, rng=self._rng, start_time=self._get_start_time()
         )
 
-    def _get_blue_controller(self) -> Controller:
-        return MonostaticRadarController(
-            target_id=max([t.target_id for t in self._trajectories]) + 1,
-            radar=self._radar,
-            is_blue=True,
-            rcs_model=ConstantRcsModel(rcs=1.0),
+    def _get_blue_controller(self) -> ControllerGroup:
+        return ControllerGroup(
+            [
+                MonostaticRadarController(
+                    target_id=max([t.target_id for t in self._trajectories]) + 1,
+                    radar=self._radar,
+                    is_blue=True,
+                    rcs_model=ConstantRcsModel(rcs=1.0),
+                )
+            ]
         )
 
-    def _get_red_controller(self) -> Controller:
+    def _get_red_controller(self) -> ControllerGroup:
         return ControllerGroup(
             [
                 WaypointTargetController.from_trajectory(

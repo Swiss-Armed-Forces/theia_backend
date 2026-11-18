@@ -29,7 +29,6 @@ from theia.test_data import (
 from theia.types import (
     AbstractTracker,
     ConstantRcsModel,
-    Controller,
     Party,
     PclMeasurementModel,
     PclSensor,
@@ -147,7 +146,7 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
                 )
         return sensors
 
-    def _get_blue_controller(self) -> Controller:
+    def _get_blue_controller(self) -> ControllerGroup:
         blue_sensor = build_flores_monostatic_radar(
             Point(
                 lat=POSITIONS_OF_INTEREST["Uetliberg"]["lat"],
@@ -197,7 +196,7 @@ class PerformanceDemoFactory(AbstractSimulatorFactory):
 
         return ControllerGroup(controllers=blue_controllers)
 
-    def _get_red_controller(self) -> Controller:
+    def _get_red_controller(self) -> ControllerGroup:
         red_sensor = build_fighter_jet_radar(0, 0, 0)
         c1 = WaypointTargetController.from_trajectory(
             trajectory=self._trajectory1,

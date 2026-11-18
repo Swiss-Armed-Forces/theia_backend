@@ -5,6 +5,7 @@ import numpy as np
 from theia.coordinates import POSITIONS_OF_INTEREST
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
+from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
 )
@@ -24,7 +25,6 @@ from theia.test_data import (
 from theia.types import (
     AbstractTracker,
     ConstantRcsModel,
-    Controller,
     Party,
     Point,
     TargetInfos,
@@ -56,7 +56,7 @@ class BodenseeMonostaticFactory(AbstractSimulatorFactory):
             start_time=self._get_start_time(),
         )
 
-    def _get_blue_controller(self) -> Controller:
+    def _get_blue_controller(self) -> ControllerGroup:
         blue_sensor = build_flores_monostatic_radar(
             Point(
                 lat=POSITIONS_OF_INTEREST["Uetliberg"]["lat"],
@@ -67,21 +67,29 @@ class BodenseeMonostaticFactory(AbstractSimulatorFactory):
             1,
             1,
         )
-        return MonostaticRadarController(
-            target_id=1,
-            radar=blue_sensor,
-            is_blue=True,
-            rcs_model=ConstantRcsModel(rcs=1.0),
-            name="Üetliberg radar",
+        return ControllerGroup(
+            [
+                MonostaticRadarController(
+                    target_id=1,
+                    radar=blue_sensor,
+                    is_blue=True,
+                    rcs_model=ConstantRcsModel(rcs=1.0),
+                    name="Üetliberg radar",
+                )
+            ]
         )
 
-    def _get_red_controller(self) -> Controller:
+    def _get_red_controller(self) -> ControllerGroup:
         red_sensor = build_fighter_jet_radar(0, 0, 0)
-        return WaypointTargetController.from_trajectory(
-            trajectory=self._trajectory,
-            info=TargetInfos.FIXED_WING.with_party(Party.RED),
-            name="Reconnaissance plane",
-            sensor=red_sensor,
+        return ControllerGroup(
+            [
+                WaypointTargetController.from_trajectory(
+                    trajectory=self._trajectory,
+                    info=TargetInfos.FIXED_WING.with_party(Party.RED),
+                    name="Reconnaissance plane",
+                    sensor=red_sensor,
+                )
+            ]
         )
 
     def _get_start_time(self) -> datetime.datetime:

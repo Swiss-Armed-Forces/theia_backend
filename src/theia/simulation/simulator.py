@@ -6,7 +6,6 @@ import datetime
 import itertools
 import time
 from copy import deepcopy
-from typing import Optional
 
 import numpy as np
 
@@ -27,6 +26,7 @@ from theia.effectors import (
 )
 from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.simulation.actions import Action
+from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.controllers.homing_effector import HomingSystem
 from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.player_controller import PlayerController
@@ -36,7 +36,6 @@ from theia.types import (
     AbstractEffector,
     AbstractEventListener,
     AbstractTracker,
-    Controller,
     Entity,
     Event,
     IdProvider,
@@ -86,8 +85,8 @@ class Simulator(Trigger, AbstractEventListener):
         self,
         pcl_detector: PclDetector,
         pet_detector: PetDetector,
-        blue_controller: Controller,
-        red_controller: Controller,
+        blue_controller: ControllerGroup,
+        red_controller: ControllerGroup,
         blue_tracker: AbstractTracker,
         red_tracker: AbstractTracker,
         start_time: datetime.datetime,
@@ -98,7 +97,7 @@ class Simulator(Trigger, AbstractEventListener):
         listener: AbstractSimulationListener,
         terrain_model: AbstractTerrainModel,
         damage_model: AbstractDamageModel,
-        visual_detector: Optional[VisualDetector] = None,
+        visual_detector: VisualDetector | None = None,
         simulate_clutter: bool = True,
         id_provider: IdProvider | None = None,
         shot_association_tolerance: float = 250.0,
@@ -110,10 +109,12 @@ class Simulator(Trigger, AbstractEventListener):
             PCL Detector
         pet_detector: PetDetector
             PET detector
-        blue_controller: Controller
-            Handles all blue behaviour
-        red_controller: Controller
-            Handles all red behaviour
+        blue_controller: ControllerGroup
+            Handles all blue behaviour. A group, so that projectiles fired by
+            blue can be added to it.
+        red_controller: ControllerGroup
+            Handles all red behaviour. A group, so that projectiles fired by
+            red can be added to it.
         blue_tracker: AbstractTracker
             Tracker that generates the blue situational pictures
             (it detects red targets)
@@ -149,6 +150,14 @@ class Simulator(Trigger, AbstractEventListener):
             if visual_detector is None
             else visual_detector
         )
+        for name, controller in (
+            ("blue_controller", blue_controller),
+            ("red_controller", red_controller),
+        ):
+            if not isinstance(controller, ControllerGroup):
+                raise TypeError(
+                    f"{name} must be a ControllerGroup, not {type(controller).__name__}"
+                )
         self._blue_controller = blue_controller
         self._red_controller = red_controller
         self._blue_tracker = blue_tracker
@@ -245,7 +254,7 @@ class Simulator(Trigger, AbstractEventListener):
             enemy_targets=self._red_tracker.get_tracks(),
         )
 
-    def _root_controller(self, is_blue: bool) -> Controller:
+    def _root_controller(self, is_blue: bool) -> ControllerGroup:
         return self._blue_controller if is_blue else self._red_controller
 
     def assign_action(self, is_blue: bool, action: Action) -> bool:

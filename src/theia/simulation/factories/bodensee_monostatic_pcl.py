@@ -29,7 +29,6 @@ from theia.test_data import (
 from theia.types import (
     AbstractTracker,
     ConstantRcsModel,
-    Controller,
     MonostaticSensor,
     Party,
     PclMeasurementModel,
@@ -96,7 +95,7 @@ class BodenseeMonostaticPclFactory(AbstractSimulatorFactory):
             )
             sensor_id += 1
 
-    def _get_blue_controller(self) -> Controller:
+    def _get_blue_controller(self) -> ControllerGroup:
         monostatic_positions = [
             (
                 POSITIONS_OF_INTEREST["Uetliberg"]["lat"],
@@ -147,7 +146,7 @@ class BodenseeMonostaticPclFactory(AbstractSimulatorFactory):
             ]
             return ControllerGroup(monostatic_controllers + pcl_controllers)
 
-    def _get_red_controller(self) -> Controller:
+    def _get_red_controller(self) -> ControllerGroup:
         return ControllerGroup(
             [
                 WaypointTargetController.from_trajectory(

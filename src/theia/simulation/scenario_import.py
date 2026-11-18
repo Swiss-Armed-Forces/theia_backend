@@ -717,7 +717,7 @@ class OrderOfBattle(pydantic.BaseModel):
         self,
         terrain: AbstractTerrainModel,
         is_blue: bool,
-    ) -> Controller:
+    ) -> ControllerGroup:
         monostatic_controllers = [
             s.to_controller(is_blue) for s in self.monostatic_sensors
         ]

@@ -25,7 +25,6 @@ from theia.test_data import get_uetliberg_radar
 from theia.types import (
     AbstractTracker,
     ConstantRcsModel,
-    Controller,
     Party,
     Point,
     TargetInfos,
@@ -89,7 +88,7 @@ class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
             start_time=self._get_start_time(),
         )
 
-    def _get_blue_controller(self) -> Controller:
+    def _get_blue_controller(self) -> ControllerGroup:
         radar_controller = MonostaticRadarController(
             target_id=self._target_id_radar,
             radar=self._radar,
@@ -114,17 +113,21 @@ class SingleTargetSingleEffectorFactory(AbstractSimulatorFactory):
 
         return ControllerGroup([radar_controller, effector_controller])
 
-    def _get_red_controller(self) -> Controller:
-        return LivingController(
-            child=WaypointTargetController(
-                name="RED plane",
-                info=TargetInfos.FIXED_WING.with_party(Party.RED),
-                target_id=self._target_id_plane,
-                times=self._times,
-                waypoints=self._points,
-                rcs_model=ConstantRcsModel(rcs=1.0),
-            ),
-            target_id=self._target_id_plane,
+    def _get_red_controller(self) -> ControllerGroup:
+        return ControllerGroup(
+            [
+                LivingController(
+                    child=WaypointTargetController(
+                        name="RED plane",
+                        info=TargetInfos.FIXED_WING.with_party(Party.RED),
+                        target_id=self._target_id_plane,
+                        times=self._times,
+                        waypoints=self._points,
+                        rcs_model=ConstantRcsModel(rcs=1.0),
+                    ),
+                    target_id=self._target_id_plane,
+                )
+            ]
         )
 
     def _get_start_time(self) -> datetime.datetime:

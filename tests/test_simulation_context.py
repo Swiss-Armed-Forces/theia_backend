@@ -122,7 +122,10 @@ class SimulatorBindsControllersTest(unittest.TestCase):
         blue_leaf = LeafController()
         red_leaf = LeafController()
         blue = ControllerGroup([LivingController(child=blue_leaf, target_id=1)])
-        red = GeoJsonController(child=ControllerGroup([red_leaf]), geojson_features={})
+        red_tree = GeoJsonController(
+            child=ControllerGroup([red_leaf]), geojson_features={}
+        )
+        red = ControllerGroup([red_tree])
         terrain = DummyTerrain(has_los=True)
         rng = np.random.Generator(np.random.PCG64(seed=1))
         Simulator(
@@ -145,7 +148,7 @@ class SimulatorBindsControllersTest(unittest.TestCase):
         )
         context = blue_leaf.simulation_context
         self.assertIs(context.id_provider, id_provider)
-        for controller in (blue, red, blue_leaf, red_leaf):
+        for controller in (blue, red, red_tree, blue_leaf, red_leaf):
             self.assertIs(controller.simulation_context, context)
 
 

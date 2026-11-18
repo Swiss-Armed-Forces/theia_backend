@@ -237,7 +237,7 @@ class ZurichAirportScenarioFactory(AbstractSimulatorFactory):
             start_time=self._get_start_time(),
         )
 
-    def _get_blue_controller(self) -> Controller:
+    def _get_blue_controller(self) -> ControllerGroup:
         conf_center_controller = self._build_airport_controller()
         # BLUE sensors.
         radar_airport = build_flores_monostatic_radar(
@@ -405,7 +405,7 @@ class ZurichAirportScenarioFactory(AbstractSimulatorFactory):
             ]
         )
 
-    def _get_red_controller(self) -> Controller:
+    def _get_red_controller(self) -> ControllerGroup:
         conf_center_observer = self._build_airport_observer()
 
         #         : 48.29187

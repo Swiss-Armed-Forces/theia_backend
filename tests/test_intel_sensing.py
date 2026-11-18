@@ -218,8 +218,8 @@ class SimulatorIntelDetectionsTest(unittest.TestCase):
         simulator = Simulator(
             pcl_detector=PclDetector(),
             pet_detector=PetDetector(terrain_model=terrain),
-            blue_controller=_IntelController(sensors=[sensor]),
-            red_controller=_EmptyController(),
+            blue_controller=ControllerGroup([_IntelController(sensors=[sensor])]),
+            red_controller=ControllerGroup([_EmptyController()]),
             blue_tracker=blue_tracker,
             red_tracker=red_tracker,
             start_time=t_start,

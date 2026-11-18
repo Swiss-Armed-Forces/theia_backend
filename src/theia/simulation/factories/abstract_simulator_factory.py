@@ -5,11 +5,12 @@ import numpy as np
 
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
+from theia.simulation.controllers.controller_group import ControllerGroup
 from theia.simulation.damage_model import AbstractDamageModel
-from theia.simulation.theia_logging import SituationalPictureBuffer
 from theia.simulation.simulator import Simulator, TerminationCriterion
+from theia.simulation.theia_logging import SituationalPictureBuffer
 from theia.terrain import AbstractTerrainModel
-from theia.types import AbstractTracker, Controller
+from theia.types import AbstractTracker
 
 
 class AbstractSimulatorFactory(abc.ABC):
@@ -30,11 +31,11 @@ class AbstractSimulatorFactory(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def _get_blue_controller(self) -> Controller:
+    def _get_blue_controller(self) -> ControllerGroup:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def _get_red_controller(self) -> Controller:
+    def _get_red_controller(self) -> ControllerGroup:
         raise NotImplementedError()
 
     @abc.abstractmethod
