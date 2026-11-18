@@ -3,13 +3,34 @@ import types
 import unittest
 from unittest.mock import patch
 
+import numpy as np
 from fastapi.testclient import TestClient
 
+from tests.test_action_controller import (
+    DEPOT_ID,
+    LAUNCH_SITE_ID,
+    RADAR_SENSOR_ID,
+    SECONDS_UNDERWAY,
+    SECONDS_UNTIL_LEAVE,
+    build_orbat,
+)
+from theia.detection.pcl import PclDetector
+from theia.detection.pet import PetDetector
+from theia.simulation.damage_model import UniformDamageModel
+from theia.simulation.scenario_import import (
+    CampSite,
+    OneWayDroneTemplate,
+    OrderOfBattle,
+)
 from theia.simulation.server import create_app
+from theia.simulation.simulator import Simulator, TimeCriterion
 from theia.simulation.theia_logging import SituationalPictureBuffer
+from theia.simulation.trackers.tracking import DummyTracker
+from theia.terrain import DummyTerrain
 from theia.test_data import build_flores_monostatic_radar
 from theia.types import (
     ConstantRcsModel,
+    IdProvider,
     Party,
     Point,
     SituationalPicture,
@@ -113,6 +134,236 @@ class MonostaticCoverageTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         point = calculate_coverage.call_args.args[1]
         self.assertEqual(point, radar.receiver.antenna_point)
+
+
+RED_CAMP_SITE_ID = 3
+RED_CAMP_SITE_TARGET_ID = 20
+
+
+def get_game_client() -> tuple[TestClient, Simulator]:
+    """Client for a running game: BLUE is user-controlled, RED is not."""
+    terrain = DummyTerrain(has_los=True)
+    blue_orbat = build_orbat()
+    red_orbat = OrderOfBattle(
+        monostatic_sensors=[],
+        pcl_sensors=[],
+        gbads=[],
+        simulationResults={"monostaticCoverages": [], "pclMinDetectableRcsGrids": []},
+        oneway_drones=[],
+        ballistic_missiles=[],
+        # A camp site on a side that is not user-controlled: simulated as a
+        # target, but not reported by /camp_sites.
+        camp_sites=[
+            CampSite(
+                id=RED_CAMP_SITE_ID,
+                name="red launch site",
+                point=Point(lat=46.5, lon=8.0, alt=1.0),
+                target_id=RED_CAMP_SITE_TARGET_ID,
+                rcs=10.0,
+                n_ammo=5,
+                ammo=OneWayDroneTemplate(rcs=0.1, speed=50.0),
+                can_launch=True,
+                seconds_between_launches=30.0,
+            )
+        ],
+        unused_id_sensor=100,
+        unused_id_receiver=100,
+        unused_id_transmitter=100,
+        unused_id_effector=100,
+        unused_target_id=100,
+    )
+    id_provider = IdProvider()
+    blue_orbat.update_id_provider(id_provider)
+    red_orbat.update_id_provider(id_provider)
+    rng = np.random.Generator(np.random.PCG64(seed=1))
+    buffer = SituationalPictureBuffer()
+    simulator = Simulator(
+        pcl_detector=PclDetector(),
+        pet_detector=PetDetector(terrain_model=terrain),
+        blue_controller=blue_orbat.to_controller(terrain, True),
+        red_controller=red_orbat.to_controller(terrain, False),
+        blue_tracker=DummyTracker(),
+        red_tracker=DummyTracker(),
+        start_time=T0,
+        time_step=datetime.timedelta(seconds=1),
+        min_time_per_step=datetime.timedelta(seconds=0),
+        termination_criterion=TimeCriterion(T0 + datetime.timedelta(seconds=1000)),
+        rng=rng,
+        listener=buffer,
+        terrain_model=terrain,
+        damage_model=UniformDamageModel(1.0, rng),
+        simulate_clutter=False,
+        id_provider=id_provider,
+    )
+    return TestClient(create_app(buffer, director=None)), simulator
+
+
+LAUNCH = {
+    "type": "launch",
+    "site_id": LAUNCH_SITE_ID,
+    "destination": {"lat": 47.0, "lon": 8.1, "alt": 1.0},
+}
+
+
+class GameApiTest(unittest.TestCase):
+    def setUp(self):
+        self.client, self.simulator = get_game_client()
+
+    def assign(self, which: str, action: dict) -> bool:
+        response = self.client.post(f"/assign_action/{which}", json=action)
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()
+
+    def messages(self) -> list[str]:
+        return [e["msg"] for e in self.client.get("/events").json()]
+
+    def sites(self, which: str = "BLUE") -> dict[int, dict]:
+        status = self.client.get(f"/camp_sites/{which}").json()
+        return {s["id"]: s for s in status["sites"]}
+
+    def test_is_user_controlled(self):
+        self.assertIs(self.client.get("/is_user_controlled/BLUE").json(), True)
+        self.assertIs(self.client.get("/is_user_controlled/RED").json(), False)
+
+    def test_unknown_team_is_rejected(self):
+        response = self.client.get("/is_user_controlled/GREEN")
+        self.assertEqual(response.status_code, 422)
+
+    def test_launch(self):
+        self.assertIs(self.assign("BLUE", LAUNCH), True)
+        self.simulator.advance()
+        site = self.sites()[LAUNCH_SITE_ID]
+        self.assertEqual(site["n_ammo"], 1)
+        self.assertGreater(site["seconds_until_ready"], 0.0)
+        self.assertTrue(
+            any(
+                m.startswith("[ACTION BLUE]") and "executed" in m
+                for m in self.messages()
+            )
+        )
+
+    def test_side_that_is_not_user_controlled_refuses_actions(self):
+        self.assertIs(self.assign("RED", LAUNCH), False)
+        self.simulator.advance()
+        self.assertEqual(self.sites()[LAUNCH_SITE_ID]["n_ammo"], 2)
+        self.assertFalse(any("[ACTION" in m for m in self.messages()))
+
+    def test_toggle_radar(self):
+        action = {
+            "type": "toggle_monostatic_radar",
+            "sensor_id": RADAR_SENSOR_ID,
+            "new_is_on": False,
+        }
+        self.assertIs(self.assign("BLUE", action), True)
+        self.simulator.advance()
+        self.assertTrue(
+            any(
+                m.startswith("[ACTION BLUE]") and "executed" in m
+                for m in self.messages()
+            )
+        )
+        self.assertEqual(self.simulator._blue_monostatic_radars, [])
+
+    def test_impossible_action_is_accepted_and_rejected_as_event(self):
+        action = {
+            "type": "toggle_monostatic_radar",
+            "sensor_id": 99,
+            "new_is_on": False,
+        }
+        self.assertIs(self.assign("BLUE", action), True)
+        self.simulator.advance()
+        self.assertTrue(any("rejected (UNKNOWN_RADAR)" in m for m in self.messages()))
+
+    def test_order_fields_set_by_the_client_are_overwritten(self):
+        self.assign("BLUE", {**LAUNCH, "id": 12345, "party": "RED"})
+        self.simulator.advance()
+        messages = self.messages()
+        self.assertFalse(any("#12345" in m for m in messages))
+        self.assertFalse(any(m.startswith("[ACTION RED]") for m in messages))
+        self.assertTrue(any(m.startswith("[ACTION BLUE]") for m in messages))
+
+    def test_malformed_action(self):
+        for body in (
+            {"type": "launch", "site_id": LAUNCH_SITE_ID},
+            {"type": "idle"},
+            {"site_id": LAUNCH_SITE_ID, "destination": LAUNCH["destination"]},
+            {
+                "type": "move_stock",
+                "source_site_id": DEPOT_ID,
+                "target_site_id": LAUNCH_SITE_ID,
+                "count": 0,
+            },
+        ):
+            with self.subTest(body=body):
+                response = self.client.post("/assign_action/BLUE", json=body)
+                self.assertEqual(response.status_code, 422)
+
+    def test_camp_sites(self):
+        sites = self.sites()
+        self.assertEqual(set(sites), {LAUNCH_SITE_ID, DEPOT_ID})
+        self.assertEqual(sites[DEPOT_ID]["n_ammo"], 10)
+        self.assertTrue(sites[DEPOT_ID]["is_alive"])
+        self.assertTrue(sites[LAUNCH_SITE_ID]["can_launch"])
+        self.assertEqual(sites[LAUNCH_SITE_ID]["seconds_until_ready"], 0.0)
+
+    def test_camp_sites_shows_shipments(self):
+        action = {
+            "type": "move_stock",
+            "source_site_id": DEPOT_ID,
+            "target_site_id": LAUNCH_SITE_ID,
+            "count": 3,
+        }
+        self.assertIs(self.assign("BLUE", action), True)
+        self.simulator.advance()
+        status = self.client.get("/camp_sites/BLUE").json()
+        sites = {s["id"]: s for s in status["sites"]}
+        self.assertEqual(sites[DEPOT_ID]["n_ammo"], 7)
+        [shipment] = status["shipments"]
+        self.assertEqual(shipment["source_site_id"], DEPOT_ID)
+        self.assertEqual(shipment["target_site_id"], LAUNCH_SITE_ID)
+        self.assertEqual(shipment["count"], 3)
+        self.assertEqual(shipment["state"], "BREAKING_CAMP")
+        self.assertIn("departure_time", shipment)
+        self.assertIn("arrival_time", shipment)
+
+    def test_camp_sites_time_before_first_step_is_start_time(self):
+        status = self.client.get("/camp_sites/BLUE").json()
+        self.assertEqual(status["time"], self.client.get("/time").json())
+
+    def test_camp_sites_of_side_that_is_not_user_controlled(self):
+        # The camp site exists in the simulation, but nobody commands it.
+        self.simulator.advance()
+        self.assertIn(
+            RED_CAMP_SITE_TARGET_ID, {t.id for t in self.simulator._red_targets}
+        )
+        response = self.client.get("/camp_sites/RED")
+        self.assertEqual(response.status_code, 200, response.text)
+        status = response.json()
+        self.assertEqual(status["sites"], [])
+        self.assertEqual(status["shipments"], [])
+        self.assertIsNotNone(status["time"])
+
+    def test_transport_times(self):
+        routes = self.client.get("/transport_times/BLUE").json()
+        self.assertEqual(
+            {(r["source_site_id"], r["target_site_id"]) for r in routes},
+            {(DEPOT_ID, LAUNCH_SITE_ID), (LAUNCH_SITE_ID, DEPOT_ID)},
+        )
+        for route in routes:
+            self.assertEqual(route["seconds_until_leave"], SECONDS_UNTIL_LEAVE)
+            self.assertEqual(route["seconds_underway"], SECONDS_UNDERWAY)
+        self.assertEqual(self.client.get("/transport_times/RED").json(), [])
+
+    def test_openapi_schema_exposes_actions(self):
+        schemas = create_app(None, None).openapi()["components"]["schemas"]
+        for name in (
+            "LaunchAction",
+            "MoveStockAction",
+            "ToggleMonostaticRadarAction",
+            "CampSitesStatus",
+            "TransportTime",
+        ):
+            self.assertIn(name, schemas)
 
 
 if __name__ == "__main__":

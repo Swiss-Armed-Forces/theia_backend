@@ -26,6 +26,12 @@ from theia.detection.pcl import PclDetector
 from theia.distance import haversine, line_of_sight_distance
 from theia.grids import LatLonHeightGrid
 from theia.radar_equation import calculate_maximum_monostatic_range
+from theia.simulation.actions import AnyAction
+from theia.simulation.controllers.action_controller import (
+    ActionController,
+    CampSitesStatus,
+)
+from theia.simulation.scenario_import import TransportTime
 from theia.simulation.simulation_director import SimulationDirector
 from theia.simulation.theia_logging import SituationalPictureBuffer
 from theia.types import (
@@ -331,6 +337,56 @@ def create_app(
                 )
             ),
         )
+
+    def action_controller(which: Team) -> ActionController | None:
+        """The root controller of a side if it is user-controlled."""
+        root = buffer.get_simulator()._root_controller(which == Team.blue)
+        return root if isinstance(root, ActionController) else None
+
+    @app.get("/is_user_controlled/{which}")
+    def is_user_controlled(which: Team) -> bool:
+        """Whether a side is commanded with actions (see ``/assign_action``)."""
+        return buffer.get_simulator().is_user_controlled(which == Team.blue)
+
+    @app.post("/assign_action/{which}")
+    def assign_action(which: Team, action: AnyAction) -> bool:
+        """
+        Queue an action for a side.
+
+        ``id``, ``time`` and ``party`` of the action are overwritten when it
+        is executed.
+
+        Returns whether the side accepts actions (is user-controlled). Whether
+        the action is possible is decided when it is executed; the outcome is
+        reported as an ``ActionExecutedEvent`` or ``ActionRejectedEvent``.
+        """
+        return buffer.get_simulator().assign_action(which == Team.blue, action)
+
+    @app.get("/camp_sites/{which}")
+    def get_camp_sites(which: Team) -> CampSitesStatus:
+        """
+        Live state of a side's camp sites and shipments.
+
+        Only camp sites a player commands are reported: if the side is not
+        user-controlled, the result is empty even if the side has camp sites
+        (they are simulated as targets, but nothing tracks their stock).
+        """
+        controller = action_controller(which)
+        if controller is None:
+            return CampSitesStatus(
+                time=buffer.get_simulator()._t, sites=[], shipments=[]
+            )
+        return controller.get_status()
+
+    @app.get("/transport_times/{which}")
+    def get_transport_times(which: Team) -> list[TransportTime]:
+        """
+        Routes for moving stock between a side's camp sites.
+
+        Empty if the side is not user-controlled.
+        """
+        controller = action_controller(which)
+        return [] if controller is None else controller.transport_times
 
     @app.get("/health")
     def check_health():
