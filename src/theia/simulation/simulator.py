@@ -535,6 +535,10 @@ class Simulator(Trigger, AbstractEventListener):
         """
         Execute direct and indirect shots.
         """
+        # TODO: The TextEvents below are created with id=-1 and broadcast via
+        # _broadcast_event, which bypasses on_event. They therefore never get an
+        # ID from the IdProvider (Entity.EVENT) and are not logged. Decide
+        # whether they should go through on_event like all other events.
         firing_effectors = (
             self._blue_firing_effectors if is_blue else self._red_firing_effectors
         )
