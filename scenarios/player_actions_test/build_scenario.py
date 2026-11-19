@@ -1,0 +1,341 @@
+"""
+Build a game scenario for testing the player / action interface in the frontend.
+
+BLUE (not player-controlled):
+    5 long-range (LORAD) indirect-fire GBAD units on the Swiss plateau, each
+    with a medium range radar next to it, plus 2 long-range surveillance
+    radars on mountain tops.
+
+RED (player-controlled):
+    2 surveillance radars (switchable on/off by the player) and 2 launch
+    locations. Each location holds 3 ballistic missiles and 5 one-way drones;
+    location A additionally holds 2 cruise missiles.
+
+A camp site keeps stock of exactly one ammunition type, so each launch
+location consists of one camp site per ammunition type. The camp sites of a
+location are offset by a few hundred metres so that their map markers can be
+told apart.
+
+Besides the scenario file, the BLUE and RED ORBATs are written next to it as
+``<name>_orbat_blue.json`` and ``<name>_orbat_red.json``, for inspection in the
+scenario editor. They are taken from the built scenario, so their IDs match
+it.
+
+Usage (from the repository root):
+
+    python scenarios/player_actions_test/build_scenario.py \
+        scenarios/player_actions_test/player_actions_test.json
+
+    python scripts/simulate_scenario.py \
+        scenarios/player_actions_test/player_actions_test.json \
+        output/player_actions_test.json --interactive
+"""
+
+import argparse
+import json
+import pathlib
+
+from theia.simulation.scenario_import import (
+    BallisticMissileTemplate,
+    CampSite,
+    CruiseMissileTemplate,
+    DirectFireEffectorFactory,
+    IndirectFireEffectorFactory,
+    MonostaticSensorFactory,
+    OneWayDroneTemplate,
+    OrderOfBattle,
+    StaticGbadFactory,
+    TerrainFactory,
+    build_scenario,
+)
+from theia.types import ConstantRcsModel, Entity, IdProvider, MonostaticSensor, Point
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+CONFIG_DIR = REPO_ROOT / "data/default_configurations"
+SURVEILLANCE_RADAR_CONFIG = CONFIG_DIR / "surveillance_radar.json"
+MEDIUM_RANGE_RADAR_CONFIG = CONFIG_DIR / "medium_range_radar.json"
+
+SCENARIO_NAME = "Player actions test"
+SEED = 42
+
+# Height of effectors above ground [m]
+EFFECTOR_ALTITUDE_OFFSET = 5.0
+# Offset between the camp sites of one launch location [deg latitude]
+CAMP_SITE_OFFSET_LAT = 0.003  # approx. 330 m
+
+# LORAD GBAD parameters (Patriot-like, rough public figures)
+LORAD_RCS = 50.0
+LORAD_COMBAT_RANGE = 100_000.0
+LORAD_N_ATTACKS = 16
+LORAD_CADENCE = 0.5
+LORAD_MAX_IN_FLIGHT = 4
+INTERCEPTOR_SPEED = 1_200.0
+INTERCEPTOR_MAX_DIST = 120_000.0
+INTERCEPTOR_KILL_RANGE = 2_000.0
+INTERCEPTOR_RCS = 0.1
+
+BLUE_GBADS = {
+    "LORAD Zürich": (47.45, 8.56),
+    "LORAD Basel": (47.50, 7.75),
+    "LORAD Bern": (46.95, 7.45),
+    "LORAD Luzern": (47.05, 8.30),
+    "LORAD St. Gallen": (47.42, 9.37),
+}
+# Offset of a GBAD's medium range radar from its launcher [deg longitude]
+GBAD_RADAR_OFFSET_LON = 0.004  # approx. 300 m
+BLUE_RADAR_RCS = 10.0
+BLUE_SURVEILLANCE_RADARS = {
+    "Surveillance radar Pilatus": (46.979, 8.252),
+    "Surveillance radar Chasseral": (47.133, 7.054),
+}
+
+RED_RADAR_RCS = 20.0
+RED_RADARS = {
+    "Radar Feldberg": (47.874, 8.004),
+    "Radar Schwäbische Alb": (48.32, 9.20),
+}
+
+CAMP_SITE_RCS = 10.0
+LAUNCH_LOCATIONS = {
+    "A": (48.45, 8.40),
+    "B": (48.40, 9.95),
+}
+BALLISTIC_MISSILE = BallisticMissileTemplate(rcs=0.5)
+ONEWAY_DRONE = OneWayDroneTemplate(rcs=0.1, speed=50.0)
+CRUISE_MISSILE = CruiseMissileTemplate(rcs=0.1, speed=250.0)
+
+
+def ground_point(terrain, lat: float, lon: float, offset: float = 0.0) -> Point:
+    return Point(lat=lat, lon=lon, alt=terrain.elevationAt(lat, lon) + offset)
+
+
+def empty_orbat(**kwargs) -> OrderOfBattle:
+    defaults = {
+        "monostatic_sensors": [],
+        "pcl_sensors": [],
+        "gbads": [],
+        "simulationResults": {
+            "monostaticCoverages": [],
+            "pclMinDetectableRcsGrids": [],
+        },
+        "oneway_drones": [],
+        "ballistic_missiles": [],
+    }
+    return OrderOfBattle(**(defaults | kwargs))
+
+
+def load_radar_template(path: pathlib.Path) -> dict:
+    with open(path) as file:
+        return json.load(file)["sensor"]
+
+
+def build_radar(
+    template: dict,
+    sensor_id: int,
+    target_id: int,
+    rcs: float,
+    name: str,
+    point: Point,
+) -> MonostaticSensorFactory:
+    sensor = MonostaticSensor.model_validate(template)
+    sensor.id = sensor_id
+    sensor.transmitter.id = sensor_id
+    sensor.receiver.id = sensor_id
+    sensor.transmitter.point = point
+    sensor.receiver.point = point
+    return MonostaticSensorFactory(
+        target_id=target_id, rcs=rcs, sensor=sensor, name=name
+    )
+
+
+def build_blue_orbat(terrain) -> OrderOfBattle:
+    medium_range = load_radar_template(MEDIUM_RANGE_RADAR_CONFIG)
+    surveillance = load_radar_template(SURVEILLANCE_RADAR_CONFIG)
+
+    target_id = 1
+    sensor_id = 1
+    radars = []
+    gbads = []
+    for i, (name, (lat, lon)) in enumerate(BLUE_GBADS.items(), start=1):
+        radars.append(
+            build_radar(
+                medium_range,
+                sensor_id,
+                target_id,
+                BLUE_RADAR_RCS,
+                f"{name} radar",
+                ground_point(terrain, lat, lon + GBAD_RADAR_OFFSET_LON),
+            )
+        )
+        sensor_id += 1
+        target_id += 1
+        point = ground_point(terrain, lat, lon, EFFECTOR_ALTITUDE_OFFSET)
+        gbads.append(
+            StaticGbadFactory(
+                target_id=target_id,
+                rcs=LORAD_RCS,
+                name=name,
+                gbad=IndirectFireEffectorFactory(
+                    id=i,
+                    name=name,
+                    point=point,
+                    combat_range=LORAD_COMBAT_RANGE,
+                    n_attacks_left=LORAD_N_ATTACKS,
+                    cadence=LORAD_CADENCE,
+                    max_in_flight=LORAD_MAX_IN_FLIGHT,
+                    projectile=DirectFireEffectorFactory(
+                        # Template only: each shot mints a fresh ID.
+                        id=0,
+                        name=f"{name} interceptor",
+                        point=point,
+                        combat_range=INTERCEPTOR_KILL_RANGE,
+                        n_attacks_left=1,
+                        cadence=1.0,
+                    ),
+                    projectile_speed=INTERCEPTOR_SPEED,
+                    projectile_max_dist=INTERCEPTOR_MAX_DIST,
+                    projectile_rcs=ConstantRcsModel(rcs=INTERCEPTOR_RCS),
+                ),
+            )
+        )
+        target_id += 1
+
+    for name, (lat, lon) in BLUE_SURVEILLANCE_RADARS.items():
+        radars.append(
+            build_radar(
+                surveillance,
+                sensor_id,
+                target_id,
+                BLUE_RADAR_RCS,
+                name,
+                ground_point(terrain, lat, lon),
+            )
+        )
+        sensor_id += 1
+        target_id += 1
+
+    return empty_orbat(
+        monostatic_sensors=radars,
+        gbads=gbads,
+        unused_id_sensor=sensor_id,
+        unused_id_receiver=sensor_id,
+        unused_id_transmitter=sensor_id,
+        unused_id_effector=len(gbads) + 1,
+        unused_target_id=target_id,
+        is_user_controlled=False,
+    )
+
+
+def build_red_orbat(terrain) -> OrderOfBattle:
+    surveillance = load_radar_template(SURVEILLANCE_RADAR_CONFIG)
+
+    target_id = 1
+    radars = []
+    for i, (name, (lat, lon)) in enumerate(RED_RADARS.items(), start=1):
+        radars.append(
+            build_radar(
+                surveillance,
+                i,
+                target_id,
+                RED_RADAR_RCS,
+                name,
+                ground_point(terrain, lat, lon),
+            )
+        )
+        target_id += 1
+
+    stock = {
+        "A": [
+            (BALLISTIC_MISSILE, 3, 300.0),
+            (ONEWAY_DRONE, 5, 30.0),
+            (CRUISE_MISSILE, 2, 120.0),
+        ],
+        "B": [(BALLISTIC_MISSILE, 3, 300.0), (ONEWAY_DRONE, 5, 30.0)],
+    }
+    round_names = {
+        "ballistic_missile": "BM",
+        "oneway_drone": "Drones",
+        "cruise_missile": "CM",
+    }
+    camp_sites = []
+    site_id = 1
+    for location, (lat, lon) in LAUNCH_LOCATIONS.items():
+        for k, (ammo, n_ammo, seconds_between_launches) in enumerate(stock[location]):
+            site_lat = lat + k * CAMP_SITE_OFFSET_LAT
+            camp_sites.append(
+                CampSite(
+                    id=site_id,
+                    name=f"Launch site {location} ({round_names[ammo.type]})",
+                    point=ground_point(terrain, site_lat, lon),
+                    target_id=target_id,
+                    rcs=CAMP_SITE_RCS,
+                    n_ammo=n_ammo,
+                    ammo=ammo,
+                    can_launch=True,
+                    seconds_between_launches=seconds_between_launches,
+                )
+            )
+            site_id += 1
+            target_id += 1
+
+    n_radars = len(radars)
+    return empty_orbat(
+        monostatic_sensors=radars,
+        camp_sites=camp_sites,
+        unused_id_sensor=n_radars + 1,
+        unused_id_receiver=n_radars + 1,
+        unused_id_transmitter=n_radars + 1,
+        unused_id_effector=0,
+        unused_target_id=target_id,
+        unused_id_camp_site=site_id,
+        is_user_controlled=True,
+    )
+
+
+def with_free_ids(orbat: OrderOfBattle) -> None:
+    """
+    Raise the ``unused_*`` counters above every ID in use.
+
+    ``OrderOfBattle.reindex`` (called on RED by ``build_scenario``) renumbers
+    the entities but not the counters, so ``OrderOfBattle.from_file`` would
+    reject the ORBAT as inconsistent.
+    """
+    id_provider = IdProvider()
+    orbat.update_id_provider(id_provider)
+    free = id_provider._free_ids
+    orbat.unused_id_sensor = max(orbat.unused_id_sensor, free[Entity.SENSOR])
+    orbat.unused_id_receiver = max(orbat.unused_id_receiver, free[Entity.RECEIVER])
+    orbat.unused_id_transmitter = max(
+        orbat.unused_id_transmitter, free[Entity.TRANSMITTER]
+    )
+    orbat.unused_id_effector = max(orbat.unused_id_effector, free[Entity.EFFECTOR])
+    orbat.unused_target_id = max(orbat.unused_target_id, free[Entity.TARGET])
+    orbat.unused_id_camp_site = max(orbat.unused_id_camp_site, free[Entity.CAMP_SITE])
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
+    parser.add_argument("output_file", type=pathlib.Path)
+    args = parser.parse_args()
+
+    terrain_factory = TerrainFactory(terrain_name="SRTM")
+    terrain = terrain_factory.to_terrain()
+
+    scenario = build_scenario(
+        SCENARIO_NAME,
+        terrain_factory,
+        SEED,
+        build_blue_orbat(terrain),
+        build_red_orbat(terrain),
+    )
+
+    with open(args.output_file, "w") as file:
+        file.write(scenario.model_dump_json(indent=4))
+
+    for side, orbat in (("blue", scenario.blue_orbat), ("red", scenario.red_orbat)):
+        with_free_ids(orbat)
+        orbat_file = args.output_file.with_name(
+            f"{args.output_file.stem}_orbat_{side}.json"
+        )
+        with open(orbat_file, "w") as file:
+            file.write(orbat.model_dump_json(indent=4))
