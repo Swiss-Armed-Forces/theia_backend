@@ -361,7 +361,7 @@ class PseudoTrackerIntelTest(unittest.TestCase):
         detection = sampler.sample([monostatic], [], [], [], [intel], False)
         np.testing.assert_array_equal(
             detection.measurement_model.noise_covar,
-            np.diag([INTEL_DETECTION_SIGMA] * 3),
+            np.diag([INTEL_DETECTION_SIGMA**2] * 3),
         )
 
 

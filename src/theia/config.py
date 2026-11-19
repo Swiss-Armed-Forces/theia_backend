@@ -9,12 +9,20 @@ TERRAIN_HBV_DATA_DIR = os.environ.get(
 )
 DEFAULT_TERRAIN = os.environ.get("THEIA_DEFAULT_TERRAIN", "SRTM")
 
-# Negative value means no Doppler thresholding, which is necessary for aircraft-mounted RAD
-ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD = -1
+ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD = 40.0
 """
 Doppler shift threshold for active radar [Hz].
 
-Targets with less Doppler shift are not detected.
+Targets with less Doppler shift are not detected. This models the clutter
+filter (MTI) of a ground-based radar: Static targets (e.g. radar sites) are not
+detected. The threshold corresponds to a minimum radial speed of
+``threshold * wavelength / 2``, i.e. 2 m/s at 3 GHz and 1 m/s at 6 GHz.
+A one-way drone at 200 km/h is therefore only missed within ~2° of tangential
+flight.
+
+A negative value disables the threshold. The Doppler shift calculation assumes
+a stationary radar, so the threshold is not suitable for moving (e.g.
+aircraft-mounted) radars.
 """
 NOISE_TEMPERATURE = 300
 """Noise temperature [K]"""
@@ -119,6 +127,15 @@ INTEL_DETECTION_SIGMA = 0.1
 Intel sensing: standard deviation [m] of a position sampled from an intel detection.
 
 Must be > 0 so that the Kalman covariance stays regular.
+"""
+
+PT_UNKNOWN_POSITION_VARIANCE = 1e12
+"""
+Pseudo-tracker: variance [m^2] of each ECEF position component of a track's
+prior, i.e. before its first detection.
+
+Large compared to any measurement variance so that the first detection alone
+determines the initial position estimate (1e12 m^2 = (1000 km)^2).
 """
 
 FRONTEND_URL = "http://localhost:5173"

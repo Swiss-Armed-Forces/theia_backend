@@ -16,6 +16,7 @@ from stonesoup.types.track import Track
 from stonesoup.updater.kalman import ExtendedKalmanUpdater
 
 import theia
+from theia.config import PT_UNKNOWN_POSITION_VARIANCE
 from theia.coordinates import (
     POSITIONS_OF_INTEREST,
     CoordinateTransformations,
@@ -101,7 +102,14 @@ class SingleTargetEcefTracker:
         detection: Detection,
     ):
         if not self._has_detections:
+            # Start the track at the first detection: The prior must refer to
+            # the detection's time and must not claim to know the position.
+            # Otherwise, the filter concludes that the target has been
+            # sitting at the detected position since t0, i.e. that it is
+            # stationary, and is slow to pick up the actual velocity.
             self._prior.state_vector[[0, 2, 4]] = detection.state_vector
+            self._prior.covar[[0, 2, 4], [0, 2, 4]] = PT_UNKNOWN_POSITION_VARIANCE
+            self._prior.timestamp = detection.timestamp
             self._has_detections = True
         prediction = self._predictor.predict(self._prior, timestamp=detection.timestamp)
         hypothesis = SingleHypothesis(prediction, detection)

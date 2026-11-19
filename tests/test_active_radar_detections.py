@@ -547,5 +547,83 @@ class AntennaHeightTest(unittest.TestCase):
         )
 
 
+@patch("theia.detection.active.calculate_monostatic_snr", _snr_100dB)
+class DefaultDopplerThresholdTest(unittest.TestCase):
+    """
+    The default Doppler threshold suppresses static targets but keeps slow
+    movers such as one-way drones (~200 km/h) and ground vehicles.
+
+    Regression test: The threshold used to be disabled, so the enemy detected
+    static radar sites and the tracker turned the measurement noise into
+    made-up velocities.
+    """
+
+    SHAHED_SPEED = 200 / 3.6  # [m/s]
+
+    def _radar(self, frequency_mhz: float) -> MonostaticSensor:
+        radar = _radar()
+        transmitter = radar.transmitter.model_copy(update=dict(frequency=frequency_mhz))
+        return radar.model_copy(update=dict(transmitter=transmitter))
+
+    def _target(self, speed: float, angle_from_radial_deg: float) -> Target:
+        """
+        Target moving at `speed` [m/s] in a direction `angle_from_radial_deg`
+        away from the line of sight (0: approaching, 90: tangential).
+        """
+        target = _target(90.0, 0.0)
+        antenna = np.array(
+            CoordinateTransformations.geodetic_to_cartesian(
+                *_radar().receiver.antenna_point.as_tuple()
+            )
+        )
+        position = np.array(
+            CoordinateTransformations.geodetic_to_cartesian(*target.point.as_tuple())
+        )
+        radial = (antenna - position) / np.linalg.norm(antenna - position)
+        tangential = np.cross(radial, position / np.linalg.norm(position))
+        tangential /= np.linalg.norm(tangential)
+        angle = math.radians(angle_from_radial_deg)
+        v = speed * (math.cos(angle) * radial + math.sin(angle) * tangential)
+        return target.model_copy(
+            update=dict(velocity=Velocity(vx=v[0], vy=v[1], vz=v[2]))
+        )
+
+    def _is_detected(self, frequency_mhz: float, target: Target) -> bool:
+        detection = calculate_monostatic_detection(
+            DummyTerrain(has_los=True),
+            self._radar(frequency_mhz),
+            target,
+            np.random.default_rng(seed=0),
+        )
+        return detection is not None
+
+    def test_threshold_is_enabled(self):
+        self.assertGreater(ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD, 0.0)
+
+    def test_static_target_not_detected(self):
+        for frequency_mhz in (3000.0, 6000.0):
+            with self.subTest(frequency_mhz=frequency_mhz):
+                self.assertFalse(self._is_detected(frequency_mhz, self._target(0.0, 0.0)))
+
+    def test_slow_movers_detected(self):
+        for frequency_mhz in (1300.0, 3000.0, 6000.0):
+            for name, speed, angle_deg in (
+                ("one-way drone, approaching", self.SHAHED_SPEED, 0.0),
+                ("one-way drone, 85° off radial", self.SHAHED_SPEED, 85.0),
+                ("car at 50 km/h, approaching", 50 / 3.6, 0.0),
+            ):
+                with self.subTest(frequency_mhz=frequency_mhz, target=name):
+                    self.assertTrue(
+                        self._is_detected(
+                            frequency_mhz, self._target(speed, angle_deg)
+                        )
+                    )
+
+    def test_tangential_one_way_drone_not_detected(self):
+        self.assertFalse(
+            self._is_detected(3000.0, self._target(self.SHAHED_SPEED, 89.0))
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

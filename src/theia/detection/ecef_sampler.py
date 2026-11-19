@@ -43,7 +43,7 @@ class EcefDetectionSampler:
         x, y, z = self._rng.normal(mean, sigmas)
         measured_state = np.array([x, y, z])
 
-        covar = np.diag(sigmas)
+        covar = np.diag(np.square(sigmas))
 
         return Detection(
             measured_state,
