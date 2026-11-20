@@ -49,7 +49,7 @@ from theia.simulation.scenario_import import (
     build_scenario,
 )
 from theia.simulation.simulator import NeverCriterion, TimeCriterion
-from theia.terrain import SrtmTerrainModel
+from theia.terrain import ConstantSphereTerrainModel, SrtmTerrainModel
 from theia.types import (
     ConstantRcsModel,
     DirectShot,
@@ -219,6 +219,33 @@ class StaticGbadFactoryTest(unittest.TestCase):
         controller = factory.to_controller(srtm, is_blue=False)
         self.assertIsInstance(controller.effector, IndirectFireEffector)
         self.assertEqual(controller.info, TargetInfos.GBAD.with_party(Party.RED))
+
+    @staticmethod
+    def _gbad_with_clearance(clearance: float) -> StaticGbadFactory:
+        """GBAD `clearance` metres above the stub terrain at `p.alt`."""
+        gbad = get_direct_factory()
+        gbad = gbad.model_copy(
+            update={"point": p.model_copy(update={"alt": p.alt + clearance})}
+        )
+        return StaticGbadFactory(target_id=1, rcs=1.5, gbad=gbad, name="Ground GBAD")
+
+    def test_to_controller_warns_if_on_or_below_terrain(self):
+        # Stub terrain at p.alt: no SRTM needed.
+        terrain = ConstantSphereTerrainModel(alt=p.alt)
+        for clearance in (0.0, -10.0):  # on and below the terrain
+            with self.subTest(clearance=clearance):
+                factory = self._gbad_with_clearance(clearance)
+                with self.assertLogs(level=logging.WARNING) as logs:
+                    factory.to_controller(terrain, is_blue=True)
+                self.assertEqual(len(logs.output), 1)
+                self.assertIn("Ground GBAD", logs.output[0])
+                self.assertIn("line-of-sight", logs.output[0])
+
+    def test_to_controller_does_not_warn_if_above_terrain(self):
+        terrain = ConstantSphereTerrainModel(alt=p.alt)
+        factory = self._gbad_with_clearance(5.0)
+        with self.assertNoLogs(level=logging.WARNING):
+            factory.to_controller(terrain, is_blue=True)
 
     def test_discriminated_union_parses_direct_and_indirect(self):
         direct = StaticGbadFactory.model_validate(

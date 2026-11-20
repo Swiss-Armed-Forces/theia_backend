@@ -50,6 +50,16 @@ RCS_FOR_RANGE_CALCULATION = 1.0
 BM_COMBAT_RANGE = 100.0
 """Ballistic missile: distance to its goal within which the missile attacks (detonates) [m]"""
 
+GBAD_MIN_TERRAIN_CLEARANCE = 0.5
+"""
+GBAD: minimum height [m] of a GBAD's position above the terrain surface.
+
+Building a GBAD whose position is less than this above the terrain logs a
+warning: its line-of-sight checks start at (or inside) the terrain and are
+therefore unreliable. The margin also covers the rounding noise of positions
+that were snapped to the terrain elevation.
+"""
+
 CM_DEFAULT_MIN_FLIGHT_PATH_ANGLE = -10.0
 """Cruise missile: default steepest descent while cruising [°]"""
 CM_DEFAULT_MAX_FLIGHT_PATH_ANGLE = 15.0

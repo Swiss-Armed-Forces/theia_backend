@@ -19,6 +19,7 @@ from theia.config import (
     CM_DEFAULT_SAMPLE_SPACING,
     CM_DEFAULT_TERMINAL_DIVE_ANGLE,
     DRONE_DEFAULT_COMBAT_RANGE,
+    GBAD_MIN_TERRAIN_CLEARANCE,
     TERRAIN_HBV_DATA_DIR,
 )
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
@@ -235,6 +236,7 @@ class StaticGbadFactory(pydantic.BaseModel):
         terrain: AbstractTerrainModel,
         is_blue: bool,
     ) -> StaticGbadController:
+        self._warn_if_on_or_below_terrain(terrain)
         effector = (
             self.gbad.to_effector(terrain, is_blue)
             if isinstance(self.gbad, IndirectFireEffectorFactory)
@@ -247,6 +249,21 @@ class StaticGbadFactory(pydantic.BaseModel):
             effector=effector,
         )
         return c
+
+    def _warn_if_on_or_below_terrain(self, terrain: AbstractTerrainModel):
+        # The terrain is only built in ScenarioFactory.to_simulator (loading it
+        # e.g. for SRTM is expensive), so this cannot be a pydantic validator.
+        p = self.gbad.point
+        elevation = terrain.elevationAt(p.lat, p.lon)
+        if p.alt - elevation < GBAD_MIN_TERRAIN_CLEARANCE:
+            logging.warning(
+                f"GBAD '{self.name}' (target ID {self.target_id}) at "
+                f"({p.lat:.5f}, {p.lon:.5f}, {p.alt:.1f} m) is "
+                f"{p.alt - elevation:+.1f} m above the terrain ({elevation:.1f} m), "
+                f"i. e. less than {GBAD_MIN_TERRAIN_CLEARANCE} m: its "
+                "line-of-sight checks start at or inside the terrain and are "
+                "unreliable."
+            )
 
 
 class FixedPathOneWayDroneFactory(pydantic.BaseModel):
