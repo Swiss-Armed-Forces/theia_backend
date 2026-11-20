@@ -6,7 +6,7 @@ import datetime
 import enum
 import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, Optional, Self
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 import numpy as np
 import pydantic
@@ -307,12 +307,16 @@ class Point(pydantic.BaseModel):
 
 
 class Velocity(pydantic.BaseModel):
+    """
+    Velocity in Earth-centred, Earth-fixed (ECEF, WGS84) coordinates.
+    """
+
     vx: float
-    """Velocity in Cartesian x-direction [m/s]"""
+    """Velocity along the ECEF x-axis [m/s]"""
     vy: float
-    """Velocity in Cartesian y-direction [m/s]"""
+    """Velocity along the ECEF y-axis [m/s]"""
     vz: float
-    """Velocity in Cartesian z-direction [m/s]"""
+    """Velocity along the ECEF z-axis [m/s]"""
 
     @property
     def speed(self) -> float:
@@ -422,12 +426,12 @@ class Transmitter(pydantic.BaseModel):
     """
     Fraction in [0, 1] of the transmission power radiated by the antenna.
     """
-    vertical_attenuation: Optional[AttenuationModel] = None
+    vertical_attenuation: AttenuationModel | None = None
     """
     Interpolate the attenuation diagram for elevation angles in [-pi/2, pi/2]
     given in [rad].
     """
-    horizontal_attenuation: Optional[AttenuationModel] = None
+    horizontal_attenuation: AttenuationModel | None = None
     """
     Interpolate the attenuation diagram for azimuth angles in [0, 2pi]
     given in [rad].
@@ -544,12 +548,12 @@ class Receiver(pydantic.BaseModel):
     """
     Fraction in [0, 1] of the transmission power radiated by the antenna.
     """
-    vertical_attenuation: Optional[AttenuationModel] = None
+    vertical_attenuation: AttenuationModel | None = None
     """
     Interpolate the attenuation diagram for elevation angles in [-pi/2, pi/2]
     given in [rad].
     """
-    horizontal_attenuation: Optional[AttenuationModel] = None
+    horizontal_attenuation: AttenuationModel | None = None
     """
     Interpolate the attenuation diagram for azimuth angles in [0, 2pi]
     given in [rad].
@@ -687,8 +691,9 @@ class Target(pydantic.BaseModel):
     """Coordinates"""
     cross_section_model: ConstantRcsModel
     velocity: Velocity
-    receiver: Optional[Receiver] = None
-    transmitter: Optional[Transmitter] = None
+    """Velocity in ECEF coordinates"""
+    receiver: Receiver | None = None
+    transmitter: Transmitter | None = None
 
     @pydantic.model_validator(mode="before")
     @classmethod
@@ -1673,7 +1678,7 @@ class AbstractEffector:
     """Number of attacks the effector has left"""
     cadence: float
     """Number of attacks per second"""
-    time_of_last_shot: Optional[datetime.datetime] = field(default=None, kw_only=True)
+    time_of_last_shot: datetime.datetime | None = field(default=None, kw_only=True)
 
     def __post_init__(self):
         super().__init__()
@@ -1953,7 +1958,7 @@ class IdProvider:
         }
         self._names = {}
         self._used_ids: dict[Entity, set[int]] = {
-            e: set([]) for e in self._free_ids.keys()
+            e: set() for e in self._free_ids
         }
 
     def increment(self, entity: Entity, name: str = "") -> int:
