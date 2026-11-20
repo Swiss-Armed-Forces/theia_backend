@@ -9,10 +9,13 @@ BLUE (not player-controlled):
 RED (player-controlled):
     2 surveillance radars (switchable on/off by the player) and 2 launch
     locations. Each location holds 3 ballistic missiles and 5 one-way drones;
-    location A additionally holds 2 cruise missiles.
+    location A additionally holds 2 cruise missiles. A depot further back
+    holds reserve ballistic missiles and drones, which the player can move to
+    the launch sites. Ballistic missiles can also be moved between the two
+    launch locations.
 
 A camp site keeps stock of exactly one ammunition type, so each launch
-location consists of one camp site per ammunition type. The camp sites of a
+location (and the depot) consists of one camp site per ammunition type. The camp sites of a
 location are offset by a few hundred metres so that their map markers can be
 told apart.
 
@@ -56,6 +59,7 @@ from theia.simulation.scenario_import import (
     ShooterRevealFactory,
     StaticGbadFactory,
     TerrainFactory,
+    TransportTime,
     build_scenario,
 )
 from theia.types import (
@@ -130,6 +134,19 @@ LAUNCH_LOCATIONS = {
     "A": (48.45, 8.40),
     "B": (48.40, 9.95),
 }
+DEPOT_LOCATION = (48.70, 9.10)  # near Stuttgart
+# Reserve stock of the depot: round name -> number of rounds
+DEPOT_STOCK = {"BM": 6, "Drones": 10}
+# Transport routes (one-way; a return trip needs its own entry):
+# (source site name, target site name, seconds until leave, seconds underway)
+TRANSPORT_ROUTES = [
+    ("Depot (BM)", "Launch site A (BM)", 600.0, 3_600.0),
+    ("Depot (BM)", "Launch site B (BM)", 600.0, 4_200.0),
+    ("Depot (Drones)", "Launch site A (Drones)", 300.0, 3_600.0),
+    ("Depot (Drones)", "Launch site B (Drones)", 300.0, 4_200.0),
+    ("Launch site A (BM)", "Launch site B (BM)", 900.0, 6_900.0),
+    ("Launch site B (BM)", "Launch site A (BM)", 900.0, 6_900.0),
+]
 BALLISTIC_MISSILE = BallisticMissileTemplate(rcs=0.5)
 ONEWAY_DRONE = OneWayDroneTemplate(rcs=0.1, speed=50.0)
 CRUISE_MISSILE = CruiseMissileTemplate(rcs=0.1, speed=250.0)
@@ -322,10 +339,41 @@ def build_red_orbat(terrain) -> OrderOfBattle:
             site_id += 1
             target_id += 1
 
+    ammo_by_name = {"BM": BALLISTIC_MISSILE, "Drones": ONEWAY_DRONE}
+    lat, lon = DEPOT_LOCATION
+    for k, (round_name, n_ammo) in enumerate(DEPOT_STOCK.items()):
+        camp_sites.append(
+            CampSite(
+                id=site_id,
+                name=f"Depot ({round_name})",
+                point=ground_point(terrain, lat + k * CAMP_SITE_OFFSET_LAT, lon),
+                target_id=target_id,
+                rcs=CAMP_SITE_RCS,
+                n_ammo=n_ammo,
+                ammo=ammo_by_name[round_name],
+                can_launch=False,
+                seconds_between_launches=0.0,
+            )
+        )
+        site_id += 1
+        target_id += 1
+
+    site_ids = {site.name: site.id for site in camp_sites}
+    transport_times = [
+        TransportTime(
+            source_site_id=site_ids[source],
+            target_site_id=site_ids[target],
+            seconds_until_leave=seconds_until_leave,
+            seconds_underway=seconds_underway,
+        )
+        for source, target, seconds_until_leave, seconds_underway in TRANSPORT_ROUTES
+    ]
+
     n_radars = len(radars)
     return empty_orbat(
         monostatic_sensors=radars,
         camp_sites=camp_sites,
+        transport_times=transport_times,
         intel=[ShooterRevealFactory(seconds_valid=SHOOTER_REVEAL_SECONDS_VALID)]
         + known_blue_infrastructure(terrain),
         unused_id_sensor=n_radars + 1,
