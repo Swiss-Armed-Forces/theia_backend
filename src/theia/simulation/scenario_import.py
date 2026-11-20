@@ -45,6 +45,9 @@ from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
 )
+from theia.simulation.controllers.shooter_reveal_controller import (
+    ShooterRevealController,
+)
 from theia.simulation.controllers.static_gbad_controller import StaticGbadController
 from theia.simulation.controllers.static_gbad_coordinator import StaticGbadCoordinator
 from theia.simulation.controllers.switchable_radar import (
@@ -559,6 +562,31 @@ class CampSite(pydantic.BaseModel):
         )
 
 
+class ShooterRevealFactory(pydantic.BaseModel):
+    """
+    Intel source that reveals the positions of enemy shooters to this side.
+
+    Builds a ``ShooterRevealController`` (see there for the rules).
+    """
+
+    type: Literal["shooter_reveal"] = "shooter_reveal"
+    seconds_valid: float = pydantic.Field(gt=0)
+    """How long a shooter's position stays known after its shot [s]"""
+
+    def to_controller(self, is_blue: bool) -> ShooterRevealController:
+        return ShooterRevealController(
+            is_blue=is_blue,
+            valid_time=datetime.timedelta(seconds=self.seconds_valid),
+        )
+
+
+IntelFactory = Annotated[
+    ShooterRevealFactory,
+    pydantic.Field(discriminator="type"),
+]
+"""Intel sources of a side; add further factories to the union."""
+
+
 # TODO: Fix this ugly workaround cleanly.
 # CampSiteController refers to CampSite, which cannot be imported there at
 # runtime (circular import).
@@ -654,6 +682,8 @@ class OrderOfBattle(pydantic.BaseModel):
     """Sites with counted stock."""
     transport_times: list[TransportTime] = []
     """Routes along which stock can be moved between camp sites"""
+    intel: list[IntelFactory] = []
+    """Intel sources of this side"""
     unused_id_sensor: int
     unused_id_receiver: int
     unused_id_transmitter: int
@@ -769,6 +799,7 @@ class OrderOfBattle(pydantic.BaseModel):
             c.to_controller(is_blue) for c in self.critical_infrastructure
         ]
         camp_site_controllers = [s.to_controller(is_blue) for s in self.camp_sites]
+        intel_controllers = [i.to_controller(is_blue) for i in self.intel]
 
         tree = GeoJsonController(
             child=ControllerGroup(
@@ -779,6 +810,7 @@ class OrderOfBattle(pydantic.BaseModel):
                 + cm_controllers
                 + infra_controllers
                 + camp_site_controllers
+                + intel_controllers
             ),
             geojson_features=self.simulationResults.to_geojson_dict(),
         )
@@ -945,6 +977,7 @@ class OrderOfBattle(pydantic.BaseModel):
             cruise_missiles=orbat1.cruise_missiles + orbat2.cruise_missiles,
             camp_sites=orbat1.camp_sites + orbat2.camp_sites,
             transport_times=orbat1.transport_times + orbat2.transport_times,
+            intel=orbat1.intel + orbat2.intel,
             unused_id_sensor=id_provider.increment(Entity.SENSOR),
             unused_id_receiver=id_provider.increment(Entity.RECEIVER),
             unused_id_transmitter=id_provider.increment(Entity.TRANSMITTER),

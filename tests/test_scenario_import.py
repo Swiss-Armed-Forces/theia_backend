@@ -16,6 +16,9 @@ from theia.simulation.controllers.critical_infrastructure_controller import (
 )
 from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
 from theia.simulation.controllers.living_controller import LivingController
+from theia.simulation.controllers.shooter_reveal_controller import (
+    ShooterRevealController,
+)
 from theia.simulation.path_generators import BallisticGenerator
 from theia.simulation.scenario_import import (
     BallisticMissileFactory,
@@ -31,6 +34,7 @@ from theia.simulation.scenario_import import (
     OneWayDroneTemplate,
     OrderOfBattle,
     ScenarioFactory,
+    ShooterRevealFactory,
     SimulationResults,
     StaticGbadFactory,
     TerrainFactory,
@@ -44,12 +48,17 @@ from theia.simulation.simulator import NeverCriterion, TimeCriterion
 from theia.terrain import SrtmTerrainModel
 from theia.types import (
     ConstantRcsModel,
+    DirectShot,
     Entity,
     IdProvider,
     Party,
     Point,
+    SimulationContext,
+    SituationalPicture,
+    Target,
     TargetCategory,
     TargetInfos,
+    Velocity,
 )
 
 srtm = SrtmTerrainModel()
@@ -989,6 +998,136 @@ class TerminationTest(unittest.TestCase):
                 get_order_of_battle([]),
                 get_order_of_battle([]),
             )
+
+
+def get_intel_children(controller) -> list[ShooterRevealController]:
+    """Intel controllers in the tree built by ``OrderOfBattle.to_controller``."""
+    [tree] = controller._controllers
+    return [
+        c for c in tree.child._controllers if isinstance(c, ShooterRevealController)
+    ]
+
+
+class ShooterRevealFactoryTest(unittest.TestCase):
+    def test_to_controller(self):
+        factory = ShooterRevealFactory(seconds_valid=90.0)
+        for is_blue in (True, False):
+            with self.subTest(is_blue=is_blue):
+                controller = factory.to_controller(is_blue)
+                self.assertIsInstance(controller, ShooterRevealController)
+                self.assertEqual(controller.is_blue, is_blue)
+                self.assertEqual(
+                    controller.valid_time, datetime.timedelta(seconds=90.0)
+                )
+                self.assertEqual(controller._controllers, [])
+
+    def test_each_controller_is_fresh(self):
+        factory = ShooterRevealFactory(seconds_valid=90.0)
+        self.assertIsNot(factory.to_controller(True), factory.to_controller(True))
+
+    def test_type_defaults_and_serializes(self):
+        factory = ShooterRevealFactory(seconds_valid=90.0)
+        self.assertEqual(
+            factory.model_dump(mode="json"),
+            {"type": "shooter_reveal", "seconds_valid": 90.0},
+        )
+
+    def test_seconds_valid_must_be_positive(self):
+        for seconds_valid in (0.0, -1.0):
+            with self.subTest(seconds_valid=seconds_valid):
+                with self.assertRaises(pydantic.ValidationError):
+                    ShooterRevealFactory(seconds_valid=seconds_valid)
+
+    def test_seconds_valid_is_mandatory(self):
+        with self.assertRaises(pydantic.ValidationError):
+            ShooterRevealFactory()
+
+
+class OrderOfBattleIntelTest(unittest.TestCase):
+    def test_legacy_orbat_loads_without_intel(self):
+        data = get_order_of_battle([]).model_dump(mode="json")
+        del data["intel"]
+        self.assertEqual(OrderOfBattle.model_validate(data).intel, [])
+
+    def test_round_trip(self):
+        orbat = get_order_of_battle([])
+        orbat.intel = [ShooterRevealFactory(seconds_valid=60.0)]
+        parsed = OrderOfBattle.model_validate_json(orbat.model_dump_json())
+        self.assertEqual(parsed, orbat)
+        self.assertIsInstance(parsed.intel[0], ShooterRevealFactory)
+
+    def test_parses_intel_by_type(self):
+        data = get_order_of_battle([]).model_dump(mode="json")
+        data["intel"] = [{"type": "shooter_reveal", "seconds_valid": 30}]
+        [intel] = OrderOfBattle.model_validate(data).intel
+        self.assertEqual(intel, ShooterRevealFactory(seconds_valid=30.0))
+
+    def test_unknown_intel_type_is_rejected(self):
+        data = get_order_of_battle([]).model_dump(mode="json")
+        for entry in ({"type": "unknown", "seconds_valid": 30}, {"seconds_valid": 30}):
+            with self.subTest(entry=entry):
+                data["intel"] = [entry]
+                with self.assertRaises(pydantic.ValidationError):
+                    OrderOfBattle.model_validate(data)
+
+    def test_to_controller_includes_intel(self):
+        for is_user_controlled in (False, True):
+            for is_blue in (True, False):
+                with self.subTest(
+                    is_user_controlled=is_user_controlled, is_blue=is_blue
+                ):
+                    orbat = get_order_of_battle([])
+                    orbat.is_user_controlled = is_user_controlled
+                    orbat.intel = [ShooterRevealFactory(seconds_valid=60.0)]
+                    controller = orbat.to_controller(srtm, is_blue=is_blue)
+                    [intel] = get_intel_children(controller)
+                    self.assertEqual(intel.is_blue, is_blue)
+                    self.assertEqual(intel.valid_time, datetime.timedelta(seconds=60))
+
+    def test_to_controller_without_intel(self):
+        controller = get_order_of_battle([]).to_controller(srtm, is_blue=True)
+        self.assertEqual(get_intel_children(controller), [])
+
+    def test_enemy_shot_reveals_shooter_through_controller_tree(self):
+        t0 = datetime.datetime.fromtimestamp(0, datetime.UTC)
+        orbat = get_order_of_battle([])
+        orbat.intel = [ShooterRevealFactory(seconds_valid=60.0)]
+        controller = orbat.to_controller(srtm, is_blue=True)
+        controller.bind(SimulationContext(id_provider=IdProvider(), start_time=t0))
+        # A shot at a BLUE target was fired by RED.
+        shooter = get_direct_factory().to_effector(srtm)
+        target = Target(
+            id=1,
+            is_stationary=True,
+            info=TargetInfos.GBAD.with_party(Party.BLUE),
+            point=p,
+            cross_section_model=ConstantRcsModel(rcs=1.0),
+            velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+        )
+        controller.on_event(DirectShot(id=-1, time=t0, shooter=shooter, target=target))
+        picture = SituationalPicture(
+            time=t0,
+            friendly_pet_receivers=[],
+            friendly_radars=[],
+            friendly_targets=[],
+            enemy_targets=[],
+        )
+        controller.update(picture, datetime.timedelta(seconds=1))
+        [sensor] = list(controller.intel_sensors)
+        self.assertEqual(sensor.trajectory.lats[0], shooter.point.lat)
+        self.assertEqual(sensor.trajectory.lons[0], shooter.point.lon)
+        self.assertEqual(sensor.trajectory.alts[0], shooter.point.alt)
+
+    def test_merge_keeps_intel_of_both_orbats(self):
+        orbat1 = get_order_of_battle([])
+        orbat1.intel = [ShooterRevealFactory(seconds_valid=10.0)]
+        orbat2 = get_order_of_battle([])
+        orbat2.intel = [ShooterRevealFactory(seconds_valid=20.0)]
+        merged = OrderOfBattle.merge(orbat1, orbat2)
+        self.assertEqual(
+            [i.seconds_valid for i in merged.intel],
+            [10.0, 20.0],
+        )
 
 
 if __name__ == "__main__":
