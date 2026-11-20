@@ -41,6 +41,9 @@ from theia.simulation.controllers.critical_infrastructure_controller import (
 )
 from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
 from theia.simulation.controllers.geojson_controller import GeoJsonController
+from theia.simulation.controllers.known_target_controller import (
+    KnownTargetController,
+)
 from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.monostatic_radar_controller import (
     MonostaticRadarController,
@@ -580,8 +583,28 @@ class ShooterRevealFactory(pydantic.BaseModel):
         )
 
 
+class KnownTargetFactory(pydantic.BaseModel):
+    """
+    Lasting intel about a stationary enemy target, e.g. a facility.
+
+    Builds a ``KnownTargetController`` that reports the target for the whole
+    simulation. ``point`` and ``target_info`` are this side's belief and are
+    used as given (including the party); they need not match a real target.
+    The IDs of the reported target are assigned when the simulation starts,
+    so the file holds none.
+    """
+
+    type: Literal["known_target"] = "known_target"
+    name: str = ""
+    point: Point
+    target_info: TargetInfo
+
+    def to_controller(self, is_blue: bool) -> KnownTargetController:
+        return KnownTargetController(point=self.point, target_info=self.target_info)
+
+
 IntelFactory = Annotated[
-    ShooterRevealFactory,
+    ShooterRevealFactory | KnownTargetFactory,
     pydantic.Field(discriminator="type"),
 ]
 """Intel sources of a side; add further factories to the union."""

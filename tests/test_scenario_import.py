@@ -15,6 +15,9 @@ from theia.simulation.controllers.critical_infrastructure_controller import (
     CriticalInfrastructureController,
 )
 from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
+from theia.simulation.controllers.known_target_controller import (
+    KnownTargetController,
+)
 from theia.simulation.controllers.living_controller import LivingController
 from theia.simulation.controllers.shooter_reveal_controller import (
     ShooterRevealController,
@@ -30,6 +33,7 @@ from theia.simulation.scenario_import import (
     DirectFireEffectorFactory,
     FixedPathOneWayDroneFactory,
     IndirectFireEffectorFactory,
+    KnownTargetFactory,
     NeverTermination,
     OneWayDroneTemplate,
     OrderOfBattle,
@@ -1043,6 +1047,42 @@ class ShooterRevealFactoryTest(unittest.TestCase):
             ShooterRevealFactory()
 
 
+def get_known_target_factory() -> KnownTargetFactory:
+    return KnownTargetFactory(
+        name="power plant",
+        point=p,
+        target_info=TargetInfos.CRITICAL_INFRASTRUCTURE.with_party(Party.BLUE),
+    )
+
+
+class KnownTargetFactoryTest(unittest.TestCase):
+    def test_to_controller(self):
+        factory = get_known_target_factory()
+        for is_blue in (True, False):
+            with self.subTest(is_blue=is_blue):
+                controller = factory.to_controller(is_blue)
+                self.assertIsInstance(controller, KnownTargetController)
+                self.assertEqual(controller.point, p)
+                # Used as given, regardless of the side.
+                self.assertEqual(controller.target_info, factory.target_info)
+
+    def test_round_trip(self):
+        factory = get_known_target_factory()
+        data = factory.model_dump(mode="json")
+        self.assertEqual(data["type"], "known_target")
+        self.assertEqual(KnownTargetFactory.model_validate(data), factory)
+
+    def test_name_is_optional(self):
+        factory = KnownTargetFactory(point=p, target_info=TargetInfos.UNKNOWN)
+        self.assertEqual(factory.name, "")
+
+    def test_point_and_target_info_are_mandatory(self):
+        for kwargs in ({"point": p}, {"target_info": TargetInfos.UNKNOWN}):
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises(pydantic.ValidationError):
+                    KnownTargetFactory(**kwargs)
+
+
 class OrderOfBattleIntelTest(unittest.TestCase):
     def test_legacy_orbat_loads_without_intel(self):
         data = get_order_of_battle([]).model_dump(mode="json")
@@ -1117,6 +1157,41 @@ class OrderOfBattleIntelTest(unittest.TestCase):
         self.assertEqual(sensor.trajectory.lats[0], shooter.point.lat)
         self.assertEqual(sensor.trajectory.lons[0], shooter.point.lon)
         self.assertEqual(sensor.trajectory.alts[0], shooter.point.alt)
+
+    def test_parses_mixed_intel_by_type(self):
+        orbat = get_order_of_battle([])
+        orbat.intel = [
+            ShooterRevealFactory(seconds_valid=60.0),
+            get_known_target_factory(),
+        ]
+        parsed = OrderOfBattle.model_validate_json(orbat.model_dump_json())
+        self.assertEqual(parsed, orbat)
+        self.assertEqual(
+            [type(i) for i in parsed.intel],
+            [ShooterRevealFactory, KnownTargetFactory],
+        )
+
+    def test_known_target_is_reported_through_controller_tree(self):
+        t0 = datetime.datetime.fromtimestamp(0, datetime.UTC)
+        orbat = get_order_of_battle([])
+        orbat.is_user_controlled = True
+        orbat.intel = [get_known_target_factory()]
+        controller = orbat.to_controller(srtm, is_blue=False)
+        controller.bind(SimulationContext(id_provider=IdProvider(), start_time=t0))
+        picture = SituationalPicture(
+            time=t0,
+            friendly_pet_receivers=[],
+            friendly_radars=[],
+            friendly_targets=[],
+            enemy_targets=[],
+        )
+        controller.update(picture, datetime.timedelta(seconds=1))
+        [sensor] = list(controller.intel_sensors)
+        self.assertEqual(sensor.trajectory.lats[0], p.lat)
+        self.assertEqual(
+            sensor.trajectory.target_info,
+            TargetInfos.CRITICAL_INFRASTRUCTURE.with_party(Party.BLUE),
+        )
 
     def test_merge_keeps_intel_of_both_orbats(self):
         orbat1 = get_order_of_battle([])

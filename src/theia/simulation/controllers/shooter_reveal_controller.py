@@ -2,22 +2,20 @@ import datetime
 
 import pydantic
 
-from theia.config import UNKNOWN_RCS
 from theia.simulation.controllers.controller_group import ControllerGroup
-from theia.simulation.controllers.intel_controller import IntelController
+from theia.simulation.controllers.intel_controller import (
+    IntelController,
+    build_stationary_intel_sensor,
+)
 from theia.types import (
-    ConstantRcsModel,
     Controller,
     DirectShot,
-    Entity,
     Event,
     IndirectShot,
-    IntelSensor,
     Party,
     Shot,
     SituationalPicture,
     TargetInfos,
-    Trajectory,
 )
 
 
@@ -69,27 +67,10 @@ class ShooterRevealController(ControllerGroup):
     def on_event(self, event: Event):
         if self._is_enemy_shot(event):
             shot: Shot = event
-            p_shooter = shot.shooter.point
-            id_provider = self.simulation_context.id_provider
-            # Unlimited time span; the child's lifetime is limited by
-            # `valid_time` instead.
-            t0 = datetime.datetime.min.replace(tzinfo=datetime.UTC)
-            t1 = datetime.datetime.max.replace(tzinfo=datetime.UTC)
-            trajectory = Trajectory(
-                target_id=id_provider.increment(Entity.TARGET),
-                target_info=TargetInfos.UNKNOWN,
-                times=[t0, t1],
-                lats=[p_shooter.lat, p_shooter.lat],
-                lons=[p_shooter.lon, p_shooter.lon],
-                alts=[p_shooter.alt, p_shooter.alt],
-                vxs=[0.0, 0.0],
-                vys=[0.0, 0.0],
-                vzs=[0.0, 0.0],
-                cross_section_model=ConstantRcsModel(rcs=UNKNOWN_RCS),
-            )
-            sensor = IntelSensor(
-                id=id_provider.increment(Entity.SENSOR),
-                trajectory=trajectory,
+            sensor = build_stationary_intel_sensor(
+                self.simulation_context.id_provider,
+                shot.shooter.point,
+                TargetInfos.UNKNOWN,
             )
             child = IntelController(sensor=sensor)
             self.add_controller(child)
