@@ -467,5 +467,46 @@ class InFlightCapTest(unittest.TestCase):
         self.assertEqual(effector.time_of_last_shot, time_of_last_shot_before)
 
 
+class ShotMessageTest(unittest.TestCase):
+    """
+    A shot reports the attacks its shooter had left right after that shot,
+    not the shooter's current count: the message of an event is only
+    rendered later (e.g. by the server).
+    """
+
+    _make_effector = InFlightCapTest._make_effector
+    _target = InFlightCapTest._target
+
+    def test_indirect_shot_keeps_attacks_left_at_launch(self):
+        effector = self._make_effector(max_in_flight=2, n_attacks_left=5)
+        first = effector.fire(self._target(), t0)
+        second = effector.fire(self._target(), t0)
+
+        self.assertEqual(effector.n_attacks_left, 3)
+        self.assertEqual(first.n_attacks_left_after, 4)
+        self.assertEqual(second.n_attacks_left_after, 3)
+        self.assertIn("[4 attacks left afterwards]", str(first))
+        self.assertIn("[3 attacks left afterwards]", str(second))
+
+    def test_direct_shot_keeps_attacks_left_at_shot(self):
+        effector = DirectFireEffector(
+            id=1,
+            point=p_uetliberg,
+            combat_range=100_000,
+            n_attacks_left=3,
+            name="",
+            terrain=srtm,
+            cadence=float("inf"),
+        )
+        first = effector.fire(self._target(), t0)
+        second = effector.fire(self._target(), t0)
+
+        self.assertEqual(effector.n_attacks_left, 1)
+        self.assertEqual(first.n_attacks_left_after, 2)
+        self.assertEqual(second.n_attacks_left_after, 1)
+        self.assertIn("[2 attacks left afterwards]", str(first))
+        self.assertIn("[1 attacks left afterwards]", str(second))
+
+
 if __name__ == "__main__":
     unittest.main()

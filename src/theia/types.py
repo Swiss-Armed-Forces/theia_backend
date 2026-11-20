@@ -1696,9 +1696,19 @@ class AbstractEffector:
 class DirectShot(Event):
     shooter: AbstractEffector
     target: Target
+    n_attacks_left_after: int | None = None
+    """
+    Number of attacks the shooter has left after this shot.
+    """
+
+    @pydantic.model_validator(mode="after")
+    def _record_attacks_left(self) -> DirectShot:
+        if self.n_attacks_left_after is None:
+            self.n_attacks_left_after = self.shooter.n_attacks_left
+        return self
 
     def __str__(self) -> str:
-        return f"[SHOT] {self.shooter.name} 🞋 {self.target.name} (ID {self.target.id}) [{self.shooter.n_attacks_left} attacks left afterwards]"
+        return f"[SHOT] {self.shooter.name} 🞋 {self.target.name} (ID {self.target.id}) [{self.n_attacks_left_after} attacks left afterwards]"
 
 
 class IndirectShot(DirectShot):
@@ -1709,7 +1719,7 @@ class IndirectShot(DirectShot):
     """
 
     def __str__(self) -> str:
-        return f"[LAUNCH] {self.shooter.name} ({self.projectile.name}) 🞋 {self.target.name} (ID {self.target.id}) [{self.shooter.n_attacks_left} attacks left afterwards]"
+        return f"[LAUNCH] {self.shooter.name} ({self.projectile.name}) 🞋 {self.target.name} (ID {self.target.id}) [{self.n_attacks_left_after} attacks left afterwards]"
 
 
 Shot = DirectShot | IndirectShot
