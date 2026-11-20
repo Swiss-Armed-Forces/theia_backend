@@ -4,7 +4,7 @@ Build a game scenario for testing the player / action interface in the frontend.
 BLUE (not player-controlled):
     5 long-range (LORAD) indirect-fire GBAD units on the Swiss plateau, each
     with a medium range radar next to it, plus 2 long-range surveillance
-    radars on mountain tops.
+    radars on mountain tops, and 5 critical infrastructure facilities.
 
 RED (player-controlled):
     2 surveillance radars (switchable on/off by the player) and 2 launch
@@ -15,6 +15,13 @@ A camp site keeps stock of exactly one ammunition type, so each launch
 location consists of one camp site per ammunition type. The camp sites of a
 location are offset by a few hundred metres so that their map markers can be
 told apart.
+
+Both sides have a shooter-reveal intel source: a shooter of the other side
+that fires becomes known at its position for a limited time. RED thereby learns
+where the BLUE GBADs that intercept its rounds are. (Launches from camp sites
+emit no shot event yet, so BLUE learns nothing about RED's launch sites.)
+RED also has lasting intel on all BLUE critical infrastructure: its positions
+are known from the start for the whole game.
 
 Besides the scenario file, the BLUE and RED ORBATs are written next to it as
 ``<name>_orbat_blue.json`` and ``<name>_orbat_red.json``, for inspection in the
@@ -38,17 +45,28 @@ import pathlib
 from theia.simulation.scenario_import import (
     BallisticMissileTemplate,
     CampSite,
+    CriticalInfrastructureFactory,
     CruiseMissileTemplate,
     DirectFireEffectorFactory,
     IndirectFireEffectorFactory,
+    KnownTargetFactory,
     MonostaticSensorFactory,
     OneWayDroneTemplate,
     OrderOfBattle,
+    ShooterRevealFactory,
     StaticGbadFactory,
     TerrainFactory,
     build_scenario,
 )
-from theia.types import ConstantRcsModel, Entity, IdProvider, MonostaticSensor, Point
+from theia.types import (
+    ConstantRcsModel,
+    Entity,
+    IdProvider,
+    MonostaticSensor,
+    Party,
+    Point,
+    TargetInfos,
+)
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 CONFIG_DIR = REPO_ROOT / "data/default_configurations"
@@ -89,11 +107,23 @@ BLUE_SURVEILLANCE_RADARS = {
     "Surveillance radar Chasseral": (47.133, 7.054),
 }
 
+# Name -> (lat, lon, tag)
+BLUE_CRITICAL_INFRASTRUCTURE = {
+    "Kernkraftwerk Gösgen": (47.366, 7.967, "nuclear_power_plant"),
+    "Kernkraftwerk Leibstadt": (47.601, 8.183, "nuclear_power_plant"),
+    "Unterwerk Laufenburg": (47.555, 8.065, "substation"),
+    "Flughafen Zürich": (47.458, 8.555, "airport"),
+    "Bundeshaus Bern": (46.947, 7.444, "government"),
+}
+
 RED_RADAR_RCS = 20.0
 RED_RADARS = {
     "Radar Feldberg": (47.874, 8.004),
     "Radar Schwäbische Alb": (48.32, 9.20),
 }
+
+# How long a revealed shooter stays known after its shot [s]
+SHOOTER_REVEAL_SECONDS_VALID = 300.0
 
 CAMP_SITE_RCS = 10.0
 LAUNCH_LOCATIONS = {
@@ -214,12 +244,26 @@ def build_blue_orbat(terrain) -> OrderOfBattle:
         sensor_id += 1
         target_id += 1
 
+    infrastructure = []
+    for name, (lat, lon, tag) in BLUE_CRITICAL_INFRASTRUCTURE.items():
+        infrastructure.append(
+            CriticalInfrastructureFactory(
+                target_id=target_id,
+                name=name,
+                point=ground_point(terrain, lat, lon),
+                tags=frozenset({tag}),
+            )
+        )
+        target_id += 1
+
     return empty_orbat(
         monostatic_sensors=radars,
         gbads=gbads,
+        critical_infrastructure=infrastructure,
         unused_id_sensor=sensor_id,
         unused_id_receiver=sensor_id,
         unused_id_transmitter=sensor_id,
+        intel=[ShooterRevealFactory(seconds_valid=SHOOTER_REVEAL_SECONDS_VALID)],
         unused_id_effector=len(gbads) + 1,
         unused_target_id=target_id,
         is_user_controlled=False,
@@ -282,6 +326,8 @@ def build_red_orbat(terrain) -> OrderOfBattle:
     return empty_orbat(
         monostatic_sensors=radars,
         camp_sites=camp_sites,
+        intel=[ShooterRevealFactory(seconds_valid=SHOOTER_REVEAL_SECONDS_VALID)]
+        + known_blue_infrastructure(terrain),
         unused_id_sensor=n_radars + 1,
         unused_id_receiver=n_radars + 1,
         unused_id_transmitter=n_radars + 1,
@@ -290,6 +336,17 @@ def build_red_orbat(terrain) -> OrderOfBattle:
         unused_id_camp_site=site_id,
         is_user_controlled=True,
     )
+
+
+def known_blue_infrastructure(terrain) -> list[KnownTargetFactory]:
+    """RED's lasting intel on the BLUE critical infrastructure (exact positions)."""
+    info = TargetInfos.CRITICAL_INFRASTRUCTURE.with_party(Party.BLUE)
+    return [
+        KnownTargetFactory(
+            name=name, point=ground_point(terrain, lat, lon), target_info=info
+        )
+        for name, (lat, lon, _) in BLUE_CRITICAL_INFRASTRUCTURE.items()
+    ]
 
 
 def with_free_ids(orbat: OrderOfBattle) -> None:
