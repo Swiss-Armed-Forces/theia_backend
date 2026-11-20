@@ -38,6 +38,7 @@ class FixedPathOneWayDrone(Controller, pydantic.BaseModel):
                     id=UNKNOWN_ID,
                     time=event.time,
                     target_id=self.trajectory.target_id,
+                    party=self.trajectory.target_info.party,
                 )
             )
 

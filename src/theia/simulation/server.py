@@ -40,6 +40,7 @@ from theia.types import (
     GeoJSONMultiPolygon,
     GeoJSONPolygon,
     MonostaticSensor,
+    Party,
     PclSensor,
     Receiver,
     Sensor,
@@ -55,11 +56,21 @@ class Team(Enum):
 
 
 class EventMessage(pydantic.BaseModel):
+    id: int
+    """Event ID. Unique, except for unlogged ``TextEvent``s, which have -1"""
     time: datetime.datetime
+    party: Party | None
+    """Side the event belongs to; ``None`` if it concerns no single side"""
     msg: str
 
+    @staticmethod
     def from_event(event: Event) -> EventMessage:
-        return EventMessage(time=event.time, msg=str(event))
+        return EventMessage(
+            id=event.id,
+            time=event.time,
+            party=getattr(event, "party", None),
+            msg=str(event),
+        )
 
 
 class TrackPoint(pydantic.BaseModel):

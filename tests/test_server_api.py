@@ -22,7 +22,7 @@ from theia.simulation.scenario_import import (
     OneWayDroneTemplate,
     OrderOfBattle,
 )
-from theia.simulation.server import create_app
+from theia.simulation.server import EventMessage, create_app
 from theia.simulation.simulator import Simulator, TimeCriterion
 from theia.simulation.theia_logging import SituationalPictureBuffer
 from theia.simulation.trackers.tracking import DummyTracker
@@ -31,12 +31,14 @@ from theia.test_data import build_flores_monostatic_radar
 from theia.types import (
     ConstantRcsModel,
     IdProvider,
+    KillEvent,
     Party,
     Point,
     SituationalPicture,
     Target,
     TargetInfos,
     Track,
+    TrackInitEvent,
     Velocity,
 )
 
@@ -364,6 +366,34 @@ class GameApiTest(unittest.TestCase):
             "TransportTime",
         ):
             self.assertIn(name, schemas)
+
+    def test_action_event_messages_belong_to_the_actor(self):
+        self.assertIs(self.assign("BLUE", LAUNCH), True)
+        self.simulator.advance()
+        # A second launch from the same site is rejected: it is reloading.
+        self.assertIs(self.assign("BLUE", LAUNCH), True)
+        self.simulator.advance()
+        events = self.client.get("/events").json()
+        action_events = [e for e in events if e["msg"].startswith("[ACTION")]
+        # Two actions, one executed, one rejected.
+        self.assertEqual(len(action_events), 4)
+        self.assertTrue(any("executed" in e["msg"] for e in action_events))
+        self.assertTrue(any("rejected" in e["msg"] for e in action_events))
+        for event in action_events:
+            self.assertEqual(event["party"], "BLUE", event["msg"])
+        logged_ids = [e["id"] for e in events if e["id"] >= 0]
+        self.assertEqual(len(logged_ids), len(set(logged_ids)))
+
+    def test_kill_event_messages_belongs_to_the_victim(self):
+        event = KillEvent(id=3, time=T0, target_id=7, party=Party.RED)
+        message = EventMessage.from_event(event)
+        self.assertEqual(message.id, 3)
+        self.assertEqual(message.party, Party.RED)
+        self.assertEqual(message.model_dump(mode="json")["party"], "RED")
+
+    def test_event_without_party(self):
+        event = TrackInitEvent(id=4, time=T0, target_id=7, track_id=1)
+        self.assertIsNone(EventMessage.from_event(event).party)
 
 
 if __name__ == "__main__":

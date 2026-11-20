@@ -635,6 +635,7 @@ class Simulator(Trigger, AbstractEventListener):
                         id=self._id_provider.increment(Entity.EVENT),
                         time=self._t,
                         target_id=target.id,
+                        party=target.info.party,
                     )
                     self._events.append(event)
                     self._broadcast_event(event)

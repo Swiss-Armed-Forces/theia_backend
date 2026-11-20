@@ -113,6 +113,7 @@ class HomingSystem(Controller):
                 id=UNKNOWN_ID,
                 time=time,
                 target_id=self.target_id,
+                party=self.info.party,
             )
         )
 

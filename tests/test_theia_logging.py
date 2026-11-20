@@ -163,7 +163,7 @@ class LogLoaderEventsTest(unittest.TestCase):
             count=6,
         )
         events = [
-            KillEvent(id=1, time=t, target_id=7),
+            KillEvent(id=1, time=t, target_id=7, party=Party.RED),
             ShipmentLostEvent(id=2, time=t, **shipment, destroyed_site_id=5),
             TextEvent(id=3, time=t, text="hello"),
             LaunchAction(
@@ -214,6 +214,11 @@ class LogLoaderEventsTest(unittest.TestCase):
         self.assertEqual(loader.action_rejected_events, [events[6]])
         self.assertEqual(loader.shipment_events, [events[1], events[7], events[8]])
         self.assertEqual(loader.stock_lost_events, [events[9]])
+
+    def test_legacy_kill_event_without_party(self):
+        t = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+        event = KillEvent.model_validate({"id": 1, "time": t, "target_id": 7})
+        self.assertEqual(event.party, Party.UNKNOWN)
 
 
 if __name__ == "__main__":

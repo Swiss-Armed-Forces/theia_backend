@@ -1521,6 +1521,16 @@ class TrackInitEvent(Event):
 
 class KillEvent(Event):
     target_id: int
+    party: Party
+    """Side the killed target belongs to (the victim's party)"""
+
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def _from_legacy_log(cls, data: Any) -> Any:
+        # Logs written before kill events carried a party lack this field.
+        if isinstance(data, dict) and "party" not in data:
+            data = {**data, "party": Party.UNKNOWN}
+        return data
 
     def __str__(self) -> str:
         return f"Target {self.target_id} 💀"

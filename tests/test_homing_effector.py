@@ -108,6 +108,7 @@ class TestCommitSuicide(HomingSystemTestCase):
         self.assertIsInstance(broadcast_arg, KillEvent)
         self.assertEqual(broadcast_arg.time, t)
         self.assertEqual(broadcast_arg.target_id, 1)
+        self.assertEqual(broadcast_arg.party, Party.BLUE)
 
     def test_decrements_source_effector_in_flight_count(self):
         system = self.make_system()
