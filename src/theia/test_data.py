@@ -58,19 +58,19 @@ class TestSituationLoader:
         p_target.lat += 0.1
 
         if move_direction == "north":
-            v = CoordinateTransformations.velocity_geodetic_to_cartesian(
+            v = CoordinateTransformations.velocity_neu_to_ecef(
                 p_target, -speed, 0.0, 0.0
             )
         elif move_direction == "east":
-            v = CoordinateTransformations.velocity_geodetic_to_cartesian(
+            v = CoordinateTransformations.velocity_neu_to_ecef(
                 p_target, 0.0, speed, 0.0
             )
         elif move_direction == "south":
-            v = CoordinateTransformations.velocity_geodetic_to_cartesian(
+            v = CoordinateTransformations.velocity_neu_to_ecef(
                 p_target, speed, 0.0, 0.0
             )
         elif move_direction == "west":
-            v = CoordinateTransformations.velocity_geodetic_to_cartesian(
+            v = CoordinateTransformations.velocity_neu_to_ecef(
                 p_target, 0.0, -speed, 0.0
             )
         else:

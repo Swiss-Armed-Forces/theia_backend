@@ -23,17 +23,17 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
         self.assertEqual(lookup[0], "HELLO")
 
         v_expected: list[Velocity] = [
-            CoordinateTransformations.velocity_geodetic_to_cartesian(
+            CoordinateTransformations.velocity_neu_to_ecef(
                 p=Point(lat=46.6155, lon=7.2784, alt=500.0),
-                vlat=0.0,
-                vlon=100.0,
-                valt=20.0,
+                v_north=0.0,
+                v_east=100.0,
+                v_up=20.0,
             ),
-            CoordinateTransformations.velocity_geodetic_to_cartesian(
+            CoordinateTransformations.velocity_neu_to_ecef(
                 p=Point(lat=46.6155, lon=7.3567, alt=620.0),
-                vlat=0.0,
-                vlon=100.0,
-                valt=0.0,
+                v_north=0.0,
+                v_east=100.0,
+                v_up=0.0,
             ),
         ]
 
@@ -68,17 +68,17 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
         self.assertEqual(lookup[1], "HOHOHO")
 
         v_expected: list[Velocity] = [
-            CoordinateTransformations.velocity_geodetic_to_cartesian(
+            CoordinateTransformations.velocity_neu_to_ecef(
                 p=Point(lat=46.6155, lon=7.2784, alt=500.0),
-                vlat=0.0,
-                vlon=100.0,
-                valt=20.0,
+                v_north=0.0,
+                v_east=100.0,
+                v_up=20.0,
             ),
-            CoordinateTransformations.velocity_geodetic_to_cartesian(
+            CoordinateTransformations.velocity_neu_to_ecef(
                 p=Point(lat=46.6155, lon=7.3567, alt=620.0),
-                vlat=0.0,
-                vlon=100.0,
-                valt=0.0,
+                v_north=0.0,
+                v_east=100.0,
+                v_up=0.0,
             ),
         ]
 
@@ -114,23 +114,23 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
         self.assertEqual(trajectories[0], expected)
 
         v_expected: list[Velocity] = [
-            CoordinateTransformations.velocity_geodetic_to_cartesian(
+            CoordinateTransformations.velocity_neu_to_ecef(
                 p=Point(lat=47.7024, lon=8.6078, alt=1000.0),
-                vlat=100,
-                vlon=-50.0,
-                valt=-13.0,
+                v_north=100,
+                v_east=-50.0,
+                v_up=-13.0,
             ),
-            CoordinateTransformations.velocity_geodetic_to_cartesian(
+            CoordinateTransformations.velocity_neu_to_ecef(
                 p=Point(lat=46.6638, lon=7.3135, alt=987.0),
-                vlat=100.0,
-                vlon=0.0,
-                valt=-13.0,
+                v_north=100.0,
+                v_east=0.0,
+                v_up=-13.0,
             ),
-            CoordinateTransformations.velocity_geodetic_to_cartesian(
+            CoordinateTransformations.velocity_neu_to_ecef(
                 p=Point(lat=46.6195, lon=7.2784, alt=928.5),
-                vlat=100.0,
-                vlon=0.0,
-                valt=0.0,
+                v_north=100.0,
+                v_east=0.0,
+                v_up=0.0,
             ),
         ]
 

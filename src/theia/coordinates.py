@@ -105,35 +105,72 @@ class CoordinateTransformations:
         return float(lat), float(lon), float(alt)
 
     @staticmethod
-    def velocity_cartesian_to_geodetic(
+    def velocity_ecef_to_neu(
         p: Point,
         velocity: Velocity,
     ) -> tuple[float, float, float]:
-        """Project velocity to latitude, longitude and altitude directions at point p [m / s]"""
-        n_lat = latitude_direction(p)
-        n_lon = longitude_direction(p)
-        n_alt = altitude_direction(p)
+        """
+        Convert an ECEF velocity to local north, east and up components at point p.
+
+        Parameters
+        ----------
+        p: Point
+            Geodetic position at which the local frame is defined
+        velocity: Velocity
+            Velocity in ECEF coordinates [m / s]
+
+        Returns
+        -------
+        tuple[float, float, float]
+            (v_north, v_east, v_up) [m / s]: Projections onto the local
+            geodetic north, east and up (ellipsoid normal) directions.
+            Note the order: north first, not east.
+        """
+        n_north = latitude_direction(p)
+        n_east = longitude_direction(p)
+        n_up = altitude_direction(p)
 
         v = velocity.as_tuple()
 
         return (
-            np.dot(n_lat, v),
-            np.dot(n_lon, v),
-            np.dot(n_alt, v),
+            np.dot(n_north, v),
+            np.dot(n_east, v),
+            np.dot(n_up, v),
         )
 
     @staticmethod
-    def velocity_geodetic_to_cartesian(
+    def velocity_neu_to_ecef(
         p: Point,
-        vlat: float,
-        vlon: float,
-        valt: float,
+        v_north: float,
+        v_east: float,
+        v_up: float,
     ) -> Velocity:
-        n_lat = latitude_direction(p)
-        n_lon = longitude_direction(p)
-        n_alt = altitude_direction(p)
+        """
+        Convert local north, east and up velocity components at point p to ECEF.
 
-        v_cartesian = vlat * n_lat + vlon * n_lon + valt * n_alt
+        Inverse of `velocity_ecef_to_neu`.
+
+        Parameters
+        ----------
+        p: Point
+            Geodetic position at which the local frame is defined
+        v_north: float
+            Velocity along the local geodetic north direction [m / s]
+        v_east: float
+            Velocity along the local east direction [m / s]
+        v_up: float
+            Velocity along the local up direction (ellipsoid normal) [m / s]
+
+        Returns
+        -------
+        Velocity
+            Velocity in ECEF coordinates [m / s]
+        """
+        n_north = latitude_direction(p)
+        n_east = longitude_direction(p)
+        n_up = altitude_direction(p)
+
+        v_cartesian = v_north * n_north + v_east * n_east + v_up * n_up
 
         return Velocity(
             vx=v_cartesian[0],

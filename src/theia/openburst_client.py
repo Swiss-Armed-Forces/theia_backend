@@ -398,7 +398,7 @@ def radar_to_openburst_json(radar: AbstractSensor) -> str:
 
 
 def target_to_openburst_json(target: Target, rcs: float) -> str:
-    vlat, vlon, valt = CoordinateTransformations.velocity_cartesian_to_geodetic(
+    vlat, vlon, valt = CoordinateTransformations.velocity_ecef_to_neu(
         target.point,
         target.velocity,
     )

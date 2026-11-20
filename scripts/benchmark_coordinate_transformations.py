@@ -75,7 +75,7 @@ def build_benchmarks() -> dict[str, Callable[[], None]]:
     cartesian_batch = _sample_cartesian_batch(BATCH_SIZE, rng)
     points, velocities = _sample_points_and_velocities(BATCH_SIZE, rng)
     cartesian_velocities = [
-        CoordinateTransformations.velocity_geodetic_to_cartesian(p, *v.as_tuple())
+        CoordinateTransformations.velocity_neu_to_ecef(p, *v.as_tuple())
         for p, v in zip(points, velocities)
     ]
 
@@ -87,19 +87,19 @@ def build_benchmarks() -> dict[str, Callable[[], None]]:
         for x, y, z in cartesian_batch:
             CoordinateTransformations.cartesian_to_geodetic(x, y, z)
 
-    def bench_velocity_geodetic_to_cartesian() -> None:
+    def bench_velocity_neu_to_ecef() -> None:
         for p, v in zip(points, velocities):
-            CoordinateTransformations.velocity_geodetic_to_cartesian(p, *v.as_tuple())
+            CoordinateTransformations.velocity_neu_to_ecef(p, *v.as_tuple())
 
-    def bench_velocity_cartesian_to_geodetic() -> None:
+    def bench_velocity_ecef_to_neu() -> None:
         for p, v in zip(points, cartesian_velocities):
-            CoordinateTransformations.velocity_cartesian_to_geodetic(p, v)
+            CoordinateTransformations.velocity_ecef_to_neu(p, v)
 
     return {
         "geodetic_to_cartesian": bench_geodetic_to_cartesian,
         "cartesian_to_geodetic": bench_cartesian_to_geodetic,
-        "velocity_geodetic_to_cartesian": bench_velocity_geodetic_to_cartesian,
-        "velocity_cartesian_to_geodetic": bench_velocity_cartesian_to_geodetic,
+        "velocity_neu_to_ecef": bench_velocity_neu_to_ecef,
+        "velocity_ecef_to_neu": bench_velocity_ecef_to_neu,
     }
 
 
@@ -143,7 +143,7 @@ if __name__ == "__main__":
         metavar="METHOD",
         help="Run cProfile over the given benchmark instead of timing it. "
         "Choices: geodetic_to_cartesian, cartesian_to_geodetic, "
-        "velocity_geodetic_to_cartesian, velocity_cartesian_to_geodetic",
+        "velocity_neu_to_ecef, velocity_ecef_to_neu",
     )
     args = parser.parse_args()
 

@@ -189,7 +189,7 @@ def load_pcl_reference_data(
         vlat = row["vy"]
         valt = row["vz"]
 
-        velocity = CoordinateTransformations.velocity_geodetic_to_cartesian(
+        velocity = CoordinateTransformations.velocity_neu_to_ecef(
             target_position,
             vlat,
             vlon,

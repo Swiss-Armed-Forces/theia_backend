@@ -73,11 +73,11 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
             strict=True,
         ):
             velocities.append(
-                CoordinateTransformations.velocity_geodetic_to_cartesian(
+                CoordinateTransformations.velocity_neu_to_ecef(
                     p=Point(lat=lat, lon=lon, alt=alt),
-                    vlat=vlat,
-                    vlon=vlon,
-                    valt=vz,
+                    v_north=vlat,
+                    v_east=vlon,
+                    v_up=vz,
                 )
             )
 
@@ -282,7 +282,7 @@ def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajecto
         velocities: list[Velocity] = []
         for _, row in df_target.iterrows():
             velocities.append(
-                CoordinateTransformations.velocity_geodetic_to_cartesian(
+                CoordinateTransformations.velocity_neu_to_ecef(
                     p=Point(
                         lat=row["lat"],
                         lon=row["lon"],
@@ -290,9 +290,9 @@ def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajecto
                     ),
                     # TODO not sure whether this is actually correct...
                     # See #20 and #23 in openBURST
-                    vlat=row["tgt_vx [vel m/s on lon axis]"],
-                    vlon=row["tgt_vy [vel m/s on lat axis]"],
-                    valt=row["tgt_vz [vel m/s on z axis]"],
+                    v_north=row["tgt_vx [vel m/s on lon axis]"],
+                    v_east=row["tgt_vy [vel m/s on lat axis]"],
+                    v_up=row["tgt_vz [vel m/s on z axis]"],
                 )
             )
         trajectories.append(
@@ -330,7 +330,7 @@ def save_openburst_trajectory_file(
     while time <= stop_time:
         targets = [t(time) for t in trajectories]
         for target in targets:
-            vlat, vlon, vz = CoordinateTransformations.velocity_cartesian_to_geodetic(
+            vlat, vlon, vz = CoordinateTransformations.velocity_ecef_to_neu(
                 target.point,
                 target.velocity,
             )
