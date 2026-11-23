@@ -9,10 +9,8 @@ TERRAIN_HBV_DATA_DIR = os.environ.get(
 )
 DEFAULT_TERRAIN = os.environ.get("THEIA_DEFAULT_TERRAIN", "SRTM")
 
-ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD = 0.0
+ACTIVE_RADAR_DOPPLER_SHIFT_THRESHOLD = 40.0
 """
-TODO WARNING: Velocity is currently broken and set to zero in multiple places. Consequently, Doppler shift is zero.
-
 Doppler shift threshold for active radar [Hz].
 
 Targets with less Doppler shift are not detected. This models the clutter

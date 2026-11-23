@@ -71,7 +71,7 @@ def calculate_monostatic_detection(
         target,
         radar.transmitter,
     )
-    if abs(doppler) < doppler_shift_threshold_hz:
+    if abs(doppler) <= doppler_shift_threshold_hz:
         return None
     p = calculate_probability_of_detection(
         snr_dB,
