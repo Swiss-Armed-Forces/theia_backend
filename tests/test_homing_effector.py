@@ -179,6 +179,14 @@ class TestGetTargets(HomingSystemTestCase):
         self.assertFalse(target.is_stationary)
         self.assertEqual(target.point, system.point)
         self.assertEqual(target.cross_section_model, system.rcs)
+        self.assertEqual(target.velocity, system.velocity)
+
+    def test_velocity_is_zero_before_first_update(self):
+        system = self.make_system()
+
+        target = system._get_targets()[0]
+
+        self.assertEqual(target.velocity.as_tuple(), (0.0, 0.0, 0.0))
 
 
 class TestGetFiringEffectors(HomingSystemTestCase):
@@ -307,6 +315,45 @@ class TestUpdate(HomingSystemTestCase):
             system.update(sp, dt)
 
         self.assertAlmostEqual(system.travelled_dist, 5.0)
+
+    def test_update_sets_velocity_from_actual_displacement(self):
+        # Same geometry as above, but over dt=2s: the interceptor stops on
+        # the target 5 units away, so its velocity is 5 / 2 = 2.5 units/s
+        # along x (not the nominal speed), and the reported target carries
+        # that velocity. (dt < 1 s is not used: _get_next_position uses
+        # dt.seconds, which truncates to whole seconds.)
+        with (
+            patch.object(
+                CoordinateTransformations,
+                "geodetic_to_cartesian",
+                side_effect=lambda lat, lon, alt: (lat, lon, alt),
+            ),
+            patch.object(
+                CoordinateTransformations,
+                "cartesian_to_geodetic",
+                side_effect=lambda x, y, z: (x, y, z),
+            ),
+        ):
+            track = make_track(x=5.0, y=0.0, z=0.0)
+            track.id = 99
+            system = self.make_system(
+                assigned_track_id=99,
+                speed=10.0,
+                max_dist=1000.0,
+                travelled_dist=0.0,
+                point=Point(lat=0.0, lon=0.0, alt=0.0),
+            )
+            system._get_firing_effectors = MagicMock(return_value=[])
+            sp = MagicMock(time=datetime.datetime(2026, 1, 1))
+            sp.enemy_targets = [track]
+            dt = datetime.timedelta(seconds=2)
+
+            system.update(sp, dt)
+
+        expected = (2.5, 0.0, 0.0)
+        for actual, value in zip(system.velocity.as_tuple(), expected, strict=True):
+            self.assertAlmostEqual(actual, value)
+        self.assertEqual(system.targets[0].velocity, system.velocity)
 
 
 class TestGetNextPositionGeometry(HomingSystemTestCase):

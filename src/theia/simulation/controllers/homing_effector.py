@@ -63,6 +63,11 @@ class HomingSystem(Controller):
     """Maximum distance the effector can travel before committing suicide [m]"""
     point: Point
     """Position"""
+    velocity: Velocity = Velocity(vx=0.0, vy=0.0, vz=0.0)
+    """
+    Velocity in ECEF coordinates [m / s]: The actual displacement during the
+    last update step divided by its duration. Zero before the first step.
+    """
     rcs: ConcreteRcsModel
     effector: DirectFireEffector
     assigned_track_id: str
@@ -103,6 +108,13 @@ class HomingSystem(Controller):
         self.travelled_dist += math.sqrt(
             (new_x - old_x) ** 2 + (new_y - old_y) ** 2 + (new_z - old_z) ** 2
         )
+        seconds = dt.total_seconds()
+        if seconds > 0:
+            self.velocity = Velocity(
+                vx=(new_x - old_x) / seconds,
+                vy=(new_y - old_y) / seconds,
+                vz=(new_z - old_z) / seconds,
+            )
         self.point = p
         self.targets = self._get_targets()
 
@@ -220,7 +232,7 @@ class HomingSystem(Controller):
                 info=self.info,
                 point=self.point,
                 cross_section_model=self.rcs,
-                velocity=Velocity(vx=0.0, vy=0.0, vz=0.0),
+                velocity=self.velocity,
                 receiver=None,
                 transmitter=None,
             ),
