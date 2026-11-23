@@ -6,6 +6,7 @@ import numpy as np
 from theia.types import Point, Velocity
 from theia.wgs84 import (
     cartesian_to_geodetic_impl,
+    geodetic_rate_to_ecef_velocity_impl,
     geodetic_to_cartesian_impl,
 )
 
@@ -25,6 +26,39 @@ class CoordinateTransformations:
     ) -> tuple[float, float, float]:
         x, y, z = geodetic_to_cartesian_impl(lat, lon, alt)
         return float(x), float(y), float(z)
+
+    @staticmethod
+    def geodetic_rate_to_ecef_velocity(
+        lat: float,
+        lon: float,
+        alt: float,
+        lat_rate: float,
+        lon_rate: float,
+        alt_rate: float,
+    ) -> Velocity:
+        """
+        ECEF velocity of a point moving with the given geodetic rates.
+
+        Exact time derivative of `geodetic_to_cartesian` (WGS84).
+
+        Parameters
+        ----------
+        lat, lon, alt: float
+            Current position: latitude [°], longitude [°], altitude [m]
+        lat_rate, lon_rate: float
+            Rate of change of latitude and longitude [° / s]
+        alt_rate: float
+            Rate of change of altitude [m / s]
+
+        Returns
+        -------
+        Velocity
+            Velocity in ECEF coordinates [m / s]
+        """
+        vx, vy, vz = geodetic_rate_to_ecef_velocity_impl(
+            lat, lon, alt, lat_rate, lon_rate, alt_rate
+        )
+        return Velocity(vx=float(vx), vy=float(vy), vz=float(vz))
 
     @classmethod
     def cartesian_to_geodetic(

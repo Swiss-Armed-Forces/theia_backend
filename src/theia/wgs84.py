@@ -81,3 +81,39 @@ def cartesian_to_geodetic_impl(
     return math.degrees(lat), math.degrees(lon), alt
 
 
+@numba.njit
+def geodetic_rate_to_ecef_velocity_impl(
+    lat: float,
+    lon: float,
+    alt: float,
+    lat_rate: float,
+    lon_rate: float,
+    alt_rate: float,
+) -> tuple[float, float, float]:
+    # Time derivative of geodetic_to_cartesian_impl (chain rule):
+    #   x = (N + h) cos(lat) cos(lon)
+    #   y = (N + h) cos(lat) sin(lon)
+    #   z = (N (1 - e^2) + h) sin(lat)
+    # with N = N(lat) and dN/dlat = N e^2 sin(lat) cos(lat) / (1 - e^2 sin^2(lat)).
+    lat_rad = math.radians(lat)
+    lon_rad = math.radians(lon)
+    dlat = math.radians(lat_rate)
+    dlon = math.radians(lon_rate)
+    sin_lat = math.sin(lat_rad)
+    cos_lat = math.cos(lat_rad)
+    sin_lon = math.sin(lon_rad)
+    cos_lon = math.cos(lon_rad)
+
+    w = 1.0 - WGS84_E2 * sin_lat * sin_lat
+    N = WGS84_A / math.sqrt(w)
+    dN = N * WGS84_E2 * sin_lat * cos_lat / w * dlat
+    r = N + alt
+
+    # Rate of change of the distance to the polar axis, (N + h) cos(lat).
+    dp = (dN + alt_rate) * cos_lat - r * sin_lat * dlat
+    vx = dp * cos_lon - r * cos_lat * sin_lon * dlon
+    vy = dp * sin_lon + r * cos_lat * cos_lon * dlon
+    vz = (dN * (1.0 - WGS84_E2) + alt_rate) * sin_lat + (
+        N * (1.0 - WGS84_E2) + alt
+    ) * cos_lat * dlat
+    return vx, vy, vz
