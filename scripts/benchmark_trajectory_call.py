@@ -72,9 +72,6 @@ def _sample_trajectory(rng: np.random.Generator) -> Trajectory:
         lats=lats,
         lons=lons,
         alts=alts,
-        vxs=[0.0] * N_WAYPOINTS,
-        vys=[0.0] * N_WAYPOINTS,
-        vzs=[0.0] * N_WAYPOINTS,
         cross_section_model=ConstantRcsModel(rcs=0.1),
     )
 
@@ -102,9 +99,6 @@ def build_benchmarks() -> dict[str, tuple[Callable[[], None], int]]:
                 trajectory.lats,
                 trajectory.lons,
                 trajectory.alts,
-                trajectory.vxs,
-                trajectory.vys,
-                trajectory.vzs,
             ],
             axis=1,
         ),

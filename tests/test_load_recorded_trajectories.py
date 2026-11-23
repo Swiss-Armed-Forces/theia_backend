@@ -2,15 +2,12 @@ import datetime
 import unittest
 from pathlib import Path
 
-from theia.coordinates import CoordinateTransformations
 from theia.data_loading import load_trajectory_file
 from theia.types import (
     ConstantRcsModel,
     Party,
-    Point,
     TargetInfos,
     Trajectory,
-    Velocity,
 )
 
 
@@ -21,21 +18,6 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
         )
         self.assertEqual(len(trajectories), 1)
         self.assertEqual(lookup[0], "HELLO")
-
-        v_expected: list[Velocity] = [
-            CoordinateTransformations.velocity_neu_to_ecef(
-                p=Point(lat=46.6155, lon=7.2784, alt=500.0),
-                v_north=0.0,
-                v_east=100.0,
-                v_up=20.0,
-            ),
-            CoordinateTransformations.velocity_neu_to_ecef(
-                p=Point(lat=46.6155, lon=7.3567, alt=620.0),
-                v_north=0.0,
-                v_east=100.0,
-                v_up=0.0,
-            ),
-        ]
 
         expected = Trajectory(
             target_id=0,
@@ -51,9 +33,6 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             lats=[46.6155, 46.6155],
             lons=[7.2784, 7.3567],
             alts=[500.0, 620.0],
-            vxs=[v_expected[0].vx, v_expected[1].vx],
-            vys=[v_expected[0].vy, v_expected[1].vy],
-            vzs=[v_expected[0].vz, v_expected[1].vz],
             cross_section_model=ConstantRcsModel(rcs=10.0),
         )
         self.assertEqual(trajectories[0], expected)
@@ -66,21 +45,6 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
         self.assertEqual(len(lookup), 2)
         self.assertEqual(lookup[0], "HELLO")
         self.assertEqual(lookup[1], "HOHOHO")
-
-        v_expected: list[Velocity] = [
-            CoordinateTransformations.velocity_neu_to_ecef(
-                p=Point(lat=46.6155, lon=7.2784, alt=500.0),
-                v_north=0.0,
-                v_east=100.0,
-                v_up=20.0,
-            ),
-            CoordinateTransformations.velocity_neu_to_ecef(
-                p=Point(lat=46.6155, lon=7.3567, alt=620.0),
-                v_north=0.0,
-                v_east=100.0,
-                v_up=0.0,
-            ),
-        ]
 
         expected = Trajectory(
             target_id=0,
@@ -106,33 +70,9 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             lats=[46.6155, 46.6155],
             lons=[7.2784, 7.3567],
             alts=[500.0, 620.0],
-            vxs=[v_expected[0].vx, v_expected[1].vx],
-            vys=[v_expected[0].vy, v_expected[1].vy],
-            vzs=[v_expected[0].vz, v_expected[1].vz],
             cross_section_model=ConstantRcsModel(rcs=10.0),
         )
         self.assertEqual(trajectories[0], expected)
-
-        v_expected: list[Velocity] = [
-            CoordinateTransformations.velocity_neu_to_ecef(
-                p=Point(lat=47.7024, lon=8.6078, alt=1000.0),
-                v_north=100,
-                v_east=-50.0,
-                v_up=-13.0,
-            ),
-            CoordinateTransformations.velocity_neu_to_ecef(
-                p=Point(lat=46.6638, lon=7.3135, alt=987.0),
-                v_north=100.0,
-                v_east=0.0,
-                v_up=-13.0,
-            ),
-            CoordinateTransformations.velocity_neu_to_ecef(
-                p=Point(lat=46.6195, lon=7.2784, alt=928.5),
-                v_north=100.0,
-                v_east=0.0,
-                v_up=0.0,
-            ),
-        ]
 
         expected = Trajectory(
             target_id=1,
@@ -166,9 +106,6 @@ class TestLoadRecordedTrajectories(unittest.TestCase):
             lats=[47.7024, 46.6638, 46.6195],
             lons=[8.6078, 7.3135, 7.2784],
             alts=[1000.0, 987, 928.5],
-            vxs=[v_expected[0].vx, v_expected[1].vx, v_expected[2].vx],
-            vys=[v_expected[0].vy, v_expected[1].vy, v_expected[2].vy],
-            vzs=[v_expected[0].vz, v_expected[1].vz, v_expected[2].vz],
             cross_section_model=ConstantRcsModel(rcs=100.0),
         )
         self.assertEqual(trajectories[1], expected)

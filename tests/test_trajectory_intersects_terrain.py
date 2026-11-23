@@ -26,9 +26,6 @@ def _northbound_trajectory(lats: list[float], alts: list[float]) -> Trajectory:
         lats=lats,
         lons=[8.0] * n,
         alts=alts,
-        vxs=[0.0] * n,
-        vys=[0.0] * n,
-        vzs=[0.0] * n,
         cross_section_model=ConstantRcsModel(rcs=1.0),
     )
 

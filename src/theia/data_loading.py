@@ -17,7 +17,6 @@ from theia.types import (
     TargetInfos,
     Trajectory,
     Transmitter,
-    Velocity,
 )
 from theia.util import erp_to_power, to_dB
 
@@ -62,25 +61,8 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
             )
             continue
 
-        velocities: list[Velocity] = []
-        for lat, lon, alt, vlat, vlon, vz in zip(
-            rows["lat"],
-            rows["lon"],
-            rows["alt"],
-            rows["vlat"],
-            rows["vlon"],
-            rows["vz"],
-            strict=True,
-        ):
-            velocities.append(
-                CoordinateTransformations.velocity_neu_to_ecef(
-                    p=Point(lat=lat, lon=lon, alt=alt),
-                    v_north=vlat,
-                    v_east=vlon,
-                    v_up=vz,
-                )
-            )
-
+        # The measured velocities (vlat, vlon, vz) are ignored: Trajectory
+        # derives the velocity from the positions.
         assert len(rows["cross_section"].unique()) == 1
         rcs = rows["cross_section"].tolist()[0]
 
@@ -92,9 +74,6 @@ def load_trajectory_file(path: str) -> tuple[list[Trajectory], dict[int, str]]:
                 lats=rows["lat"].astype(float).tolist(),
                 lons=rows["lon"].astype(float).tolist(),
                 alts=rows["alt"].astype(float).tolist(),
-                vxs=[v.vx for v in velocities],
-                vys=[v.vy for v in velocities],
-                vzs=[v.vz for v in velocities],
                 cross_section_model=ConstantRcsModel(rcs=rcs),
             )
         )
@@ -279,22 +258,8 @@ def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajecto
     trajectories = []
     for ID, df_target in df.groupby("converted_integer_id"):
         df_target.sort_values("milli_secs_after_midnight", inplace=True)
-        velocities: list[Velocity] = []
-        for _, row in df_target.iterrows():
-            velocities.append(
-                CoordinateTransformations.velocity_neu_to_ecef(
-                    p=Point(
-                        lat=row["lat"],
-                        lon=row["lon"],
-                        alt=row["altitude[m]"],
-                    ),
-                    # TODO not sure whether this is actually correct...
-                    # See #20 and #23 in openBURST
-                    v_north=row["tgt_vx [vel m/s on lon axis]"],
-                    v_east=row["tgt_vy [vel m/s on lat axis]"],
-                    v_up=row["tgt_vz [vel m/s on z axis]"],
-                )
-            )
+        # The tgt_v* velocity columns are ignored: Trajectory derives the
+        # velocity from the positions.
         trajectories.append(
             Trajectory(
                 target_id=ID,
@@ -303,9 +268,6 @@ def load_openburst_trajectory_file(path: str, rcs: float = 1.0) -> list[Trajecto
                 lats=df_target.loc[:, "lat"],
                 lons=df_target.loc[:, "lon"],
                 alts=df_target.loc[:, "altitude[m]"],
-                vxs=[v.vx for v in velocities],
-                vys=[v.vy for v in velocities],
-                vzs=[v.vz for v in velocities],
                 cross_section_model=ConstantRcsModel(rcs=rcs),
             )
         )

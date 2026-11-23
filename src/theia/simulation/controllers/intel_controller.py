@@ -36,9 +36,6 @@ def build_stationary_intel_sensor(
         lats=[point.lat, point.lat],
         lons=[point.lon, point.lon],
         alts=[point.alt, point.alt],
-        vxs=[0.0, 0.0],
-        vys=[0.0, 0.0],
-        vzs=[0.0, 0.0],
         cross_section_model=ConstantRcsModel(rcs=UNKNOWN_RCS),
     )
     return IntelSensor(id=id_provider.increment(Entity.SENSOR), trajectory=trajectory)

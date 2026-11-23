@@ -561,9 +561,6 @@ class OutputTest(ActionControllerTestBase):
                 lats=[47.0] * 2,
                 lons=[8.0] * 2,
                 alts=[1.0] * 2,
-                vxs=[0.0] * 2,
-                vys=[0.0] * 2,
-                vzs=[0.0] * 2,
                 cross_section_model=ConstantRcsModel(rcs=1.0),
             ),
         )

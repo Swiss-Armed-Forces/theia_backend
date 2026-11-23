@@ -117,9 +117,6 @@ class ZurichAirportScenarioFactory(AbstractSimulatorFactory):
             lats=[p.lat for p in points],
             lons=[p.lon for p in points],
             alts=[p.alt for p in points],
-            vxs=[0.0 for _ in range(len(points))],
-            vys=[0.0 for _ in range(len(points))],
-            vzs=[0.0 for _ in range(len(points))],
             cross_section_model=ConstantRcsModel(rcs=1.0),
         )
         effector = DirectFireEffector(

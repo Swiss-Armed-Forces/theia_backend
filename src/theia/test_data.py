@@ -285,9 +285,6 @@ def load_pcl_example(
         lats=[p1.lat, p2.lat, p3.lat],
         lons=[p1.lon, p2.lon, p3.lon],
         alts=[p1.alt, p2.alt, p3.alt],
-        vxs=[0.0, 0.0, 0.0],
-        vys=[0.0, 0.0, 0.0],
-        vzs=[0.0, 0.0, 0.0],
         cross_section_model=ConstantRcsModel(rcs=rcs),
     )
 

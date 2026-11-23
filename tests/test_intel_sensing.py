@@ -62,9 +62,6 @@ def make_trajectory(
         lats=lats,
         lons=[lon0] * n,
         alts=[alt0] * n,
-        vxs=[0.0] * n,
-        vys=[v] * n,
-        vzs=[0.0] * n,
         cross_section_model=ConstantRcsModel(rcs=1.0),
     )
 

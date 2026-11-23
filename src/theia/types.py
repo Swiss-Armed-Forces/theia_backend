@@ -17,6 +17,7 @@ from scipy.interpolate import BSpline, CubicSpline, make_interp_spline
 
 from theia.config import INTEL_DETECTION_SIGMA, UNKNOWN_ID
 from theia.util import from_dB
+from theia.wgs84 import geodetic_rate_to_ecef_velocity_impl
 
 if TYPE_CHECKING:
     from theia.simulation.actions import Action
@@ -773,6 +774,19 @@ class _CubicSplineEvaluator:
             c3 + c2 * s + c1 * s2 + c0 * s3 for c0, c1, c2, c3 in self._coefficients[i]
         ]
 
+    def with_derivative(self, x: float) -> tuple[list[float], list[float]]:
+        """Values and first derivatives at `x`, extrapolated like `__call__`."""
+        i = min(max(bisect.bisect_right(self._x, x) - 1, 0), self._last_piece)
+        s = x - self._x[i]
+        s2 = s * s
+        s3 = s2 * s
+        coefficients = self._coefficients[i]
+        values = [c3 + c2 * s + c1 * s2 + c0 * s3 for c0, c1, c2, c3 in coefficients]
+        derivatives = [
+            c2 + 2.0 * c1 * s + 3.0 * c0 * s2 for c0, c1, c2, _ in coefficients
+        ]
+        return values, derivatives
+
     def many(self, x: np.ndarray) -> np.ndarray:
         """
         Values at all points in `x`, shape (len(x), number of dimensions).
@@ -783,6 +797,13 @@ class _CubicSplineEvaluator:
 
 
 class Trajectory(pydantic.BaseModel):
+    """
+    Path of a target, interpolated with a cubic spline in geodetic coordinates.
+
+    The velocity is not stored: `__call__` derives it from the time derivative
+    of the position spline, so it is always consistent with the positions.
+    """
+
     target_id: int
     target_info: TargetInfo
     times: list[datetime.datetime]
@@ -793,12 +814,6 @@ class Trajectory(pydantic.BaseModel):
     """Longitude coordinates [°]"""
     alts: list[float]
     """Altitude coordinates [m above sea level]"""
-    vxs: list[float]
-    """Velocity components along Cartesian x-coordinate [m / s]"""
-    vys: list[float]
-    """Velocity components along Cartesian y-coordinate [m / s]"""
-    vzs: list[float]
-    """Velocity components along Cartesian z-coordinate [m / s]"""
     cross_section_model: ConstantRcsModel
 
     _spline: _CubicSplineEvaluator = pydantic.PrivateAttr()
@@ -819,9 +834,6 @@ class Trajectory(pydantic.BaseModel):
             len(self.times) != len(self.lats)
             or len(self.times) != len(self.lons)
             or len(self.times) != len(self.alts)
-            or len(self.times) != len(self.vxs)
-            or len(self.times) != len(self.vys)
-            or len(self.times) != len(self.vzs)
         ):
             raise ValueError("Properties are not of same length")
         return self
@@ -844,9 +856,6 @@ class Trajectory(pydantic.BaseModel):
                 self.lats,
                 self.lons,
                 self.alts,
-                self.vxs,
-                self.vys,
-                self.vzs,
             ],
             axis=1,
         )
@@ -854,12 +863,19 @@ class Trajectory(pydantic.BaseModel):
         return self
 
     def __call__(self, t: datetime.datetime) -> Target | None:
+        """
+        Target at time `t` (None outside the trajectory's span).
+
+        The target's ECEF velocity is the exact time derivative of the
+        interpolated position.
+        """
         if t < self.times[0] or t > self.times[-1]:
             return None
-        y = self._spline(t.timestamp())
-        if any(map(math.isnan, y)):
+        y, dy = self._spline.with_derivative(t.timestamp())
+        if any(map(math.isnan, y)) or any(map(math.isnan, dy)):
             return None
-        lat, lon, alt, vx, vy, vz = y
+        lat, lon, alt = y
+        vx, vy, vz = geodetic_rate_to_ecef_velocity_impl(lat, lon, alt, *dy)
         return Target(
             id=self.target_id,
             is_stationary=False,
@@ -893,7 +909,7 @@ class Trajectory(pydantic.BaseModel):
             altitude [m above sea level] per time; NaN for times outside the
             trajectory.
         """
-        return self._spline.many(timestamps)[:, :3]
+        return self._spline.many(timestamps)
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, Trajectory):
@@ -904,9 +920,6 @@ class Trajectory(pydantic.BaseModel):
             and (self.lats == other.lats)
             and (self.lons == other.lons)
             and (self.alts == other.alts)
-            and (self.vxs == other.vxs)
-            and (self.vys == other.vys)
-            and (self.vzs == other.vzs)
         )
 
     def to_geojson(self) -> shapely.geometry.LineString:
@@ -935,9 +948,6 @@ class Trajectory(pydantic.BaseModel):
             lats=[target.lat for _ in times],
             lons=[target.lon for _ in times],
             alts=[target.alt for _ in times],
-            vxs=[target.velocity.vx for _ in times],
-            vys=[target.velocity.vy for _ in times],
-            vzs=[target.velocity.vz for _ in times],
             cross_section_model=target.cross_section_model,
         )
 
@@ -972,9 +982,6 @@ class Trajectory(pydantic.BaseModel):
             lats=self.lats[i_start:i_stop],
             lons=self.lons[i_start:i_stop],
             alts=self.alts[i_start:i_stop],
-            vxs=self.vxs[i_start:i_stop],
-            vys=self.vys[i_start:i_stop],
-            vzs=self.vzs[i_start:i_stop],
             cross_section_model=self.cross_section_model,
         )
 

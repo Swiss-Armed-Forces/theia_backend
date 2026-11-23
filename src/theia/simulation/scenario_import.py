@@ -438,7 +438,6 @@ class _AmmoTemplateBase(pydantic.BaseModel, abc.ABC):
             self.round_speed,
             terrain,
         )
-        n = len(path.times)
         trajectory = Trajectory(
             target_id=target_id,
             target_info=self.round_target_info.with_party(Party.from_is_blue(is_blue)),
@@ -446,10 +445,6 @@ class _AmmoTemplateBase(pydantic.BaseModel, abc.ABC):
             lats=path.lats,
             lons=path.lons,
             alts=path.alts,
-            # Velocities are not modelled, like for the scripted rounds.
-            vxs=[0.0] * n,
-            vys=[0.0] * n,
-            vzs=[0.0] * n,
             cross_section_model=ConstantRcsModel(rcs=self.rcs),
         )
         round_controller = FixedPathOneWayDrone(
@@ -1244,9 +1239,6 @@ class BallisticMissileFactory(pydantic.BaseModel):
             lats=[p.lat for p in points],
             lons=[p.lon for p in points],
             alts=[p.alt for p in points],
-            vxs=[0.0 for p in points],
-            vys=[0.0 for p in points],
-            vzs=[0.0 for p in points],
             cross_section_model=ConstantRcsModel(rcs=self.rcs),
         )
 
@@ -1384,7 +1376,6 @@ class CruiseMissileFactory(pydantic.BaseModel):
 
     def get_trajectory(self, is_blue: bool) -> Trajectory:
         path = self.path
-        n = len(path.times)
         return Trajectory(
             target_id=self.target_id,
             target_info=TargetInfos.for_category(self.category).with_party(
@@ -1396,10 +1387,6 @@ class CruiseMissileFactory(pydantic.BaseModel):
             lats=path.lats.tolist(),
             lons=path.lons.tolist(),
             alts=path.alts.tolist(),
-            # Velocities are not modelled; derive them from the positions if needed.
-            vxs=[0.0] * n,
-            vys=[0.0] * n,
-            vzs=[0.0] * n,
             cross_section_model=ConstantRcsModel(rcs=self.rcs),
         )
 

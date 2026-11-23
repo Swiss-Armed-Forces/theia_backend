@@ -4,7 +4,6 @@ import itertools
 
 import numpy as np
 import pydantic
-from scipy.interpolate import CubicSpline
 
 from theia.coordinates import (
     CoordinateTransformations,
@@ -34,18 +33,6 @@ class AbstractManeuver(abc.ABC):
         rcs: float,
     ) -> Trajectory:
         times, points = self.get_waypoints(start_time, start_pos)
-
-        timestamps = [t.timestamp() for t in times]
-        points_ecef = np.array(
-            [
-                CoordinateTransformations.geodetic_to_cartesian(*p.as_tuple())
-                for p in points
-            ]
-        )
-        f_ecef = CubicSpline(timestamps, points_ecef, extrapolate=True)
-        v_ecef = f_ecef.derivative()
-        velocities = v_ecef(timestamps)
-
         return Trajectory(
             target_id=target_id,
             target_info=info,
@@ -53,9 +40,6 @@ class AbstractManeuver(abc.ABC):
             lats=[p.lat for p in points],
             lons=[p.lon for p in points],
             alts=[p.alt for p in points],
-            vxs=[v[0] for v in velocities],
-            vys=[v[1] for v in velocities],
-            vzs=[v[2] for v in velocities],
             cross_section_model=ConstantRcsModel(rcs=rcs),
         )
 

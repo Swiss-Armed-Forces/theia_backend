@@ -24,9 +24,6 @@ def _trajectory(
         lats=lats,
         lons=lons,
         alts=alts,
-        vxs=[0.0] * n,
-        vys=[0.0] * n,
-        vzs=[0.0] * n,
         cross_section_model=ConstantRcsModel(rcs=1.0),
     )
 

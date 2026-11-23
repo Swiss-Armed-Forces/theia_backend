@@ -26,9 +26,6 @@ def get_intel_sensor() -> IntelSensor:
             lats=[47.0] * 2,
             lons=[8.0] * 2,
             alts=[500.0] * 2,
-            vxs=[0.0, 0.0],
-            vys=[0.0, 0.0],
-            vzs=[0.0, 0.0],
             cross_section_model=ConstantRcsModel(rcs=UNKNOWN_RCS),
         ),
     )
