@@ -2,6 +2,7 @@ import datetime
 from typing import Optional
 
 import pydantic
+import shapely
 
 from theia.coordinates import CoordinateTransformations
 from theia.coverage import calculate_coverage
@@ -13,7 +14,7 @@ from theia.types import (
     GeoJSONAnnotation,
     GeoJSONFeature,
     GeoJSONKind,
-    GeoJSONPolygon,
+    GeoJSONMultiPolygon,
     Point,
     SituationalPicture,
     Target,
@@ -61,7 +62,7 @@ class StaticGbadController(Controller):
     geojson_range_altitudes: set[int] = set()
     """Altitudes at which the effector range is drawn [m above sea level]"""
 
-    _range_cache: dict[int, GeoJSONPolygon] = pydantic.PrivateAttr(
+    _range_cache: dict[int, GeoJSONMultiPolygon] = pydantic.PrivateAttr(
         default_factory=dict
     )
     """Effector range per altitude; static, because the GBAD does not move"""
@@ -134,7 +135,7 @@ class StaticGbadController(Controller):
                 )
         self.geojson = geojson
 
-    def _effector_range(self, alt: int) -> GeoJSONPolygon:
+    def _effector_range(self, alt: int) -> GeoJSONMultiPolygon:
         """Area within combat range and line of sight at `alt` [m above sea level]."""
         if alt not in self._range_cache:
             assert isinstance(self.effector, DirectFireEffector)
@@ -144,5 +145,8 @@ class StaticGbadController(Controller):
                 self.effector.combat_range,
                 alt,
             )
-            self._range_cache[alt] = GeoJSONPolygon.from_shapely(coverage)
+            # The coverage may fall apart into several polygons.
+            self._range_cache[alt] = GeoJSONMultiPolygon.from_shapely(
+                shapely.MultiPolygon(coverage)
+            )
         return self._range_cache[alt]

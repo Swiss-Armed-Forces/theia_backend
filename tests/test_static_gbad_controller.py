@@ -9,7 +9,7 @@ import shapely
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.simulation.controllers.static_gbad_controller import StaticGbadController
-from theia.terrain import SrtmTerrainModel
+from theia.terrain import DummyTerrain, SrtmTerrainModel
 from theia.types import (
     ConstantRcsModel,
     GeoJSONKind,
@@ -203,7 +203,7 @@ class StaticGbadControllerDirectFireTest(unittest.TestCase):
         controller.geojson_range_altitudes = {3000, 1000}
         with patch(
             "theia.simulation.controllers.static_gbad_controller.calculate_coverage",
-            return_value=shapely.box(8.0, 47.0, 9.0, 48.0),
+            return_value=[shapely.box(8.0, 47.0, 9.0, 48.0)],
         ):
             controller.update(
                 get_situational_picture_in_range(), datetime.timedelta(seconds=1)
@@ -226,7 +226,7 @@ class StaticGbadControllerDirectFireTest(unittest.TestCase):
         dt = datetime.timedelta(seconds=1)
         with patch(
             "theia.simulation.controllers.static_gbad_controller.calculate_coverage",
-            return_value=shapely.box(8.0, 47.0, 9.0, 48.0),
+            return_value=[shapely.box(8.0, 47.0, 9.0, 48.0)],
         ) as calculate_coverage:
             controller.update(get_situational_picture_in_range(), dt)
             controller.update(get_situational_picture_in_range(), dt)
@@ -237,6 +237,26 @@ class StaticGbadControllerDirectFireTest(unittest.TestCase):
             [call.args[3] for call in calculate_coverage.call_args_list],
             [1000, 2000],
         )
+
+    def test_geojson_effector_range_with_real_coverage(self):
+        # Regression test: calculate_coverage returns a list of polygons.
+        controller = StaticGbadController(
+            target_id=4,
+            info=TargetInfos.GBAD.with_party(Party.BLUE),
+            rcs=1.5,
+            effector=get_direct_effector().model_copy(
+                update={
+                    "terrain": DummyTerrain(has_los=True),
+                    "combat_range": 5_000,
+                }
+            ),
+            geojson_range_altitudes={1000},
+        )
+        controller.update(get_situational_picture_in_range(), datetime.timedelta(seconds=1))
+
+        [annotation] = controller.geojson
+        self.assertEqual(annotation.feature.geometry.type, "MultiPolygon")
+        self.assertGreater(len(annotation.feature.geometry.coordinates), 0)
 
     def test_geojson_range_altitudes_reject_fractions(self):
         controller = get_direct_controller(None)
