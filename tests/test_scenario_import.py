@@ -224,6 +224,17 @@ class StaticGbadFactoryTest(unittest.TestCase):
         self.assertIsInstance(controller.effector, IndirectFireEffector)
         self.assertEqual(controller.info, TargetInfos.GBAD.with_party(Party.RED))
 
+    def test_name_reaches_the_ground_truth(self):
+        factory = StaticGbadFactory(
+            target_id=1, rcs=1.5, gbad=get_direct_factory(), name="SHORAD"
+        )
+        controller = factory.to_controller(srtm, is_blue=True)
+        controller.update(
+            get_empty_situational_picture(), datetime.timedelta(seconds=1)
+        )
+        [target] = controller.targets
+        self.assertEqual(target.name, "SHORAD")
+
     def test_geojson_range_altitudes_reach_the_controller(self):
         factory = StaticGbadFactory(
             target_id=1,
@@ -526,6 +537,14 @@ class OrderOfBattleCoverageTest(unittest.TestCase):
         [annotation] = self.get_geojson()
 
         self.assertEqual(annotation.target_ids, [12])
+
+    def test_name_reaches_the_ground_truth(self):
+        self._oob.monostatic_sensors[0].name = "Radar Uetliberg"
+        root = self._oob.to_controller(ConstantSphereTerrainModel(alt=0.0), True)
+        root.update(get_empty_situational_picture(), datetime.timedelta(seconds=1))
+
+        [target] = root.targets
+        self.assertEqual(target.name, "Radar Uetliberg")
 
     def test_user_controlled_radar_publishes_its_coverage(self):
         self._oob.is_user_controlled = True

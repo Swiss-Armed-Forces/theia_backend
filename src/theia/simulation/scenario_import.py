@@ -255,6 +255,7 @@ class StaticGbadFactory(pydantic.BaseModel):
             info=TargetInfos.GBAD.with_party(Party.from_is_blue(is_blue)),
             rcs=self.rcs,
             effector=effector,
+            target_name=self.name,
             geojson_range_altitudes=self.geojson_range_altitudes,
         )
         return c
@@ -350,6 +351,7 @@ class MonostaticSensorFactory(pydantic.BaseModel):
             radar=sensor,
             is_blue=is_blue,
             rcs_model=ConstantRcsModel(rcs=self.rcs),
+            name=self.name,
             coverage=coverage,
         )
         return LivingController(child=c, target_id=self.target_id)
