@@ -93,6 +93,46 @@ class CampSitesStatus(pydantic.BaseModel):
     shipments: list[Shipment]
 
 
+class RadarState(pydantic.BaseModel):
+    """
+    Live state of a living monostatic radar; dead radars are not reported.
+    """
+
+    sensor_id: int
+    """ID to switch the radar with (``ToggleMonostaticRadarAction``)"""
+    target_id: int
+    """ID of the radar in the ground truth"""
+    is_on: bool
+
+
+def radar_states(controller: Controller) -> list[RadarState]:
+    """
+    State of the monostatic radars a controller reports, for sides whose
+    radars cannot be switched: always on.
+
+    Dead radars are not reported by their controller, so they are missing.
+    A radar's target ID is that of the target carrying its receiver.
+
+    Raises
+    ------
+    KeyError
+        If a radar has no target carrying its receiver.
+    """
+    target_ids = {
+        target.receiver.id: target.id
+        for target in controller.targets
+        if target.receiver is not None
+    }
+    return [
+        RadarState(
+            sensor_id=sensor.id,
+            target_id=target_ids[sensor.receiver.id],
+            is_on=True,
+        )
+        for sensor in controller.monostatic_sensors
+    ]
+
+
 class _Rejection(Exception):
     """An action cannot be executed in the current state."""
 
@@ -227,6 +267,23 @@ class ActionController(ControllerGroup):
                 ],
                 shipments=[s.model_copy() for s in self._shipments],
             )
+
+    def get_radar_states(self) -> list[RadarState]:
+        """
+        Live state of the radars the player can switch on and off.
+
+        Dead radars are not reported.
+        """
+        with self._lock:
+            return [
+                RadarState(
+                    sensor_id=sensor_id,
+                    target_id=radar.target_id,
+                    is_on=radar.child.is_on,
+                )
+                for sensor_id, radar in self._radars.items()
+                if radar.is_alive
+            ]
 
     # ------------------------------------------------------------------
     # Actions

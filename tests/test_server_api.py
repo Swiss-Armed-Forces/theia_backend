@@ -21,6 +21,7 @@ from theia.detection.pet import PetDetector
 from theia.simulation.damage_model import UniformDamageModel
 from theia.simulation.scenario_import import (
     CampSite,
+    MonostaticSensorFactory,
     OneWayDroneTemplate,
     OrderOfBattle,
 )
@@ -142,6 +143,8 @@ class MonostaticCoverageTest(unittest.TestCase):
 
 RED_CAMP_SITE_ID = 3
 RED_CAMP_SITE_TARGET_ID = 20
+RED_RADAR_SENSOR_ID = 21
+RED_RADAR_TARGET_ID = 22
 
 
 def get_game_client() -> tuple[TestClient, Simulator]:
@@ -154,7 +157,15 @@ def get_game_client() -> tuple[TestClient, Simulator]:
     blue_orbat = build_orbat()
     blue_orbat.simulationResults = get_simulation_results(RADAR_SENSOR_ID)
     red_orbat = OrderOfBattle(
-        monostatic_sensors=[],
+        monostatic_sensors=[
+            MonostaticSensorFactory(
+                target_id=RED_RADAR_TARGET_ID,
+                rcs=10.0,
+                sensor=build_flores_monostatic_radar(
+                    Point(lat=46.6, lon=8.0, alt=1.0), RED_RADAR_SENSOR_ID, 21, 21
+                ),
+            )
+        ],
         pcl_sensors=[],
         gbads=[],
         simulationResults={"monostaticCoverages": [], "pclMinDetectableRcsGrids": []},
@@ -351,6 +362,59 @@ class GameApiTest(unittest.TestCase):
         self.assertEqual(status["sites"], [])
         self.assertEqual(status["shipments"], [])
         self.assertIsNotNone(status["time"])
+
+    def radars(self, which: str) -> list[dict]:
+        response = self.client.get(f"/radars/{which}")
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()
+
+    def switch_radar(self, is_on: bool):
+        action = {
+            "type": "toggle_monostatic_radar",
+            "sensor_id": RADAR_SENSOR_ID,
+            "new_is_on": is_on,
+        }
+        self.assertIs(self.assign("BLUE", action), True)
+        self.simulator.advance()
+
+    def test_radars(self):
+        def radar(is_on: bool) -> dict:
+            return {
+                "sensor_id": RADAR_SENSOR_ID,
+                "target_id": RADAR_TARGET_ID,
+                "is_on": is_on,
+            }
+
+        self.assertEqual(self.radars("BLUE"), [radar(True)])
+
+        self.switch_radar(False)
+        self.assertEqual(self.radars("BLUE"), [radar(False)])
+
+        self.switch_radar(True)
+        self.assertEqual(self.radars("BLUE"), [radar(True)])
+
+    def test_dead_radars_are_not_reported(self):
+        self.switch_radar(False)
+        self.simulator._root_controller(True).on_event(
+            KillEvent(id=1, time=T0, target_id=RADAR_TARGET_ID)
+        )
+        self.assertEqual(self.radars("BLUE"), [])
+
+    def test_radars_of_side_that_is_not_user_controlled(self):
+        # Reported by the controller only after the first step.
+        self.assertEqual(self.radars("RED"), [])
+        self.simulator.advance()
+
+        self.assertEqual(
+            self.radars("RED"),
+            [
+                {
+                    "sensor_id": RED_RADAR_SENSOR_ID,
+                    "target_id": RED_RADAR_TARGET_ID,
+                    "is_on": True,
+                }
+            ],
+        )
 
     def test_transport_times(self):
         routes = self.client.get("/transport_times/BLUE").json()

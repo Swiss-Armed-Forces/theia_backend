@@ -1,5 +1,6 @@
 import datetime
 import threading
+import types
 import unittest
 
 from theia.config import UNKNOWN_ID, UNKNOWN_TIME
@@ -14,7 +15,9 @@ from theia.simulation.actions import (
 )
 from theia.simulation.controllers.action_controller import (
     ActionController,
+    RadarState,
     ShipmentState,
+    radar_states,
 )
 from theia.simulation.controllers.intel_controller import IntelController
 from theia.simulation.controllers.monostatic_radar_controller import (
@@ -526,6 +529,31 @@ class RadarToggleTest(ActionControllerTestBase):
         self.assertEqual(len(list(self.controller.monostatic_sensors)), 1)
         self.assertIsNotNone(self.radar_target().transmitter)
 
+    def test_radar_states(self):
+        def state(is_on: bool) -> RadarState:
+            return RadarState(
+                sensor_id=RADAR_SENSOR_ID, target_id=RADAR_TARGET_ID, is_on=is_on
+            )
+
+        self.assertEqual(self.controller.get_radar_states(), [state(True)])
+
+        self.act(
+            ToggleMonostaticRadarAction(sensor_id=RADAR_SENSOR_ID, new_is_on=False)
+        )
+        self.assertEqual(self.controller.get_radar_states(), [state(False)])
+
+        self.act(ToggleMonostaticRadarAction(sensor_id=RADAR_SENSOR_ID, new_is_on=True))
+        self.assertEqual(self.controller.get_radar_states(), [state(True)])
+
+    def test_dead_radars_are_not_reported(self):
+        self.act(
+            ToggleMonostaticRadarAction(sensor_id=RADAR_SENSOR_ID, new_is_on=False)
+        )
+        self.controller.on_event(
+            KillEvent(id=1, time=self.time, target_id=RADAR_TARGET_ID)
+        )
+        self.assertEqual(self.controller.get_radar_states(), [])
+
     def test_unknown_radar_is_rejected(self):
         self.act(ToggleMonostaticRadarAction(sensor_id=99, new_is_on=False))
         self.assertEqual(self.recorder.rejections(), [RejectionReason.UNKNOWN_RADAR])
@@ -538,6 +566,61 @@ class RadarToggleTest(ActionControllerTestBase):
             ToggleMonostaticRadarAction(sensor_id=RADAR_SENSOR_ID, new_is_on=False)
         )
         self.assertEqual(self.recorder.rejections(), [RejectionReason.RADAR_DESTROYED])
+
+
+class AlwaysOnRadarStatesTest(unittest.TestCase):
+    """Radars of a side that is not user-controlled"""
+
+    def setUp(self):
+        orbat = build_orbat()
+        orbat.is_user_controlled = False
+        orbat.camp_sites = []
+        orbat.transport_times = []
+        id_provider = IdProvider()
+        orbat.update_id_provider(id_provider)
+        self.controller = orbat.to_controller(DummyTerrain(has_los=True), True)
+        self.assertNotIsInstance(self.controller, ActionController)
+        self.controller.bind(
+            SimulationContext(id_provider=id_provider, start_time=T0)
+        )
+
+    def step(self):
+        self.controller.update(
+            SituationalPicture(
+                time=T0,
+                friendly_pet_receivers=[],
+                friendly_radars=[],
+                friendly_targets=[],
+                enemy_targets=[],
+            ),
+            DT,
+        )
+
+    def test_radars_are_on(self):
+        self.step()
+        self.assertEqual(
+            radar_states(self.controller),
+            [
+                RadarState(
+                    sensor_id=RADAR_SENSOR_ID,
+                    target_id=RADAR_TARGET_ID,
+                    is_on=True,
+                )
+            ],
+        )
+
+    def test_dead_radars_are_not_reported(self):
+        self.step()
+        self.controller.on_event(KillEvent(id=1, time=T0, target_id=RADAR_TARGET_ID))
+        self.step()
+        self.assertEqual(radar_states(self.controller), [])
+
+    def test_radar_without_target_raises(self):
+        self.step()
+        [sensor] = self.controller.monostatic_sensors
+        controller = types.SimpleNamespace(monostatic_sensors=[sensor], targets=[])
+        with self.assertRaises(KeyError):
+            radar_states(controller)
 
 
 class OutputTest(ActionControllerTestBase):

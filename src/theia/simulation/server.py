@@ -30,6 +30,8 @@ from theia.simulation.actions import AnyAction
 from theia.simulation.controllers.action_controller import (
     ActionController,
     CampSitesStatus,
+    RadarState,
+    radar_states,
 )
 from theia.simulation.scenario_import import TransportTime
 from theia.simulation.simulation_director import SimulationDirector
@@ -389,6 +391,19 @@ def create_app(
                 time=buffer.get_simulator()._t, sites=[], shipments=[]
             )
         return controller.get_status()
+
+    @app.get("/radars/{which}")
+    def get_radars(which: Team) -> list[RadarState]:
+        """
+        Live state of a side's monostatic radars.
+
+        Dead radars are not reported.
+        """
+        controller = action_controller(which)
+        if controller is not None:
+            return controller.get_radar_states()
+        root = buffer.get_simulator()._root_controller(which == Team.blue)
+        return radar_states(root)
 
     @app.get("/transport_times/{which}")
     def get_transport_times(which: Team) -> list[TransportTime]:
