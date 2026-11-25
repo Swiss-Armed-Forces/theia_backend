@@ -1,7 +1,10 @@
 import datetime
 import unittest
+from unittest.mock import patch
 
 import numpy as np
+import pydantic
+import shapely
 
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
 from theia.effectors import DirectFireEffector, IndirectFireEffector
@@ -192,6 +195,33 @@ class StaticGbadControllerDirectFireTest(unittest.TestCase):
                 picture = get_situational_picture_in_range(info)
                 controller.update(picture, datetime.timedelta(seconds=1))
                 self.assertEqual(controller.firing_effectors, [])
+
+    def test_geojson_effector_ranges(self):
+        controller = get_direct_controller(None)
+        controller.target_name = "GBAD Uetliberg"
+        controller.geojson_range_altitudes = {3000, 1000}
+        with patch(
+            "theia.simulation.controllers.static_gbad_controller.calculate_coverage",
+            return_value=shapely.box(8.0, 47.0, 9.0, 48.0),
+        ):
+            controller.update(
+                get_situational_picture_in_range(), datetime.timedelta(seconds=1)
+            )
+
+        self.assertEqual(
+            [(a.id, a.hover_text) for a in controller.geojson],
+            [
+                ("effector-range-4-1000", "GBAD Uetliberg range @ 1000 MASL"),
+                ("effector-range-4-3000", "GBAD Uetliberg range @ 3000 MASL"),
+            ],
+        )
+
+    def test_geojson_range_altitudes_reject_fractions(self):
+        controller = get_direct_controller(None)
+        controller.geojson_range_altitudes = [1000.0]
+        self.assertEqual(controller.geojson_range_altitudes, {1000})
+        with self.assertRaises(pydantic.ValidationError):
+            controller.geojson_range_altitudes = [1000.5]
 
     def test_as_target(self):
         controller = get_direct_controller(None)

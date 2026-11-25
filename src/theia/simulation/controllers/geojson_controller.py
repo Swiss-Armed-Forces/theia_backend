@@ -6,7 +6,7 @@ from theia.types import (
     Controller,
     Event,
     EventRelais,
-    GeoJSONFeature,
+    GeoJSONAnnotation,
     SimulationContext,
     SituationalPicture,
 )
@@ -16,7 +16,7 @@ class GeoJsonController(Controller, pydantic.BaseModel):
     """wrapper that adds GeoJSON to any controller"""
 
     child: Controller
-    geojson_features: dict[str, list[GeoJSONFeature]]
+    geojson_features: list[GeoJSONAnnotation]
 
     def model_post_init(self, context):
         super().model_post_init(context)
@@ -42,4 +42,4 @@ class GeoJsonController(Controller, pydantic.BaseModel):
         self.visual_sensors = self.child.visual_sensors
         self.intel_sensors = self.child.intel_sensors
         self.firing_effectors = self.child.firing_effectors
-        self.geojson = self.child.geojson | self.geojson_features
+        self.geojson = [*self.child.geojson, *self.geojson_features]

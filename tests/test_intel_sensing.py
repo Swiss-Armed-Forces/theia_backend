@@ -196,7 +196,7 @@ class IntelSensorForwardingTest(unittest.TestCase):
         self.assertEqual(controller.intel_sensors, [])
 
     def test_geojson_controller(self):
-        controller = GeoJsonController(child=self._child, geojson_features={})
+        controller = GeoJsonController(child=self._child, geojson_features=[])
         controller.update(self._picture, self._dt)
         self.assertEqual(controller.intel_sensors, [self._sensor])
 

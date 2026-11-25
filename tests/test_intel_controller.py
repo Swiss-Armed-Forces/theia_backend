@@ -49,7 +49,7 @@ class IntelControllerTest(unittest.TestCase):
         self.assertEqual(controller.pet_receivers, [])
         self.assertEqual(controller.visual_sensors, [])
         self.assertEqual(controller.firing_effectors, [])
-        self.assertEqual(controller.geojson, {})
+        self.assertEqual(controller.geojson, [])
 
     def test_exposes_its_sensor_only(self):
         sensor = get_intel_sensor()

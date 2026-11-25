@@ -2,7 +2,15 @@ import datetime
 import unittest
 
 from theia.simulation.controllers.controller_group import ControllerGroup
-from theia.types import AbstractEventListener, Controller, Event, SituationalPicture
+from theia.types import (
+    AbstractEventListener,
+    Controller,
+    Event,
+    GeoJSONAnnotation,
+    GeoJSONFeature,
+    GeoJSONPolygon,
+    SituationalPicture,
+)
 
 
 def get_situational_picture() -> SituationalPicture:
@@ -83,6 +91,23 @@ class ControllerGroupTest(unittest.TestCase):
         group.update(get_situational_picture(), datetime.timedelta(seconds=1))
 
         self.assertIn(stub, group._controllers)
+
+    def test_geojson_of_children_is_concatenated(self):
+        def annotation(id: str) -> GeoJSONAnnotation:
+            return GeoJSONAnnotation(
+                id=id,
+                feature=GeoJSONFeature(
+                    geometry=GeoJSONPolygon(coordinates=[[[0.0, 0.0]]])
+                ),
+            )
+
+        first = StubController(geojson=[annotation("a"), annotation("b")])
+        second = StubController(geojson=[annotation("c")])
+        group = ControllerGroup([first, second])
+
+        group.update(get_situational_picture(), datetime.timedelta(seconds=1))
+
+        self.assertEqual([a.id for a in group.geojson], ["a", "b", "c"])
 
 
 if __name__ == "__main__":

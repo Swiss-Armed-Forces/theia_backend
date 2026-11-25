@@ -185,7 +185,7 @@ class ZurichAirportScenarioFactory(AbstractSimulatorFactory):
         point: Point,
         combat_range: float = 10_000,
         n_attacks: int = 3,
-        geojson_alts: list[float] = [2000.0],
+        geojson_alts: set[int] = {2000},
         name: str = "",
     ) -> Controller:
         # Source for default values:

@@ -8,6 +8,7 @@ from theia.types import (
     ConstantRcsModel,
     Controller,
     Event,
+    GeoJSONAnnotation,
     GeoJSONFeature,
     GeoJSONPolygon,
     Point,
@@ -54,7 +55,8 @@ class StaticGbadController(Controller):
     Track ID of the track to be fought. No track is fought if ``None``.
     """
     target_name: str = ""
-    geojson_range_altitudes: list[float] = []
+    geojson_range_altitudes: set[int] = set()
+    """Altitudes at which the effector range is drawn [m above sea level]"""
 
     def on_event(self, event: Event):
         pass
@@ -109,17 +111,23 @@ class StaticGbadController(Controller):
                     self.firing_effectors = [(self.effector, target_position)]
 
         # GeoJSON.
-        geojson = {}
+        geojson: list[GeoJSONAnnotation] = []
         if isinstance(self.effector, DirectFireEffector):
-            for alt in self.geojson_range_altitudes:
+            for alt in sorted(self.geojson_range_altitudes):
                 coverage = calculate_coverage(
                     self.effector.terrain,
                     self.effector.point,
                     self.effector.combat_range,
                     alt,
                 )
-                geojson[f"Effector range @ {alt}MASL"] = GeoJSONFeature(
-                    geometry=GeoJSONPolygon.from_shapely(coverage),
-                    properties={"name": "my polygon"},
+                name = self.target_name or self.effector.name
+                geojson.append(
+                    GeoJSONAnnotation(
+                        id=f"effector-range-{self.target_id}-{alt}",
+                        feature=GeoJSONFeature(
+                            geometry=GeoJSONPolygon.from_shapely(coverage)
+                        ),
+                        hover_text=f"{name} range @ {alt} MASL",
+                    )
                 )
         self.geojson = geojson

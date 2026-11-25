@@ -60,7 +60,7 @@ class KnownTargetControllerTest(unittest.TestCase):
         self.assertEqual(controller.pet_receivers, [])
         self.assertEqual(controller.visual_sensors, [])
         self.assertEqual(controller.firing_effectors, [])
-        self.assertEqual(controller.geojson, {})
+        self.assertEqual(controller.geojson, [])
 
     def test_reports_point_and_target_info(self):
         controller = get_controller()

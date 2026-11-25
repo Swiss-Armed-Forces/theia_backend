@@ -78,7 +78,7 @@ class ControllerBindingTest(unittest.TestCase):
         wrappers = {
             "LivingController": lambda c: LivingController(child=c, target_id=1),
             "GeoJsonController": lambda c: GeoJsonController(
-                child=c, geojson_features={}
+                child=c, geojson_features=[]
             ),
         }
         for name, wrap in wrappers.items():
@@ -123,7 +123,7 @@ class SimulatorBindsControllersTest(unittest.TestCase):
         red_leaf = LeafController()
         blue = ControllerGroup([LivingController(child=blue_leaf, target_id=1)])
         red_tree = GeoJsonController(
-            child=ControllerGroup([red_leaf]), geojson_features={}
+            child=ControllerGroup([red_leaf]), geojson_features=[]
         )
         red = ControllerGroup([red_tree])
         terrain = DummyTerrain(has_los=True)

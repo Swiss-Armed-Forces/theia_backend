@@ -265,7 +265,7 @@ class ShooterRevealControllerTest(unittest.TestCase):
             [c.sensor for c in controller._controllers],
         )
         self.assertEqual(controller.firing_effectors, [])
-        self.assertEqual(controller.geojson, {})
+        self.assertEqual(controller.geojson, [])
 
     def test_intel_sensors_vanish_after_expiry(self):
         controller = get_controller(True)

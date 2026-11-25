@@ -3,7 +3,6 @@ import unittest
 from unittest.mock import patch
 
 from theia.simulation.controllers.living_controller import (
-    AlreadyDeadException,
     LivingController,
 )
 from theia.simulation.controllers.monostatic_radar_controller import (
@@ -11,7 +10,14 @@ from theia.simulation.controllers.monostatic_radar_controller import (
 )
 from theia.simulation.simulator import KillEvent
 from theia.test_data import get_uetliberg_radar
-from theia.types import ConstantRcsModel, Event, SituationalPicture
+from theia.types import (
+    ConstantRcsModel,
+    Event,
+    GeoJSONAnnotation,
+    GeoJSONFeature,
+    GeoJSONPolygon,
+    SituationalPicture,
+)
 
 
 def get_t0() -> datetime.datetime:
@@ -84,6 +90,21 @@ class LivingControllerTest(unittest.TestCase):
             self.assertEqual(len(self._controller.targets), 0)
             self.assertEqual(len(self._controller.pet_receivers), 0)
             self.assertEqual(len(self._controller.firing_effectors), 0)
+
+    def test_geojson_passed_through_while_alive_and_hidden_when_dead(self):
+        annotation = GeoJSONAnnotation(
+            id="range",
+            feature=GeoJSONFeature(geometry=GeoJSONPolygon(coordinates=[[[0.0, 0.0]]])),
+        )
+        self._radar_controller.geojson = [annotation]
+        picture = get_dummy_situational_picture()
+        with patch.object(MonostaticRadarController, "update", autospec=True):
+            self._controller.update(picture, get_dt())
+            self.assertEqual(self._controller.geojson, [annotation])
+
+            self._controller.on_event(KillEvent(id=3, time=get_t0(), target_id=2))
+            self._controller.update(picture, get_dt())
+            self.assertEqual(self._controller.geojson, [])
 
 
 if __name__ == "__main__":

@@ -86,7 +86,9 @@ from theia.types import (
     ConstantRcsModel,
     Controller,
     Entity,
+    GeoJSONAnnotation,
     GeoJSONFeature,
+    GeoJSONMultiPolygon,
     IdProvider,
     MonostaticSensor,
     Party,
@@ -689,11 +691,19 @@ class SimulationResults(pydantic.BaseModel):
     ]
     """calculation result, date of calculation [epochs]"""
 
-    def to_geojson_dict(self) -> dict[str, GeoJSONFeature]:
-        result: dict[str, GeoJSONFeature] = {}
+    def to_annotations(self) -> list[GeoJSONAnnotation]:
+        result: list[GeoJSONAnnotation] = []
         for calc, _ in self.monostaticCoverages:
             tag = f"Monostatic #{calc.sensorId}, {calc.settings.targetAlt:.0f} MASL, RCS={calc.settings.targetRcs:.1f}m^2"
-            result[tag] = calc.coverage
+            result.append(
+                GeoJSONAnnotation(
+                    id=tag,
+                    feature=GeoJSONFeature(
+                        geometry=GeoJSONMultiPolygon.merge(calc.coverage)
+                    ),
+                    hover_text=tag,
+                )
+            )
         return result
 
     def __add__(self, other: SimulationResults) -> SimulationResults:
@@ -847,7 +857,7 @@ class OrderOfBattle(pydantic.BaseModel):
                 + camp_site_controllers
                 + intel_controllers
             ),
-            geojson_features=self.simulationResults.to_geojson_dict(),
+            geojson_features=self.simulationResults.to_annotations(),
         )
         if not self.is_user_controlled:
             return ControllerGroup(controllers=[tree])

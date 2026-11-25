@@ -1,5 +1,4 @@
 import datetime
-import functools
 import itertools
 
 from theia.types import (
@@ -66,10 +65,8 @@ class ControllerGroup(Controller, AbstractEventListener):
         self.firing_effectors = itertools.chain.from_iterable(
             [child.firing_effectors for child in self._controllers]
         )
-        self.geojson = functools.reduce(
-            lambda acc, d: acc | d,
-            [child.geojson for child in self._controllers],
-            {},
+        self.geojson = itertools.chain.from_iterable(
+            [child.geojson for child in self._controllers]
         )
 
     def register_event_listener(self, listener):

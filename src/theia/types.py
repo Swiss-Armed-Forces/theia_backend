@@ -1764,6 +1764,20 @@ class GeoJSONMultiPolygon(pydantic.BaseModel):
             ]
         )
 
+    @classmethod
+    def merge(cls, features: list[GeoJSONFeature]) -> "GeoJSONMultiPolygon":
+        """Collect the polygons of `features` into a single multi-polygon."""
+        coordinates: list[list[list[list[float]]]] = []
+        for feature in features:
+            geometry = feature.geometry
+            # A polygon's coordinates are a single polygon, whereas a
+            # multi-polygon's coordinates are already a list of polygons.
+            if isinstance(geometry, GeoJSONPolygon):
+                coordinates.append(geometry.coordinates)
+            else:
+                coordinates.extend(geometry.coordinates)
+        return cls(coordinates=coordinates)
+
 
 GeoJSONGeometry = GeoJSONPolygon | GeoJSONMultiPolygon
 
@@ -1788,6 +1802,26 @@ class GeoJSONFeature(pydantic.BaseModel):
         return cls(geometry=geometry, properties=properties)
 
 
+class GeoJSONKind(str, enum.Enum):
+    """What a `GeoJSONAnnotation` depicts."""
+
+    SENSOR_RANGE = "SENSOR_RANGE"
+    EFFECTOR_RANGE = "EFFECTOR_RANGE"
+    OTHER = "OTHER"
+
+
+class GeoJSONAnnotation(pydantic.BaseModel):
+    """A GeoJSON feature with the meta-information needed to display it."""
+
+    id: str
+    """Stable identifier, unique among the annotations of a side"""
+    feature: GeoJSONFeature
+    kind: GeoJSONKind = GeoJSONKind.OTHER
+    target_ids: list[int] = []
+    """IDs of the targets this annotation belongs to, as in `/ground_truth`"""
+    hover_text: str | None = None
+
+
 class Controller(
     AbstractEventListener,
     Trigger,
@@ -1800,7 +1834,7 @@ class Controller(
     visual_sensors: list[VisualSensor] = []
     intel_sensors: list[IntelSensor] = []
     firing_effectors: list[tuple[AbstractEffector, Point]] = []
-    geojson: dict[str, list[GeoJSONFeature]] = {}
+    geojson: list[GeoJSONAnnotation] = []
 
     _simulation_context: SimulationContext | None = pydantic.PrivateAttr(default=None)
 

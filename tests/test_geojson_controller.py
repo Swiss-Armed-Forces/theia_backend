@@ -6,6 +6,7 @@ from theia.simulation.controllers.geojson_controller import GeoJsonController
 from theia.types import (
     Controller,
     Event,
+    GeoJSONAnnotation,
     GeoJSONFeature,
     GeoJSONPolygon,
     SituationalPicture,
@@ -35,7 +36,7 @@ def get_dummy_situational_picture() -> SituationalPicture:
 class GeoJsonControllerTest(unittest.TestCase):
     def setUp(self):
         self._child = FakeChildController()
-        self._controller = GeoJsonController(child=self._child, geojson_features={})
+        self._controller = GeoJsonController(child=self._child, geojson_features=[])
 
     def test_events_broadcast_by_child_reach_listeners_registered_on_wrapper(self):
         # Regression test: events raised deep inside the wrapped controller
@@ -62,14 +63,20 @@ class GeoJsonControllerTest(unittest.TestCase):
             mock_on_event.assert_called_once_with(self._child, event)
 
     def test_update_merges_child_state_and_own_geojson_features(self):
-        own_feature = [
-            GeoJSONFeature(geometry=GeoJSONPolygon(coordinates=[[[0.0, 0.0]]]))
-        ]
-        child_feature = [
-            GeoJSONFeature(geometry=GeoJSONPolygon(coordinates=[[[1.0, 1.0]]]))
-        ]
-        self._controller.geojson_features = {"own": own_feature}
-        self._child.geojson = {"child": child_feature}
+        own = GeoJSONAnnotation(
+            id="own",
+            feature=GeoJSONFeature(
+                geometry=GeoJSONPolygon(coordinates=[[[0.0, 0.0]]])
+            ),
+        )
+        child = GeoJSONAnnotation(
+            id="child",
+            feature=GeoJSONFeature(
+                geometry=GeoJSONPolygon(coordinates=[[[1.0, 1.0]]])
+            ),
+        )
+        self._controller.geojson_features = [own]
+        self._child.geojson = [child]
 
         picture = get_dummy_situational_picture()
         dt = datetime.timedelta(seconds=1)
@@ -77,10 +84,7 @@ class GeoJsonControllerTest(unittest.TestCase):
             self._controller.update(picture, dt)
             mock_update.assert_called_once_with(self._child, picture, dt)
 
-        self.assertEqual(
-            self._controller.geojson,
-            {"child": child_feature, "own": own_feature},
-        )
+        self.assertEqual(self._controller.geojson, [child, own])
 
 
 if __name__ == "__main__":
