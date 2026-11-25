@@ -337,7 +337,6 @@ class PseudoTracker(AbstractTracker, Trigger):
                         TrackInitEvent(
                             id=id_provider.increment(Entity.EVENT),
                             time=detection.timestamp,
-                            target_id=detections.target_id,
                             track_id=track_id,
                         )
                     )

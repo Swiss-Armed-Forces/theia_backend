@@ -463,7 +463,7 @@ class GameApiTest(unittest.TestCase):
         self.assertEqual(message.model_dump(mode="json")["party"], "RED")
 
     def test_event_without_party(self):
-        event = TrackInitEvent(id=4, time=T0, target_id=7, track_id=1)
+        event = TrackInitEvent(id=4, time=T0, track_id=1)
         self.assertIsNone(EventMessage.from_event(event).party)
 
 

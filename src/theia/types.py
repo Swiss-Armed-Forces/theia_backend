@@ -1525,16 +1525,15 @@ class TextEvent(Event):
 
 
 class TrackInitEvent(Event):
-    """Fired when a new track is initialized."""
+    """
+    Fired when a new track is initialized.
+    """
 
-    target_id: int
-    """ID of the target for whom a track is initiated"""
     track_id: int
     """ID of the track"""
 
     def __str__(self) -> str:
-        # No target name: the tracker's side must not learn it.
-        return f"Track #{self.track_id} initialized for target #{self.target_id}"
+        return f"Track #{self.track_id} initialized"
 
 
 class KillEvent(Event):

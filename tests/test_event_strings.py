@@ -34,10 +34,18 @@ class KillEventTest(unittest.TestCase):
 
 
 class TrackInitEventTest(unittest.TestCase):
-    def test_target_name_is_not_leaked(self):
-        self.assertNotIn("target_name", TrackInitEvent.model_fields)
-        event = TrackInitEvent(id=1, time=T0, target_id=17, track_id=3)
-        self.assertEqual(str(event), "Track #3 initialized for target #17")
+    def test_str(self):
+        event = TrackInitEvent(id=1, time=T0, track_id=3)
+        self.assertEqual(str(event), "Track #3 initialized")
+
+    def test_carries_no_target_information(self):
+        self.assertEqual(set(TrackInitEvent.model_fields), {"id", "time", "track_id"})
+
+    def test_legacy_log_with_target_id_loads(self):
+        event = TrackInitEvent.model_validate(
+            {"id": 1, "time": T0.isoformat(), "target_id": 17, "track_id": 3}
+        )
+        self.assertEqual(str(event), "Track #3 initialized")
 
 
 if __name__ == "__main__":
