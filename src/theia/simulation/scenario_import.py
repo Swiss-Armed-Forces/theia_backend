@@ -222,6 +222,11 @@ class StaticGbadFactory(pydantic.BaseModel):
         discriminator="type"
     )
     name: str = ""
+    geojson_range_altitudes: set[int] = set()
+    """
+    Altitudes at which the effector range is published as GeoJSON [m above
+    sea level]. Only direct-fire GBADs have such a range.
+    """
 
     @pydantic.model_validator(mode="before")
     @classmethod
@@ -250,6 +255,7 @@ class StaticGbadFactory(pydantic.BaseModel):
             info=TargetInfos.GBAD.with_party(Party.from_is_blue(is_blue)),
             rcs=self.rcs,
             effector=effector,
+            geojson_range_altitudes=self.geojson_range_altitudes,
         )
         return c
 

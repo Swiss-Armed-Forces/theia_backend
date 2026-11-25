@@ -224,6 +224,30 @@ class StaticGbadFactoryTest(unittest.TestCase):
         self.assertIsInstance(controller.effector, IndirectFireEffector)
         self.assertEqual(controller.info, TargetInfos.GBAD.with_party(Party.RED))
 
+    def test_geojson_range_altitudes_reach_the_controller(self):
+        factory = StaticGbadFactory(
+            target_id=1,
+            rcs=1.5,
+            gbad=get_direct_factory(),
+            geojson_range_altitudes=[2000, 1000],
+        )
+        controller = factory.to_controller(srtm, is_blue=True)
+        self.assertEqual(controller.geojson_range_altitudes, {1000, 2000})
+
+    def test_geojson_range_altitudes_default_to_none(self):
+        factory = StaticGbadFactory(target_id=1, rcs=1.5, gbad=get_direct_factory())
+        self.assertEqual(factory.geojson_range_altitudes, set())
+
+    def test_geojson_range_altitudes_survive_a_json_round_trip(self):
+        factory = StaticGbadFactory(
+            target_id=1,
+            rcs=1.5,
+            gbad=get_direct_factory(),
+            geojson_range_altitudes={1000},
+        )
+        restored = StaticGbadFactory.model_validate_json(factory.model_dump_json())
+        self.assertEqual(restored.geojson_range_altitudes, {1000})
+
     @staticmethod
     def _gbad_with_clearance(clearance: float) -> StaticGbadFactory:
         """GBAD `clearance` metres above the stub terrain at `p.alt`."""
