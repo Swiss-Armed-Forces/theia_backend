@@ -243,9 +243,15 @@ class ConstantSphereTerrainModel(AbstractTerrainModel):
 
         where d := p2 - p1 and t in [0, 1].
 
-        Taking the minimum of this expression reults in t_min = -p1 * d / d^2.
+        Minimizing |p(t)| over all t results in t_min = -(p1 . d) / |d|^2.
+        Clamping t_min to [0, 1] gives the point of the segment closest to the
+        Earth's center; outside of [0, 1], the line is not part of the segment.
 
         There is a line-of-sight iff p(t_min) is above the terrain altitude.
+        Its altitude is measured above the WGS84 ellipsoid, like the points'
+        altitudes, not above a sphere of radius R_EARTH: at mid latitudes, the
+        two differ by several kilometers. The point closest to the Earth's
+        center is only approximately the lowest point above the ellipsoid.
         """
         alt1 = p1.alt
         alt2 = p2.alt
@@ -257,11 +263,11 @@ class ConstantSphereTerrainModel(AbstractTerrainModel):
         )
 
         d = p2 - p1
-        t_min = -np.dot(p1, d) / np.linalg.norm(d) ^ 2
+        t_min = np.clip(-np.dot(p1, d) / np.dot(d, d), 0.0, 1.0)
         p_min = p1 + t_min * d
-        r = np.linalg.norm(p_min)
+        _, _, alt_min = CoordinateTransformations.cartesian_to_geodetic(*p_min)
 
-        return (alt1 > self.alt) and (alt2 > self.alt) and (r > R_EARTH + self.alt)
+        return (alt1 > self.alt) and (alt2 > self.alt) and (alt_min > self.alt)
 
 
 class FlatEarthTerrainModel(AbstractTerrainModel):
