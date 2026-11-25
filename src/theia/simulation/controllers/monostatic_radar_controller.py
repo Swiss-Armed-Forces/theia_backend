@@ -48,6 +48,11 @@ class MonostaticRadarController(Controller):
         self._rcs_model = rcs_model
         self.geojson = coverage or []
 
+    @property
+    def name(self) -> str:
+        """Human-readable name of the sensor"""
+        return self._name
+
     def update(
         self,
         situational_picture: SituationalPicture,

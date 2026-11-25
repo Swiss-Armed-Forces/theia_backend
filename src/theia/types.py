@@ -1508,6 +1508,11 @@ class TheiaException(Exception):
     pass
 
 
+def name_and_id(name: str, id: int | str) -> str:
+    """Label of an entity in event texts: ``Name (#id)``, or ``#id`` without a name."""
+    return f"{name} (#{id})" if name else f"#{id}"
+
+
 class Event(pydantic.BaseModel):
     id: int
     """Unique event ID"""
@@ -1528,13 +1533,16 @@ class TrackInitEvent(Event):
     """ID of the track"""
 
     def __str__(self) -> str:
-        return f"Track (ID {self.track_id}) initialized for target {self.target_id}"
+        # No target name: the tracker's side must not learn it.
+        return f"Track #{self.track_id} initialized for target #{self.target_id}"
 
 
 class KillEvent(Event):
     target_id: int
     party: Party
     """Side the killed target belongs to (the victim's party)"""
+    target_name: str = ""
+    """Name of the killed target; empty if it has none (or in logs written before)"""
 
     @pydantic.model_validator(mode="before")
     @classmethod
@@ -1545,7 +1553,7 @@ class KillEvent(Event):
         return data
 
     def __str__(self) -> str:
-        return f"Target {self.target_id} 💀"
+        return f"{name_and_id(self.target_name, self.target_id)} 💀"
 
 
 class ShipmentEvent(Event):
@@ -1564,8 +1572,8 @@ class ShipmentEvent(Event):
     def _describe(self) -> str:
         return (
             f"[{self.party.value}] shipment #{self.shipment_id} of {self.count} "
-            f"rounds from {self.source_site_name} (#{self.source_site_id}) "
-            f"to {self.target_site_name} (#{self.target_site_id})"
+            f"rounds from {name_and_id(self.source_site_name, self.source_site_id)} "
+            f"to {name_and_id(self.target_site_name, self.target_site_id)}"
         )
 
 
@@ -1607,8 +1615,9 @@ class ShipmentLostEvent(ShipmentEvent):
     def __str__(self) -> str:
         return (
             f"[{self.party.value}] shipment #{self.shipment_id} lost: "
-            f"{self.count} rounds, camp site {self.destroyed_site_name} "
-            f"(#{self.destroyed_site_id}) is destroyed"
+            f"{self.count} rounds, camp site "
+            f"{name_and_id(self.destroyed_site_name, self.destroyed_site_id)} "
+            "is destroyed"
         )
 
 
@@ -1630,7 +1639,7 @@ class StockLostEvent(Event):
     def __str__(self) -> str:
         return (
             f"[{self.party.value}] {self.count} rounds in stock lost: camp site "
-            f"{self.site_name} (#{self.site_id}) is destroyed"
+            f"{name_and_id(self.site_name, self.site_id)} is destroyed"
         )
 
 
@@ -1720,7 +1729,7 @@ class DirectShot(Event):
         return self
 
     def __str__(self) -> str:
-        return f"[SHOT] {self.shooter.name} 🞋 {self.target.name} (ID {self.target.id}) [{self.n_attacks_left_after} attacks left afterwards]"
+        return f"[SHOT] {name_and_id(self.shooter.name, self.shooter.id)} 🞋 {name_and_id(self.target.name, self.target.id)} [{self.n_attacks_left_after} attacks left afterwards]"
 
 
 class IndirectShot(DirectShot):
@@ -1731,7 +1740,7 @@ class IndirectShot(DirectShot):
     """
 
     def __str__(self) -> str:
-        return f"[LAUNCH] {self.shooter.name} ({self.projectile.name}) 🞋 {self.target.name} (ID {self.target.id}) [{self.n_attacks_left_after} attacks left afterwards]"
+        return f"[LAUNCH] {name_and_id(self.shooter.name, self.shooter.id)} ({self.projectile.name}) 🞋 {name_and_id(self.target.name, self.target.id)} [{self.n_attacks_left_after} attacks left afterwards]"
 
 
 Shot = DirectShot | IndirectShot

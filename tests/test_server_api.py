@@ -486,7 +486,7 @@ class GeoJsonApiTest(unittest.TestCase):
         self.assertEqual(annotation["target_ids"], [RADAR_TARGET_ID])
         self.assertEqual(
             annotation["hover_text"],
-            f"Monostatic #{RADAR_SENSOR_ID} coverage @ 1000 MASL, RCS=1.5m^2",
+            "flores coverage @ 1000 MASL, RCS=1.5m^2",
         )
         self.assertEqual(annotation["feature"]["type"], "Feature")
         self.assertEqual(annotation["feature"]["geometry"]["type"], "MultiPolygon")

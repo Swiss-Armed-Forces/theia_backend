@@ -58,6 +58,7 @@ from theia.types import (
     Trigger,
     VisualDetection,
     VisualSensor,
+    name_and_id,
 )
 
 
@@ -589,7 +590,7 @@ class Simulator(Trigger, AbstractEventListener):
                         TextEvent(
                             id=-1,
                             time=self._t,
-                            text=f"No LOS between effector #{effector.id} and target #{target.id}",
+                            text=f"No LOS between effector {name_and_id(effector.name, effector.id)} and target {name_and_id(target.name, target.id)}",
                         )
                     )
                     continue
@@ -598,7 +599,7 @@ class Simulator(Trigger, AbstractEventListener):
                         TextEvent(
                             id=-1,
                             time=self._t,
-                            text=f"Out of range between effector #{effector.id} and target #{target.id}",
+                            text=f"Out of range between effector {name_and_id(effector.name, effector.id)} and target {name_and_id(target.name, target.id)}",
                         )
                     )
                     continue
@@ -607,7 +608,7 @@ class Simulator(Trigger, AbstractEventListener):
                         TextEvent(
                             id=-1,
                             time=self._t,
-                            text=f"Out of ammo effector #{effector.id} and target #{target.id}",
+                            text=f"Out of ammo: effector {name_and_id(effector.name, effector.id)}, target {name_and_id(target.name, target.id)}",
                         )
                     )
                     continue
@@ -616,7 +617,7 @@ class Simulator(Trigger, AbstractEventListener):
                         TextEvent(
                             id=-1,
                             time=self._t,
-                            text=f"Effector #{effector.id} on cooldown",
+                            text=f"Effector {name_and_id(effector.name, effector.id)} on cooldown",
                         )
                     )
                     continue
@@ -626,7 +627,7 @@ class Simulator(Trigger, AbstractEventListener):
                         TextEvent(
                             id=-1,
                             time=self._t,
-                            text=f"Effector #{effector.id} fired on a tracking "
+                            text=f"Effector {name_and_id(effector.name, effector.id)} fired on a tracking "
                             "error - no real target close enough to hit",
                         )
                     )
@@ -636,6 +637,7 @@ class Simulator(Trigger, AbstractEventListener):
                         time=self._t,
                         target_id=target.id,
                         party=target.info.party,
+                        target_name=target.name,
                     )
                     self._events.append(event)
                     self._broadcast_event(event)
@@ -650,7 +652,7 @@ class Simulator(Trigger, AbstractEventListener):
                         TextEvent(
                             id=-1,
                             time=self._t,
-                            text=f"Out of range between effector #{effector.id} and target #{target.id}",
+                            text=f"Out of range between effector {name_and_id(effector.name, effector.id)} and target {name_and_id(target.name, target.id)}",
                         )
                     )
                     continue
@@ -659,7 +661,7 @@ class Simulator(Trigger, AbstractEventListener):
                         TextEvent(
                             id=-1,
                             time=self._t,
-                            text=f"Out of ammo effector #{effector.id} and target #{target.id}",
+                            text=f"Out of ammo: effector {name_and_id(effector.name, effector.id)}, target {name_and_id(target.name, target.id)}",
                         )
                     )
                     continue
@@ -668,7 +670,7 @@ class Simulator(Trigger, AbstractEventListener):
                         TextEvent(
                             id=-1,
                             time=self._t,
-                            text=f"Effector #{effector.id} on cooldown",
+                            text=f"Effector {name_and_id(effector.name, effector.id)} on cooldown",
                         )
                     )
                     continue
@@ -677,7 +679,7 @@ class Simulator(Trigger, AbstractEventListener):
                         TextEvent(
                             id=-1,
                             time=self._t,
-                            text=f"Effector #{effector.id} already has "
+                            text=f"Effector {name_and_id(effector.name, effector.id)} already has "
                             f"{effector.n_in_flight} projectile(s) in flight",
                         )
                     )
@@ -693,7 +695,7 @@ class Simulator(Trigger, AbstractEventListener):
                         TextEvent(
                             id=-1,
                             time=self._t,
-                            text=f"Effector #{effector.id} launched on a "
+                            text=f"Effector {name_and_id(effector.name, effector.id)} launched on a "
                             "tracking error - no real target close enough "
                             "to associate the track with",
                         )
@@ -727,7 +729,7 @@ class Simulator(Trigger, AbstractEventListener):
                     TextEvent(
                         id=-1,
                         time=self._t,
-                        text=f"Effector #{effector.id} ⤼ Track #{shot.track_id} (projectile #{projectile_id})",
+                        text=f"Effector {name_and_id(effector.name, effector.id)} ⤼ track #{shot.track_id} (projectile {name_and_id(effector.projectile_name, projectile_id)})",
                     )
                 )
             else:

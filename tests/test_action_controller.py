@@ -78,6 +78,7 @@ def build_orbat(n_launch_site: int = 2, n_depot: int = 10) -> OrderOfBattle:
             MonostaticSensorFactory(
                 target_id=RADAR_TARGET_ID,
                 rcs=10.0,
+                name="flores",
                 sensor=build_flores_monostatic_radar(
                     Point(lat=46.9, lon=8.0, alt=1.0), RADAR_SENSOR_ID, 0, 0
                 ),
@@ -409,6 +410,10 @@ class MoveStockTest(ActionControllerTestBase):
             MoveStockAction(source_site_id=DEPOT_ID, target_site_id=DEPOT_ID, count=1)
         )
         self.assertEqual(self.recorder.rejections(), [RejectionReason.NO_ROUTE])
+        [rejected] = self.recorder.of_type(ActionRejectedEvent)
+        self.assertEqual(
+            rejected.message, "no route from camp site depot (#2) to depot (#2)"
+        )
 
     def test_shipment_to_destroyed_site_is_lost(self):
         self.move()
@@ -528,6 +533,10 @@ class RadarToggleTest(ActionControllerTestBase):
         self.act(ToggleMonostaticRadarAction(sensor_id=RADAR_SENSOR_ID, new_is_on=True))
         self.assertEqual(len(list(self.controller.monostatic_sensors)), 1)
         self.assertIsNotNone(self.radar_target().transmitter)
+        self.assertEqual(
+            self.recorder.results(),
+            ["radar flores (#5) switched off", "radar flores (#5) switched on"],
+        )
 
     def test_radar_states(self):
         def state(is_on: bool) -> RadarState:
@@ -566,6 +575,8 @@ class RadarToggleTest(ActionControllerTestBase):
             ToggleMonostaticRadarAction(sensor_id=RADAR_SENSOR_ID, new_is_on=False)
         )
         self.assertEqual(self.recorder.rejections(), [RejectionReason.RADAR_DESTROYED])
+        [rejected] = self.recorder.of_type(ActionRejectedEvent)
+        self.assertEqual(rejected.message, "radar flores (#5) is destroyed")
 
 
 class AlwaysOnRadarStatesTest(unittest.TestCase):

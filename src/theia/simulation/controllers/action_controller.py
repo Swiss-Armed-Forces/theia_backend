@@ -40,6 +40,7 @@ from theia.types import (
     ShipmentLostEvent,
     SituationalPicture,
     StockLostEvent,
+    name_and_id,
 )
 
 if TYPE_CHECKING:
@@ -343,6 +344,10 @@ class ActionController(ControllerGroup):
                 )
             )
 
+    @staticmethod
+    def _site_label(site: LivingController[CampSiteController]) -> str:
+        return name_and_id(site.child.camp_site.name, site.child.camp_site.id)
+
     def _get_site(self, site_id: int) -> LivingController[CampSiteController]:
         site = self._sites.get(site_id)
         if site is None:
@@ -352,13 +357,13 @@ class ActionController(ControllerGroup):
         if not site.is_alive:
             raise _Rejection(
                 RejectionReason.CAMP_SITE_DESTROYED,
-                f"camp site {site.child.camp_site.name} (#{site_id}) is destroyed",
+                f"camp site {self._site_label(site)} is destroyed",
             )
         return site
 
     def _execute_launch(self, action: LaunchAction, time: datetime.datetime) -> str:
         site = self._get_site(action.site_id)
-        name = f"{site.child.camp_site.name} (#{site.child.camp_site.id})"
+        name = self._site_label(site)
         if not site.child.camp_site.can_launch:
             raise _Rejection(RejectionReason.CANNOT_LAUNCH, f"{name} cannot launch")
         if site.child.camp_site.n_ammo < 1:
@@ -407,13 +412,13 @@ class ActionController(ControllerGroup):
         if route is None:
             raise _Rejection(
                 RejectionReason.NO_ROUTE,
-                f"no route from camp site {action.source_site_id} "
-                f"to {action.target_site_id}",
+                f"no route from camp site {self._site_label(source)} "
+                f"to {self._site_label(target)}",
             )
         if action.count > source.child.camp_site.n_ammo:
             raise _Rejection(
                 RejectionReason.INSUFFICIENT_STOCK,
-                f"{source.child.camp_site.name} (#{source.child.camp_site.id}) has only "
+                f"{self._site_label(source)} has only "
                 f"{source.child.camp_site.n_ammo} rounds in stock",
             )
 
@@ -433,8 +438,8 @@ class ActionController(ControllerGroup):
         self._shipments.append(shipment)
         return (
             f"shipment #{shipment.id}: {shipment.count} rounds from "
-            f"{source.child.camp_site.name} (#{source.child.camp_site.id}) to {target.child.camp_site.name} "
-            f"(#{target.child.camp_site.id}), departure {departure_time.isoformat()}, "
+            f"{self._site_label(source)} to {self._site_label(target)}, "
+            f"departure {departure_time.isoformat()}, "
             f"arrival {shipment.arrival_time.isoformat()}"
         )
 
@@ -448,12 +453,20 @@ class ActionController(ControllerGroup):
         if not living.is_alive:
             raise _Rejection(
                 RejectionReason.RADAR_DESTROYED,
-                f"radar {action.sensor_id} is destroyed",
+                f"radar {self._radar_label(living)} is destroyed",
             )
         living.child.is_on = action.new_is_on
         return (
-            f"radar {action.sensor_id} switched {'on' if action.new_is_on else 'off'}"
+            f"radar {self._radar_label(living)} switched "
+            f"{'on' if action.new_is_on else 'off'}"
         )
+
+    @staticmethod
+    def _radar_label(
+        living: LivingController[SwitchableMonostaticRadarController],
+    ) -> str:
+        radar = living.child
+        return name_and_id(radar.child.name, radar.sensor_id)
 
     # ------------------------------------------------------------------
     # Shipments and losses
