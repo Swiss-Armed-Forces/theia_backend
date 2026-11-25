@@ -5,6 +5,11 @@ BLUE (not player-controlled):
     5 long-range (LORAD) indirect-fire GBAD units on the Swiss plateau, each
     with a medium range radar next to it, plus 2 long-range surveillance
     radars on mountain tops, and 5 critical infrastructure facilities.
+    A short-range (SHORAD) direct-fire GBAD on the Uetliberg publishes its
+    effector range as GeoJSON.
+
+Every radar of both sides comes with a precomputed coverage at 5000 MASL,
+published as GeoJSON.
 
 RED (player-controlled):
     2 surveillance radars (switchable on/off by the player) and 2 launch
@@ -42,9 +47,11 @@ Usage (from the repository root):
 """
 
 import argparse
+import datetime
 import json
 import pathlib
 
+from theia.config import DEFAULT_TERRAIN
 from theia.simulation.scenario_import import (
     BallisticMissileTemplate,
     CampSite,
@@ -53,18 +60,24 @@ from theia.simulation.scenario_import import (
     DirectFireEffectorFactory,
     IndirectFireEffectorFactory,
     KnownTargetFactory,
+    MonostaticCoverageCalcSettings,
+    MonostaticCoverageCalculation,
     MonostaticSensorFactory,
     OneWayDroneTemplate,
     OrderOfBattle,
     ShooterRevealFactory,
+    SimulationResults,
     StaticGbadFactory,
     TerrainFactory,
     TransportTime,
     build_scenario,
 )
+from theia.coverage import calculate_coverage
+from theia.radar_equation import calculate_maximum_monostatic_range
 from theia.types import (
     ConstantRcsModel,
     Entity,
+    GeoJSONFeature,
     IdProvider,
     MonostaticSensor,
     Party,
@@ -103,6 +116,16 @@ BLUE_GBADS = {
     "LORAD Luzern": (47.05, 8.30),
     "LORAD St. Gallen": (47.42, 9.37),
 }
+# SHORAD GBAD: direct fire, publishes its effector range as GeoJSON
+SHORAD_NAME = "SHORAD Uetliberg"
+SHORAD_POSITION = (47.3497, 8.4912)
+SHORAD_RCS = 10.0
+SHORAD_COMBAT_RANGE = 15_000.0
+SHORAD_N_ATTACKS = 10
+SHORAD_CADENCE = 1.0
+SHORAD_GEOJSON_RANGE_ALTITUDES = {1000, 3000}
+"""Altitudes of the published effector ranges [m above sea level]"""
+
 # Offset of a GBAD's medium range radar from its launcher [deg longitude]
 GBAD_RADAR_OFFSET_LON = 0.004  # approx. 300 m
 BLUE_RADAR_RCS = 10.0
@@ -125,6 +148,15 @@ RED_RADARS = {
     "Radar Feldberg": (47.874, 8.004),
     "Radar Schwäbische Alb": (48.32, 9.20),
 }
+
+# Precomputed radar coverages (defaults of the scenario editor)
+COVERAGE_SETTINGS = MonostaticCoverageCalcSettings(
+    targetAlt=5000.0,
+    targetRcs=1.0,
+    probabilityThreshold=0.8,
+    latRes=0.01,
+    lonRes=0.025,
+)
 
 # How long a revealed shooter stays known after its shot [s]
 SHOOTER_REVEAL_SECONDS_VALID = 300.0
@@ -273,6 +305,24 @@ def build_blue_orbat(terrain) -> OrderOfBattle:
         )
         target_id += 1
 
+    gbads.append(
+        StaticGbadFactory(
+            target_id=target_id,
+            rcs=SHORAD_RCS,
+            name=SHORAD_NAME,
+            gbad=DirectFireEffectorFactory(
+                id=len(gbads) + 1,
+                name=SHORAD_NAME,
+                point=ground_point(terrain, *SHORAD_POSITION, EFFECTOR_ALTITUDE_OFFSET),
+                combat_range=SHORAD_COMBAT_RANGE,
+                n_attacks_left=SHORAD_N_ATTACKS,
+                cadence=SHORAD_CADENCE,
+            ),
+            geojson_range_altitudes=SHORAD_GEOJSON_RANGE_ALTITUDES,
+        )
+    )
+    target_id += 1
+
     return empty_orbat(
         monostatic_sensors=radars,
         gbads=gbads,
@@ -418,12 +468,48 @@ def with_free_ids(orbat: OrderOfBattle) -> None:
     orbat.unused_id_camp_site = max(orbat.unused_id_camp_site, free[Entity.CAMP_SITE])
 
 
+def add_coverages(orbat: OrderOfBattle, terrain):
+    """
+    Precompute the coverage of every radar, like the scenario editor does.
+
+    Must run after `build_scenario`, which may reassign the sensor IDs.
+    """
+    settings = COVERAGE_SETTINGS
+    now = datetime.datetime.now(datetime.UTC)
+    calculations = []
+    for factory in orbat.monostatic_sensors:
+        radar = factory.sensor
+        max_dist = calculate_maximum_monostatic_range(
+            radar=radar,
+            target_rcs=settings.targetRcs,
+            probability_threshold=settings.probabilityThreshold,
+        )
+        polygons = calculate_coverage(
+            terrain,
+            radar.receiver.antenna_point,
+            max_dist,
+            settings.targetAlt,
+            settings.latRes,
+            settings.lonRes,
+        )
+        calculation = MonostaticCoverageCalculation(
+            sensorId=radar.id,
+            settings=settings,
+            coverage=[GeoJSONFeature.from_shapely(p) for p in polygons],
+        )
+        calculations.append((calculation, now))
+        print(f"Coverage of {factory.name or radar.id}: {max_dist / 1000:.0f} km")
+    orbat.simulationResults = SimulationResults(
+        monostaticCoverages=calculations, pclMinDetectableRcsGrids=[]
+    )
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     parser.add_argument("output_file", type=pathlib.Path)
     args = parser.parse_args()
 
-    terrain_factory = TerrainFactory(terrain_name="SRTM")
+    terrain_factory = TerrainFactory(terrain_name=DEFAULT_TERRAIN)
     terrain = terrain_factory.to_terrain()
 
     scenario = build_scenario(
@@ -433,6 +519,8 @@ if __name__ == "__main__":
         build_blue_orbat(terrain),
         build_red_orbat(terrain),
     )
+    add_coverages(scenario.blue_orbat, terrain)
+    add_coverages(scenario.red_orbat, terrain)
 
     with open(args.output_file, "w") as file:
         file.write(scenario.model_dump_json(indent=4))
