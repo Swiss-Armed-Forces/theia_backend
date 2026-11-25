@@ -4,6 +4,7 @@ from theia.types import (
     ConstantRcsModel,
     Controller,
     Event,
+    GeoJSONAnnotation,
     MonostaticSensor,
     Party,
     SituationalPicture,
@@ -21,6 +22,7 @@ class MonostaticRadarController(Controller):
         is_blue: bool,
         rcs_model: ConstantRcsModel,
         name: str = "",
+        coverage: list[GeoJSONAnnotation] | None = None,
     ):
         """
         Parameters
@@ -35,6 +37,8 @@ class MonostaticRadarController(Controller):
             Model for the radar cross section
         name: str
             Human-readable name of the sensor
+        coverage: list[GeoJSONAnnotation] | None
+            Precomputed coverage of the radar, published as GeoJSON
         """
         super().__init__()
         self._radar = radar
@@ -42,6 +46,7 @@ class MonostaticRadarController(Controller):
         self._name = name
         self._info = TargetInfos.RADAR.with_party(Party.from_is_blue(is_blue))
         self._rcs_model = rcs_model
+        self.geojson = coverage or []
 
     def update(
         self,

@@ -18,7 +18,8 @@ class SwitchableMonostaticRadarController(Controller):
 
     The wrapped controller is not altered. While the radar is off, this wrapper
     hides its sensor, so it detects nothing, and removes the transmitter from
-    its target, so passive emitter tracking (PET) no longer sees it.
+    its target, so passive emitter tracking (PET) no longer sees it, and hides
+    its coverage.
     The radar stays a target that can be detected by other means and hit.
     """
 
@@ -57,4 +58,4 @@ class SwitchableMonostaticRadarController(Controller):
         self.visual_sensors = self.child.visual_sensors
         self.intel_sensors = self.child.intel_sensors
         self.firing_effectors = self.child.firing_effectors
-        self.geojson = self.child.geojson
+        self.geojson = self.child.geojson if self.is_on else []

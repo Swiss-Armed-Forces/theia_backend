@@ -88,6 +88,7 @@ from theia.types import (
     Entity,
     GeoJSONAnnotation,
     GeoJSONFeature,
+    GeoJSONKind,
     GeoJSONMultiPolygon,
     IdProvider,
     MonostaticSensor,
@@ -331,7 +332,9 @@ class MonostaticSensorFactory(pydantic.BaseModel):
     vertical_antenna_diagram: AntennaDiagramFactory = AntennaDiagramFactory(name="none")
     name: str = ""
 
-    def to_controller(self, is_blue: bool) -> MonostaticRadarController:
+    def to_controller(
+        self, is_blue: bool, coverage: list[GeoJSONAnnotation] | None = None
+    ) -> MonostaticRadarController:
         attenuation_model = self.vertical_antenna_diagram.to_attenuation_model()
         sensor = self.sensor.model_copy(deep=True)
         sensor.transmitter.vertical_attenuation = attenuation_model
@@ -341,6 +344,7 @@ class MonostaticSensorFactory(pydantic.BaseModel):
             radar=sensor,
             is_blue=is_blue,
             rcs_model=ConstantRcsModel(rcs=self.rcs),
+            coverage=coverage,
         )
         return LivingController(child=c, target_id=self.target_id)
 
@@ -691,17 +695,27 @@ class SimulationResults(pydantic.BaseModel):
     ]
     """calculation result, date of calculation [epochs]"""
 
-    def to_annotations(self) -> list[GeoJSONAnnotation]:
+    def to_annotations(self, sensor_id: int, target_id: int) -> list[GeoJSONAnnotation]:
+        """
+        Monostatic coverages of a sensor as annotations.
+
+        `target_id` is the ID of the radar the sensor belongs to.
+        """
         result: list[GeoJSONAnnotation] = []
         for calc, _ in self.monostaticCoverages:
-            tag = f"Monostatic #{calc.sensorId}, {calc.settings.targetAlt:.0f} MASL, RCS={calc.settings.targetRcs:.1f}m^2"
+            if calc.sensorId != sensor_id:
+                continue
+            alt = calc.settings.targetAlt
+            rcs = calc.settings.targetRcs
             result.append(
                 GeoJSONAnnotation(
-                    id=tag,
+                    id=f"sensor-range-{calc.sensorId}-{alt:g}-{rcs:g}",
                     feature=GeoJSONFeature(
                         geometry=GeoJSONMultiPolygon.merge(calc.coverage)
                     ),
-                    hover_text=tag,
+                    kind=GeoJSONKind.SENSOR_RANGE,
+                    target_ids=[target_id],
+                    hover_text=f"Monostatic #{calc.sensorId}, {alt:.0f} MASL, RCS={rcs:.1f}m^2",
                 )
             )
         return result
@@ -801,7 +815,11 @@ class OrderOfBattle(pydantic.BaseModel):
         is_blue: bool,
     ) -> ControllerGroup:
         monostatic_controllers = [
-            s.to_controller(is_blue) for s in self.monostatic_sensors
+            s.to_controller(
+                is_blue,
+                self.simulationResults.to_annotations(s.sensor.id, s.target_id),
+            )
+            for s in self.monostatic_sensors
         ]
         if self.is_user_controlled:
             # The player can switch the radars on and off.
@@ -857,7 +875,7 @@ class OrderOfBattle(pydantic.BaseModel):
                 + camp_site_controllers
                 + intel_controllers
             ),
-            geojson_features=self.simulationResults.to_annotations(),
+            geojson_features=[],
         )
         if not self.is_user_controlled:
             return ControllerGroup(controllers=[tree])

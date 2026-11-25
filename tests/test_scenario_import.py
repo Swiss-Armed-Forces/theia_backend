@@ -8,6 +8,7 @@ from typing import ClassVar
 
 import numpy as np
 import pydantic
+import shapely
 
 from theia.distance import line_of_sight_distance
 from theia.effectors import DirectFireEffector, IndirectFireEffector
@@ -34,6 +35,9 @@ from theia.simulation.scenario_import import (
     FixedPathOneWayDroneFactory,
     IndirectFireEffectorFactory,
     KnownTargetFactory,
+    MonostaticCoverageCalcSettings,
+    MonostaticCoverageCalculation,
+    MonostaticSensorFactory,
     NeverTermination,
     OneWayDroneTemplate,
     OrderOfBattle,
@@ -50,10 +54,13 @@ from theia.simulation.scenario_import import (
 )
 from theia.simulation.simulator import NeverCriterion, TimeCriterion
 from theia.terrain import ConstantSphereTerrainModel, SrtmTerrainModel
+from theia.test_data import get_uetliberg_radar
 from theia.types import (
     ConstantRcsModel,
     DirectShot,
     Entity,
+    GeoJSONFeature,
+    GeoJSONKind,
     IdProvider,
     Party,
     Point,
@@ -409,6 +416,90 @@ class SimulationResultsAddTest(unittest.TestCase):
         a + b
         self.assertEqual(a.monostaticCoverages, ["a1"])
         self.assertEqual(b.monostaticCoverages, ["b1"])
+
+
+def get_coverage(sensor_id: int, x0: float) -> MonostaticCoverageCalculation:
+    """Coverage of two separate squares starting at longitude `x0`."""
+    return MonostaticCoverageCalculation(
+        sensorId=sensor_id,
+        settings=MonostaticCoverageCalcSettings(
+            targetAlt=1000.0,
+            targetRcs=1.5,
+            probabilityThreshold=0.5,
+            latRes=0.01,
+            lonRes=0.01,
+        ),
+        coverage=[
+            GeoJSONFeature.from_shapely(shapely.box(x0, 47.0, x0 + 1.0, 48.0)),
+            GeoJSONFeature.from_shapely(shapely.box(x0 + 2.0, 47.0, x0 + 3.0, 48.0)),
+        ],
+    )
+
+
+def get_simulation_results(*sensor_ids: int) -> SimulationResults:
+    t = datetime.datetime.fromtimestamp(0, datetime.UTC)
+    return SimulationResults(
+        monostaticCoverages=[(get_coverage(i, 8.0), t) for i in sensor_ids],
+        pclMinDetectableRcsGrids=[],
+    )
+
+
+class SimulationResultsToAnnotationsTest(unittest.TestCase):
+    def test_coverage_becomes_one_sensor_range_tied_to_radar(self):
+        [annotation] = get_simulation_results(3).to_annotations(3, 12)
+
+        self.assertEqual(annotation.id, "sensor-range-3-1000-1.5")
+        self.assertEqual(annotation.kind, GeoJSONKind.SENSOR_RANGE)
+        self.assertEqual(annotation.target_ids, [12])
+        self.assertEqual(annotation.hover_text, "Monostatic #3, 1000 MASL, RCS=1.5m^2")
+        # Both squares of the coverage end up in a single multi-polygon.
+        self.assertEqual(annotation.feature.geometry.type, "MultiPolygon")
+        self.assertEqual(len(annotation.feature.geometry.coordinates), 2)
+
+    def test_only_coverages_of_the_given_sensor(self):
+        results = get_simulation_results(3, 4, 3)
+
+        self.assertEqual(len(results.to_annotations(3, 12)), 2)
+        self.assertEqual(len(results.to_annotations(4, 13)), 1)
+        self.assertEqual(results.to_annotations(5, 14), [])
+
+
+def get_empty_situational_picture() -> SituationalPicture:
+    return SituationalPicture(
+        time=datetime.datetime.fromtimestamp(0, datetime.UTC),
+        friendly_pet_receivers=[],
+        friendly_radars=[],
+        friendly_targets=[],
+        enemy_targets=[],
+    )
+
+
+class OrderOfBattleCoverageTest(unittest.TestCase):
+    def setUp(self):
+        self._radar = get_uetliberg_radar()
+        self._oob = get_order_of_battle([])
+        self._oob.monostatic_sensors = [
+            MonostaticSensorFactory(target_id=12, rcs=10.0, sensor=self._radar)
+        ]
+        # The coverage of sensor 99 belongs to no radar of the ORBAT.
+        self._oob.simulationResults = get_simulation_results(self._radar.id, 99)
+
+    def get_geojson(self) -> list:
+        root = self._oob.to_controller(ConstantSphereTerrainModel(alt=0.0), True)
+        root.update(get_empty_situational_picture(), datetime.timedelta(seconds=1))
+        return list(root.geojson)
+
+    def test_coverage_is_published_by_its_radar(self):
+        [annotation] = self.get_geojson()
+
+        self.assertEqual(annotation.target_ids, [12])
+
+    def test_user_controlled_radar_publishes_its_coverage(self):
+        self._oob.is_user_controlled = True
+
+        [annotation] = self.get_geojson()
+
+        self.assertEqual(annotation.target_ids, [12])
 
 
 class OrderOfBattleMergeTest(unittest.TestCase):

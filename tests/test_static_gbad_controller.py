@@ -12,6 +12,7 @@ from theia.simulation.controllers.static_gbad_controller import StaticGbadContro
 from theia.terrain import SrtmTerrainModel
 from theia.types import (
     ConstantRcsModel,
+    GeoJSONKind,
     Party,
     Point,
     SituationalPicture,
@@ -214,6 +215,27 @@ class StaticGbadControllerDirectFireTest(unittest.TestCase):
                 ("effector-range-4-1000", "GBAD Uetliberg range @ 1000 MASL"),
                 ("effector-range-4-3000", "GBAD Uetliberg range @ 3000 MASL"),
             ],
+        )
+        for annotation in controller.geojson:
+            self.assertEqual(annotation.kind, GeoJSONKind.EFFECTOR_RANGE)
+            self.assertEqual(annotation.target_ids, [4])
+
+    def test_geojson_effector_range_is_computed_once_per_altitude(self):
+        controller = get_direct_controller(None)
+        controller.geojson_range_altitudes = {1000}
+        dt = datetime.timedelta(seconds=1)
+        with patch(
+            "theia.simulation.controllers.static_gbad_controller.calculate_coverage",
+            return_value=shapely.box(8.0, 47.0, 9.0, 48.0),
+        ) as calculate_coverage:
+            controller.update(get_situational_picture_in_range(), dt)
+            controller.update(get_situational_picture_in_range(), dt)
+            controller.geojson_range_altitudes = {1000, 2000}
+            controller.update(get_situational_picture_in_range(), dt)
+
+        self.assertEqual(
+            [call.args[3] for call in calculate_coverage.call_args_list],
+            [1000, 2000],
         )
 
     def test_geojson_range_altitudes_reject_fractions(self):

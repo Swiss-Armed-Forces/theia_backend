@@ -1,6 +1,8 @@
 import datetime
 from typing import Optional
 
+import pydantic
+
 from theia.coordinates import CoordinateTransformations
 from theia.coverage import calculate_coverage
 from theia.effectors import DirectFireEffector, IndirectFireEffector
@@ -10,6 +12,7 @@ from theia.types import (
     Event,
     GeoJSONAnnotation,
     GeoJSONFeature,
+    GeoJSONKind,
     GeoJSONPolygon,
     Point,
     SituationalPicture,
@@ -57,6 +60,11 @@ class StaticGbadController(Controller):
     target_name: str = ""
     geojson_range_altitudes: set[int] = set()
     """Altitudes at which the effector range is drawn [m above sea level]"""
+
+    _range_cache: dict[int, GeoJSONPolygon] = pydantic.PrivateAttr(
+        default_factory=dict
+    )
+    """Effector range per altitude; static, because the GBAD does not move"""
 
     def on_event(self, event: Event):
         pass
@@ -113,21 +121,28 @@ class StaticGbadController(Controller):
         # GeoJSON.
         geojson: list[GeoJSONAnnotation] = []
         if isinstance(self.effector, DirectFireEffector):
+            name = self.target_name or self.effector.name
             for alt in sorted(self.geojson_range_altitudes):
-                coverage = calculate_coverage(
-                    self.effector.terrain,
-                    self.effector.point,
-                    self.effector.combat_range,
-                    alt,
-                )
-                name = self.target_name or self.effector.name
                 geojson.append(
                     GeoJSONAnnotation(
                         id=f"effector-range-{self.target_id}-{alt}",
-                        feature=GeoJSONFeature(
-                            geometry=GeoJSONPolygon.from_shapely(coverage)
-                        ),
+                        feature=GeoJSONFeature(geometry=self._effector_range(alt)),
+                        kind=GeoJSONKind.EFFECTOR_RANGE,
+                        target_ids=[self.target_id],
                         hover_text=f"{name} range @ {alt} MASL",
                     )
                 )
         self.geojson = geojson
+
+    def _effector_range(self, alt: int) -> GeoJSONPolygon:
+        """Area within combat range and line of sight at `alt` [m above sea level]."""
+        if alt not in self._range_cache:
+            assert isinstance(self.effector, DirectFireEffector)
+            coverage = calculate_coverage(
+                self.effector.terrain,
+                self.effector.point,
+                self.effector.combat_range,
+                alt,
+            )
+            self._range_cache[alt] = GeoJSONPolygon.from_shapely(coverage)
+        return self._range_cache[alt]
