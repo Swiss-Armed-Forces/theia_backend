@@ -1,12 +1,13 @@
 """
 Build a game scenario for testing the player / action interface in the frontend.
 
-BLUE (not player-controlled):
+BLUE (player-controlled):
     5 long-range (LORAD) indirect-fire GBAD units on the Swiss plateau, each
     with a medium range radar next to it, plus 2 long-range surveillance
     radars on mountain tops, and 5 critical infrastructure facilities.
-    A short-range (SHORAD) direct-fire GBAD on the Uetliberg publishes its
-    effector range as GeoJSON.
+    All radars are switchable on/off by the player; the GBADs engage on
+    their own. The LORADs and a short-range (SHORAD) direct-fire GBAD on the
+    Uetliberg publish their effector ranges as GeoJSON.
 
 Every radar of both sides comes with a precomputed coverage at 5000 MASL,
 published as GeoJSON.
@@ -336,7 +337,7 @@ def build_blue_orbat(terrain) -> OrderOfBattle:
         intel=[ShooterRevealFactory(seconds_valid=SHOOTER_REVEAL_SECONDS_VALID)],
         unused_id_effector=len(gbads) + 1,
         unused_target_id=target_id,
-        is_user_controlled=False,
+        is_user_controlled=True,
     )
 
 
