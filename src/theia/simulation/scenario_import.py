@@ -225,7 +225,8 @@ class StaticGbadFactory(pydantic.BaseModel):
     geojson_range_altitudes: set[int] = set()
     """
     Altitudes at which the effector range is published as GeoJSON [m above
-    sea level]. Only direct-fire GBADs have such a range.
+    sea level]. Direct fire: within combat range and line of sight; indirect
+    fire: within combat range only.
     """
 
     @pydantic.model_validator(mode="before")
@@ -245,11 +246,12 @@ class StaticGbadFactory(pydantic.BaseModel):
         is_blue: bool,
     ) -> StaticGbadController:
         self._warn_if_on_or_below_terrain(terrain)
-        effector = (
-            self.gbad.to_effector(terrain, is_blue)
-            if isinstance(self.gbad, IndirectFireEffectorFactory)
-            else self.gbad.to_effector(terrain)
-        )
+        if isinstance(self.gbad, DirectFireEffectorFactory):
+            effector = self.gbad.to_effector(terrain)
+        elif isinstance(self.gbad, IndirectFireEffectorFactory):
+            effector = self.gbad.to_effector(terrain, is_blue)
+        else:
+            raise TypeError(f"Unknown GBAD factory type {type(self.gbad).__name__}")
         c = StaticGbadController(
             target_id=self.target_id,
             info=TargetInfos.GBAD.with_party(Party.from_is_blue(is_blue)),

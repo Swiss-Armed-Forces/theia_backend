@@ -7,6 +7,7 @@ import pydantic
 import shapely
 
 from theia.coordinates import POSITIONS_OF_INTEREST, CoordinateTransformations
+from theia.distance import line_of_sight_distance
 from theia.effectors import DirectFireEffector, IndirectFireEffector
 from theia.simulation.controllers.static_gbad_controller import StaticGbadController
 from theia.terrain import DummyTerrain, SrtmTerrainModel
@@ -258,6 +259,15 @@ class StaticGbadControllerDirectFireTest(unittest.TestCase):
         self.assertEqual(annotation.feature.geometry.type, "MultiPolygon")
         self.assertGreater(len(annotation.feature.geometry.coordinates), 0)
 
+    def test_unknown_effector_type_raises(self):
+        # Bypasses validation, which only admits the known effector types.
+        controller = get_direct_controller("0")
+        object.__setattr__(controller, "effector", object())
+        controller.geojson_range_altitudes = {1000}
+
+        with self.assertRaises(TypeError):
+            controller._effector_range(1000)
+
     def test_geojson_range_altitudes_reject_fractions(self):
         controller = get_direct_controller(None)
         controller.geojson_range_altitudes = [1000.0]
@@ -285,6 +295,50 @@ class StaticGbadControllerDirectFireTest(unittest.TestCase):
 
 
 class StaticGbadControllerIndirectFireTest(unittest.TestCase):
+    def get_ranges(self, combat_range: float, altitudes: set[int]) -> dict:
+        controller = StaticGbadController(
+            target_id=4,
+            info=TargetInfos.GBAD.with_party(Party.BLUE),
+            rcs=1.5,
+            effector=get_indirect_effector(combat_range=combat_range),
+            target_name="LORAD Uetliberg",
+            geojson_range_altitudes=altitudes,
+        )
+        controller.update(
+            get_situational_picture_in_range(), datetime.timedelta(seconds=1)
+        )
+        return {a.id: a for a in controller.geojson}
+
+    def test_geojson_effector_range_is_at_combat_range(self):
+        # No line of sight required: the range is a circle at combat range.
+        ranges = self.get_ranges(20_000, {5000})
+
+        annotation = ranges["effector-range-4-5000"]
+        self.assertEqual(annotation.kind, GeoJSONKind.EFFECTOR_RANGE)
+        self.assertEqual(annotation.target_ids, [4])
+        self.assertEqual(annotation.hover_text, "LORAD Uetliberg range @ 5000 MASL")
+        [[ring]] = annotation.feature.geometry.coordinates
+        for lon, lat in ring:
+            d = line_of_sight_distance(
+                p_uetliberg.lat, p_uetliberg.lon, p_uetliberg.alt, lat, lon, 5000
+            )
+            self.assertAlmostEqual(d, 20_000, delta=5)
+
+    def test_geojson_effector_range_shrinks_with_altitude(self):
+        ranges = self.get_ranges(20_000, {1000, 15_000})
+
+        low, high = (
+            shapely.Polygon(ranges[f"effector-range-4-{alt}"]
+                            .feature.geometry.coordinates[0][0])
+            for alt in (1000, 15_000)
+        )
+        self.assertTrue(low.contains(high))
+
+    def test_geojson_effector_range_omits_altitudes_out_of_range(self):
+        ranges = self.get_ranges(5_000, {1000, 20_000})
+
+        self.assertEqual(list(ranges.keys()), ["effector-range-4-1000"])
+
     def test_no_assigned_target(self):
         controller = get_indirect_controller(None)
         picture = get_situational_picture_in_range()
