@@ -10,10 +10,12 @@ from tests.test_action_controller import (
     DEPOT_ID,
     LAUNCH_SITE_ID,
     RADAR_SENSOR_ID,
+    RADAR_TARGET_ID,
     SECONDS_UNDERWAY,
     SECONDS_UNTIL_LEAVE,
     build_orbat,
 )
+from tests.test_scenario_import import get_simulation_results
 from theia.detection.pcl import PclDetector
 from theia.detection.pet import PetDetector
 from theia.simulation.damage_model import UniformDamageModel
@@ -143,9 +145,14 @@ RED_CAMP_SITE_TARGET_ID = 20
 
 
 def get_game_client() -> tuple[TestClient, Simulator]:
-    """Client for a running game: BLUE is user-controlled, RED is not."""
+    """
+    Client for a running game: BLUE is user-controlled, RED is not.
+
+    BLUE's radar has a precomputed coverage.
+    """
     terrain = DummyTerrain(has_los=True)
     blue_orbat = build_orbat()
+    blue_orbat.simulationResults = get_simulation_results(RADAR_SENSOR_ID)
     red_orbat = OrderOfBattle(
         monostatic_sensors=[],
         pcl_sensors=[],
@@ -394,6 +401,51 @@ class GameApiTest(unittest.TestCase):
     def test_event_without_party(self):
         event = TrackInitEvent(id=4, time=T0, target_id=7, track_id=1)
         self.assertIsNone(EventMessage.from_event(event).party)
+
+
+
+class GeoJsonApiTest(unittest.TestCase):
+    def setUp(self):
+        self.client, self.simulator = get_game_client()
+
+    def geojson(self, which: str) -> list[dict]:
+        response = self.client.get(f"/geojson/{which}")
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()
+
+    def test_radar_coverage_is_served_as_annotation(self):
+        self.simulator.advance()
+
+        [annotation] = self.geojson("BLUE")
+        self.assertEqual(annotation["id"], f"sensor-range-{RADAR_SENSOR_ID}-1000-1.5")
+        self.assertEqual(annotation["kind"], "SENSOR_RANGE")
+        self.assertEqual(annotation["target_ids"], [RADAR_TARGET_ID])
+        self.assertEqual(
+            annotation["hover_text"],
+            f"Monostatic #{RADAR_SENSOR_ID}, 1000 MASL, RCS=1.5m^2",
+        )
+        self.assertEqual(annotation["feature"]["type"], "Feature")
+        self.assertEqual(annotation["feature"]["geometry"]["type"], "MultiPolygon")
+        self.assertEqual(self.geojson("RED"), [])
+
+    def test_geojson_is_live(self):
+        self.simulator.advance()
+        self.assertEqual(len(self.geojson("BLUE")), 1)
+
+        action = {
+            "type": "toggle_monostatic_radar",
+            "sensor_id": RADAR_SENSOR_ID,
+            "new_is_on": False,
+        }
+        self.client.post("/assign_action/BLUE", json=action)
+        self.simulator.advance()
+
+        self.assertEqual(self.geojson("BLUE"), [])
+
+    def test_openapi_schema_exposes_geojson_annotation(self):
+        schemas = create_app(None, None).openapi()["components"]["schemas"]
+        self.assertIn("GeoJSONAnnotation", schemas)
+        self.assertEqual(schemas["GeoJSONKind"]["type"], "string")
 
 
 if __name__ == "__main__":

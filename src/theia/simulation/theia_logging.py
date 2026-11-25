@@ -16,7 +16,7 @@ from theia.simulation.actions import (
 from theia.simulation.simulator import AbstractSimulationListener, Simulator
 from theia.types import (
     Event,
-    GeoJSONFeature,
+    GeoJSONAnnotation,
     KillEvent,
     MonostaticRadarDetection,
     MonostaticSensor,
@@ -635,15 +635,19 @@ class SituationalPictureBuffer(AbstractSimulationListener):
         Time of death for target IDs.
         If a target ID has no entry, the corresponding target is still alive.
         """
-        self._geojson_blue: dict[str, GeoJSONFeature] = {}
-        self._geojson_red: dict[str, GeoJSONFeature] = {}
+        self._geojson_blue: list[GeoJSONAnnotation] = []
+        self._geojson_red: list[GeoJSONAnnotation] = []
+        self._simulator: Simulator | None = None
 
     def register_simulator(self, simulator: Simulator):
         self._simulator = simulator
-        self._geojson_blue = simulator._blue_controller.geojson
-        self._geojson_red = simulator._red_controller.geojson
 
     def on_snapshot(self, snapshot: Snapshot):
+        # The controllers recompute their GeoJSON in every step; copy it, so
+        # it matches the snapshot.
+        if self._simulator is not None:
+            self._geojson_blue = list(self._simulator._root_controller(True).geojson)
+            self._geojson_red = list(self._simulator._root_controller(False).geojson)
         for target in snapshot.red_targets:
             traj = self._red_ground_truth_history.get(target.id, [])
             traj.append((snapshot.time, target))
@@ -713,6 +717,7 @@ class SituationalPictureBuffer(AbstractSimulationListener):
             return self._situational_picture_red
 
     def get_simulator(self) -> Simulator:
+        assert self._simulator is not None, "No simulator registered"
         return self._simulator
 
     def has_comleted(self) -> bool:
@@ -721,5 +726,5 @@ class SituationalPictureBuffer(AbstractSimulationListener):
     def get_events(self) -> list[Event]:
         return self._events
 
-    def get_geojson(self, is_blue: bool) -> dict[str, GeoJSONFeature]:
+    def get_geojson(self, is_blue: bool) -> list[GeoJSONAnnotation]:
         return self._geojson_blue if is_blue else self._geojson_red

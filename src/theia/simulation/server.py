@@ -36,6 +36,7 @@ from theia.simulation.simulation_director import SimulationDirector
 from theia.simulation.theia_logging import SituationalPictureBuffer
 from theia.types import (
     Event,
+    GeoJSONAnnotation,
     GeoJSONFeature,
     GeoJSONMultiPolygon,
     GeoJSONPolygon,
@@ -447,7 +448,7 @@ def create_app(
         ]
 
     @app.get("/geojson/{which}")
-    def get_geojson(which: Team) -> dict[str, GeoJSONFeature]:
+    def get_geojson(which: Team) -> list[GeoJSONAnnotation]:
         return buffer.get_geojson(which == Team.blue)
 
     @app.get("/elevation_at/{lat}_{lon}")
