@@ -727,4 +727,7 @@ class SituationalPictureBuffer(AbstractSimulationListener):
         return self._events
 
     def get_geojson(self, is_blue: bool) -> list[GeoJSONAnnotation]:
+        # Only the GeoJSON of the latest snapshot is kept, not its history.
+        # Callers that ask for an earlier time (e.g. replay) get the current
+        # annotations, as if they were static.
         return self._geojson_blue if is_blue else self._geojson_red
