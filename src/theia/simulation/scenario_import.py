@@ -701,12 +701,16 @@ class SimulationResults(pydantic.BaseModel):
     ]
     """calculation result, date of calculation [epochs]"""
 
-    def to_annotations(self, sensor_id: int, target_id: int) -> list[GeoJSONAnnotation]:
+    def to_annotations(
+        self, sensor_id: int, target_id: int, name: str = ""
+    ) -> list[GeoJSONAnnotation]:
         """
         Monostatic coverages of a sensor as annotations.
 
-        `target_id` is the ID of the radar the sensor belongs to.
+        `target_id` is the ID of the radar the sensor belongs to, `name` its
+        human-readable name for the hover text.
         """
+        label = name or f"Monostatic #{sensor_id}"
         result: list[GeoJSONAnnotation] = []
         for calc, _ in self.monostaticCoverages:
             if calc.sensorId != sensor_id:
@@ -721,7 +725,7 @@ class SimulationResults(pydantic.BaseModel):
                     ),
                     kind=GeoJSONKind.SENSOR_RANGE,
                     target_ids=[target_id],
-                    hover_text=f"Monostatic #{calc.sensorId}, {alt:.0f} MASL, RCS={rcs:.1f}m^2",
+                    hover_text=f"{label} coverage @ {alt:.0f} MASL, RCS={rcs:.1f}m^2",
                 )
             )
         return result
@@ -823,7 +827,9 @@ class OrderOfBattle(pydantic.BaseModel):
         monostatic_controllers = [
             s.to_controller(
                 is_blue,
-                self.simulationResults.to_annotations(s.sensor.id, s.target_id),
+                self.simulationResults.to_annotations(
+                    s.sensor.id, s.target_id, s.name
+                ),
             )
             for s in self.monostatic_sensors
         ]

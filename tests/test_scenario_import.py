@@ -470,12 +470,14 @@ def get_simulation_results(*sensor_ids: int) -> SimulationResults:
 
 class SimulationResultsToAnnotationsTest(unittest.TestCase):
     def test_coverage_becomes_one_sensor_range_tied_to_radar(self):
-        [annotation] = get_simulation_results(3).to_annotations(3, 12)
+        [annotation] = get_simulation_results(3).to_annotations(3, 12, "Radar Uto")
 
         self.assertEqual(annotation.id, "sensor-range-3-1000-1.5")
         self.assertEqual(annotation.kind, GeoJSONKind.SENSOR_RANGE)
         self.assertEqual(annotation.target_ids, [12])
-        self.assertEqual(annotation.hover_text, "Monostatic #3, 1000 MASL, RCS=1.5m^2")
+        self.assertEqual(
+            annotation.hover_text, "Radar Uto coverage @ 1000 MASL, RCS=1.5m^2"
+        )
         # Both squares of the coverage end up in a single multi-polygon.
         self.assertEqual(annotation.feature.geometry.type, "MultiPolygon")
         self.assertEqual(len(annotation.feature.geometry.coordinates), 2)
@@ -486,6 +488,13 @@ class SimulationResultsToAnnotationsTest(unittest.TestCase):
         self.assertEqual(len(results.to_annotations(3, 12)), 2)
         self.assertEqual(len(results.to_annotations(4, 13)), 1)
         self.assertEqual(results.to_annotations(5, 14), [])
+
+    def test_hover_text_falls_back_to_sensor_id(self):
+        [annotation] = get_simulation_results(3).to_annotations(3, 12)
+
+        self.assertEqual(
+            annotation.hover_text, "Monostatic #3 coverage @ 1000 MASL, RCS=1.5m^2"
+        )
 
 
 def get_empty_situational_picture() -> SituationalPicture:
