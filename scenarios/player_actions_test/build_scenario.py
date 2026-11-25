@@ -104,6 +104,8 @@ LORAD_COMBAT_RANGE = 100_000.0
 LORAD_N_ATTACKS = 16
 LORAD_CADENCE = 0.5
 LORAD_MAX_IN_FLIGHT = 1  # one interceptor at a time; the next one after it is resolved
+LORAD_GEOJSON_RANGE_ALTITUDES = {5000}
+"""Altitudes of the published effector ranges [m above sea level]"""
 INTERCEPTOR_SPEED = 1_200.0
 INTERCEPTOR_MAX_DIST = 120_000.0
 INTERCEPTOR_KILL_RANGE = 2_000.0
@@ -275,6 +277,7 @@ def build_blue_orbat(terrain) -> OrderOfBattle:
                     projectile_max_dist=INTERCEPTOR_MAX_DIST,
                     projectile_rcs=ConstantRcsModel(rcs=INTERCEPTOR_RCS),
                 ),
+                geojson_range_altitudes=LORAD_GEOJSON_RANGE_ALTITUDES,
             )
         )
         target_id += 1
