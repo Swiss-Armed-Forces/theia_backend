@@ -12,7 +12,6 @@ from stonesoup.predictor.kalman import ExtendedKalmanPredictor
 from stonesoup.types.detection import Detection
 from stonesoup.types.hypothesis import SingleHypothesis
 from stonesoup.types.state import GaussianState
-from stonesoup.types.track import Track
 from stonesoup.updater.kalman import ExtendedKalmanUpdater
 
 import theia
@@ -40,6 +39,13 @@ from theia.types import (
 )
 
 
+DEFAULT_TRACK_HISTORY = datetime.timedelta(seconds=60)
+"""
+How far back exported tracks reach. Consumers only evaluate tracks around the
+current time (the GUI from 1 s in the past).
+"""
+
+
 class SingleTargetEcefTracker:
     """
     A simple Kalman tracker for a single target in ECEF space.
@@ -54,6 +60,7 @@ class SingleTargetEcefTracker:
         pos0: tuple[float, float, float],
         v_max: float = 300,
         info: TargetInfo = TargetInfos.UNKNOWN,
+        track_history: datetime.timedelta = DEFAULT_TRACK_HISTORY,
     ):
         """
         Parameters
@@ -68,9 +75,15 @@ class SingleTargetEcefTracker:
             Maximum expected target speed [m / s]
         info: TargetInfo, default TargetInfos.UNKNOWN
             Perceived categorical information about the target
+        track_history: datetime.timedelta, default DEFAULT_TRACK_HISTORY
+            How far back from its last state the exported track reaches (see
+            ``to_theia_track``)
         """
         self._id = id
         self._info = info
+        self._track_history = track_history
+        self._theia_track: theia.types.Track | None = None
+        """Exported track; ``None`` until exported or after a new detection"""
         q = 1.0
         transition_model = CombinedLinearGaussianTransitionModel(
             [ConstantVelocity(q), ConstantVelocity(q), ConstantVelocity(q)]
@@ -116,20 +129,41 @@ class SingleTargetEcefTracker:
         posterior = self._updater.update(hypothesis)
         self._track.append(posterior)
         self._prior = self._track[-1]
+        self._theia_track = None
 
-    def to_theia_track(self) -> Track | None:
-        states = [
-            (s.timestamp, np.array(s.state_vector.flatten()))
-            for s in self._track.states
-        ]
-        if len(states) <= 1:
-            return None
-        else:
-            return theia.types.Track(
+    def to_theia_track(self) -> theia.types.Track | None:
+        """
+        The track as seen by the controllers, or ``None`` if it has fewer than
+        two states.
+
+        Only the states of the last ``track_history`` are exported (plus the
+        state just before, and at least the last two): the cost per call does
+        not grow with the length of the track. As ``theia.types.Track``
+        interpolates linearly, the exported track yields exactly the same
+        states as the full one for all times from ``track_history`` before
+        the last state onwards (including the extrapolation).
+
+        The result is cached until the next detection.
+        """
+        if self._theia_track is None:
+            states = self._track.states
+            if len(states) <= 1:
+                return None
+            t_min = states[-1].timestamp - self._track_history
+            # Walk back to the last state at or before t_min, so that the
+            # segment containing t_min is kept.
+            start = len(states) - 2
+            while start > 0 and states[start].timestamp > t_min:
+                start -= 1
+            self._theia_track = theia.types.Track(
                 id=str(self._id),
                 target_info=self._info,
-                states=states,
+                states=[
+                    (s.timestamp, np.array(s.state_vector.flatten()))
+                    for s in states[start:]
+                ],
             )
+        return self._theia_track
 
 
 class TargetDetections(pydantic.BaseModel):
@@ -164,6 +198,7 @@ class PseudoTracker(AbstractTracker, Trigger):
             lon=POSITIONS_OF_INTEREST["CH_CENTER"]["lon"],
             alt=1000.0,
         ),
+        track_history: datetime.timedelta = DEFAULT_TRACK_HISTORY,
     ):
         """
         Parameters
@@ -180,8 +215,12 @@ class PseudoTracker(AbstractTracker, Trigger):
                 alt=1000.0,
             )
             Position to serve as prior
+        track_history: datetime.timedelta, default DEFAULT_TRACK_HISTORY
+            How far back the exported tracks reach (see
+            ``SingleTargetEcefTracker.to_theia_track``)
         """
         super().__init__()
+        self._track_history = track_history
         self._trackers: dict[int, SingleTargetEcefTracker] = {}
         """Tracker per target ID"""
         self._iterations_without_update: dict[int, int] = {}
@@ -326,6 +365,7 @@ class PseudoTracker(AbstractTracker, Trigger):
                         self._t0,
                         self._prior,
                         info=detections.target_info,
+                        track_history=self._track_history,
                     )
                     self._trackers[detections.target_id] = tracker
                 tracker.add_detection(detection)
@@ -350,7 +390,7 @@ class PseudoTracker(AbstractTracker, Trigger):
                     del self._trackers[target_id]
                     del self._iterations_without_update[target_id]
 
-    def get_tracks(self) -> list[Track]:
+    def get_tracks(self) -> list[theia.types.Track]:
         tracks = [tracker.to_theia_track() for tracker in self._trackers.values()]
         tracks = [track for track in tracks if track is not None]
         return tracks
