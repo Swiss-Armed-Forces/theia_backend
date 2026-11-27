@@ -1484,6 +1484,7 @@ def build_scenario(
             raise ValueError("No mobile parts in the simulation!")
         # A game needs no scripted mobile parts: the players launch them.
         t_min = datetime.datetime.now(datetime.UTC).replace(microsecond=0)
+        # Unused for termination: a game never terminates by itself.
         t_max = t_min
 
     t_max = datetime.datetime.fromtimestamp(
