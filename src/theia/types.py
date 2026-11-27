@@ -13,7 +13,7 @@ import pydantic
 import scipy.constants as sc
 import shapely
 from matplotlib import pyplot as plt
-from scipy.interpolate import BSpline, CubicSpline, make_interp_spline
+from scipy.interpolate import CubicSpline
 
 from theia.config import INTEL_DETECTION_SIGMA, UNKNOWN_ID
 from theia.util import from_dB
@@ -1916,9 +1916,10 @@ class Track(pydantic.BaseModel):
     """
     inactive_time: datetime.timedelta
 
-    _times: list[float] = pydantic.PrivateAttr()
+    _times: np.ndarray = pydantic.PrivateAttr()
+    """Timestamps of the states [s]"""
     _y: np.ndarray = pydantic.PrivateAttr()
-    _f: BSpline = pydantic.PrivateAttr()
+    """States as an (n, 6) array"""
 
     def __init__(
         self,
@@ -1933,15 +1934,50 @@ class Track(pydantic.BaseModel):
             states=states,
             inactive_time=inactive_time,
         )
+        self._set_interpolation(
+            np.array([time.timestamp() for time, _ in self.states]),
+            np.array([state for _, state in self.states], dtype=np.float64),
+        )
 
-        self._times = []
-        self._y = np.empty((len(self.states), 6), dtype=np.float64)
+    @classmethod
+    def from_arrays(
+        cls,
+        id: str,
+        target_info: TargetInfo,
+        times: list[datetime.datetime],
+        timestamps: np.ndarray,
+        y: np.ndarray,
+        inactive_time: datetime.timedelta = datetime.timedelta(seconds=30),
+    ) -> Track:
+        """
+        Fast construction for trusted producers (e. g. trackers): the fields
+        are not validated by pydantic.
 
-        for i, (time, state) in enumerate(self.states):
-            self._times.append(time.timestamp())
-            self._y[i, :] = state
+        Parameters
+        ----------
+        times: list[datetime.datetime]
+            Times of the states
+        timestamps: np.ndarray
+            The same times as POSIX timestamps [s]
+        y: np.ndarray
+            States as an (n, 6) array, in the coordinate order of ``states``
+        """
+        track = cls.model_construct(
+            id=id,
+            target_info=target_info,
+            states=list(zip(times, y.tolist(), strict=True)),
+            inactive_time=inactive_time,
+        )
+        track._set_interpolation(timestamps, y)
+        return track
 
-        self._f = make_interp_spline(self._times, self._y, k=1)
+    def _set_interpolation(self, timestamps: np.ndarray, y: np.ndarray):
+        if len(timestamps) < 2:
+            raise ValueError("A track needs at least two states")
+        if not np.all(np.diff(timestamps) > 0):
+            raise ValueError("The times of a track must be strictly increasing")
+        self._times = timestamps
+        self._y = y
 
     @pydantic.model_validator(mode="before")
     @classmethod
@@ -1959,14 +1995,22 @@ class Track(pydantic.BaseModel):
 
     def __call__(self, time: datetime.datetime) -> np.ndarray:
         """
-        Return the 6-dimensional estimated state in ECEF space at the given time
+        Return the 6-dimensional estimated state in ECEF space at the given time,
+        interpolated linearly between the states. After the last state, the
+        last segment is extrapolated for at most ``inactive_time``.
 
         Coordinate order:
         x, vx, y, vy, z, vz
         """
+        times, y = self._times, self._y
         t = time.timestamp()
-        t = min(t, self._times[-1] + self.inactive_time.total_seconds())
-        return self._f(t)
+        t = min(t, times[-1] + self.inactive_time.total_seconds())
+        # Piecewise linear; before the first and after the last state, the
+        # first and last segment are extrapolated.
+        i = int(np.searchsorted(times, t, side="right")) - 1
+        i = min(max(i, 0), len(times) - 2)
+        t0, t1 = times[i], times[i + 1]
+        return ((t1 - t) * y[i] + (t - t0) * y[i + 1]) / (t1 - t0)
 
     class Config:
         arbitrary_types_allowed = True

@@ -1,3 +1,4 @@
+import bisect
 import datetime
 import itertools
 
@@ -109,6 +110,10 @@ class SingleTargetEcefTracker:
         self._has_detections = False
 
         self._track = stonesoup.types.track.Track()
+        # The posteriors, converted once for the export (see to_theia_track).
+        self._times: list[datetime.datetime] = []
+        self._timestamps: list[float] = []
+        self._states: list[np.ndarray] = []
 
     def add_detection(
         self,
@@ -129,6 +134,11 @@ class SingleTargetEcefTracker:
         posterior = self._updater.update(hypothesis)
         self._track.append(posterior)
         self._prior = self._track[-1]
+        self._times.append(posterior.timestamp)
+        self._timestamps.append(posterior.timestamp.timestamp())
+        self._states.append(
+            np.asarray(posterior.state_vector, dtype=np.float64).ravel()
+        )
         self._theia_track = None
 
     def to_theia_track(self) -> theia.types.Track | None:
@@ -146,22 +156,20 @@ class SingleTargetEcefTracker:
         The result is cached until the next detection.
         """
         if self._theia_track is None:
-            states = self._track.states
-            if len(states) <= 1:
+            n = len(self._timestamps)
+            if n <= 1:
                 return None
-            t_min = states[-1].timestamp - self._track_history
-            # Walk back to the last state at or before t_min, so that the
-            # segment containing t_min is kept.
-            start = len(states) - 2
-            while start > 0 and states[start].timestamp > t_min:
-                start -= 1
-            self._theia_track = theia.types.Track(
+            t_min = self._timestamps[-1] - self._track_history.total_seconds()
+            # The last state at or before t_min, so that the segment containing
+            # t_min is kept; at least the last two states.
+            start = bisect.bisect_right(self._timestamps, t_min) - 1
+            start = min(max(start, 0), n - 2)
+            self._theia_track = theia.types.Track.from_arrays(
                 id=str(self._id),
                 target_info=self._info,
-                states=[
-                    (s.timestamp, np.array(s.state_vector.flatten()))
-                    for s in states[start:]
-                ],
+                times=self._times[start:],
+                timestamps=np.array(self._timestamps[start:]),
+                y=np.array(self._states[start:]),
             )
         return self._theia_track
 
