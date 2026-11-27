@@ -30,6 +30,12 @@ class FixedPathOneWayDrone(Controller, pydantic.BaseModel):
     def __post_init__(self):
         super().__init__()
 
+    @pydantic.model_validator(mode="after")
+    def _mark_effector_self_destructing(self) -> "FixedPathOneWayDrone":
+        # The drone destroys itself with its shot (see on_event).
+        self.effector.self_destructs = True
+        return self
+
     def on_event(self, event):
         if isinstance(event, Shot) and event.shooter.id == self.effector.id:
             # Commit suicide.

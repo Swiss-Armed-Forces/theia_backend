@@ -35,6 +35,11 @@ class ShooterRevealController(ControllerGroup):
     targets of party `UNKNOWN` or `NEUTRAL` cannot be attributed and are
     ignored.
 
+    Self-destruction rule: a shooter destroyed by its own shot (e. g. an
+    interceptor or a one-way drone, see `AbstractEffector.self_destructs`)
+    leaves nothing to reveal, so its shots are ignored. The launcher of an
+    interceptor is revealed by the launch (`IndirectShot`).
+
     Lifecycle: the expiry time (`shot time + valid_time`) of each child is
     stored here, not in the child. At the start of `update`, children whose
     expiry is at or before the situational picture's time are removed.
@@ -57,15 +62,17 @@ class ShooterRevealController(ControllerGroup):
     def __init__(self, *, is_blue: bool, valid_time: datetime.timedelta):
         super().__init__([], is_blue=is_blue, valid_time=valid_time)
 
-    def _is_enemy_shot(self, event: Event) -> bool:
+    def _reveals_shooter(self, event: Event) -> bool:
         if not isinstance(event, (DirectShot, IndirectShot)):
+            return False
+        if event.shooter.self_destructs:
             return False
         # A shot is always aimed at the shooter's enemy, so a shot at one of
         # our own targets was fired by the enemy.
         return event.target.info.party == Party.from_is_blue(self.is_blue)
 
     def on_event(self, event: Event):
-        if self._is_enemy_shot(event):
+        if self._reveals_shooter(event):
             shot: Shot = event
             sensor = build_stationary_intel_sensor(
                 self.simulation_context.id_provider,

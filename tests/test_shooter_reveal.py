@@ -2,7 +2,9 @@ import datetime
 import unittest
 
 from theia.config import UNKNOWN_RCS
-from theia.effectors import DirectFireEffector
+from theia.effectors import DirectFireEffector, IndirectFireEffector
+from theia.simulation.controllers.fixed_path_kamikaze_drone import FixedPathOneWayDrone
+from theia.simulation.controllers.homing_effector import HomingSystem
 from theia.simulation.controllers.intel_controller import IntelController
 from theia.simulation.controllers.shooter_reveal_controller import (
     ShooterRevealController,
@@ -27,6 +29,7 @@ from theia.types import (
     TargetInfos,
     TextEvent,
     TheiaException,
+    Trajectory,
     Velocity,
 )
 
@@ -48,7 +51,9 @@ class FlatTerrain(AbstractTerrainModel):
         return True
 
 
-def get_effector(effector_id: int = 0) -> DirectFireEffector:
+def get_effector(
+    effector_id: int = 0, self_destructs: bool = False
+) -> DirectFireEffector:
     return DirectFireEffector(
         id=effector_id,
         point=P_SHOOTER,
@@ -57,6 +62,54 @@ def get_effector(effector_id: int = 0) -> DirectFireEffector:
         name="",
         terrain=FlatTerrain(),
         cadence=float("inf"),
+        self_destructs=self_destructs,
+    )
+
+
+def get_interceptor(party: Party) -> HomingSystem:
+    launcher = IndirectFireEffector(
+        id=50,
+        name="launcher",
+        point=P_SHOOTER,
+        combat_range=100_000,
+        n_attacks_left=10,
+        cadence=float("inf"),
+        projectile=get_effector(51),
+        projectile_speed=300.0,
+        projectile_max_dist=50_000.0,
+        projectile_info=TargetInfos.INTERCEPTOR.with_party(party),
+        projectile_rcs=ConstantRcsModel(rcs=0.1),
+        n_in_flight=1,
+    )
+    return HomingSystem(
+        target_id=52,
+        info=TargetInfos.INTERCEPTOR.with_party(party),
+        speed=300.0,
+        max_dist=50_000.0,
+        point=P_SHOOTER,
+        rcs=ConstantRcsModel(rcs=0.1),
+        effector=get_effector(53),
+        assigned_track_id="track",
+        terrain=FlatTerrain(),
+        source_effector=launcher,
+        name="interceptor",
+    )
+
+
+def get_one_way_drone(party: Party) -> FixedPathOneWayDrone:
+    return FixedPathOneWayDrone(
+        effector=get_effector(60),
+        trajectory=Trajectory(
+            target_id=61,
+            target_info=TargetInfos.FIXED_WING.with_party(party),
+            times=[t0, t0 + VALID_TIME],
+            lats=[P_SHOOTER.lat] * 2,
+            lons=[P_SHOOTER.lon] * 2,
+            alts=[P_SHOOTER.alt] * 2,
+            cross_section_model=ConstantRcsModel(rcs=0.1),
+        ),
+        assigned_goal=P_TARGET,
+        terrain=FlatTerrain(),
     )
 
 
@@ -75,11 +128,12 @@ def get_direct_shot(
     target_party: Party,
     time: datetime.datetime = t0,
     shooter_id: int = 0,
+    self_destructs: bool = False,
 ) -> DirectShot:
     return DirectShot(
         id=-1,
         time=time,
-        shooter=get_effector(shooter_id),
+        shooter=get_effector(shooter_id, self_destructs),
         target=get_target(target_party),
     )
 
@@ -91,7 +145,7 @@ def get_indirect_shot(
         id=-1,
         time=time,
         shooter=get_effector(0),
-        projectile=get_effector(100),
+        projectile=get_effector(100, self_destructs=True),
         target=get_target(target_party),
         track_id="track",
     )
@@ -208,6 +262,27 @@ class ShooterRevealControllerTest(unittest.TestCase):
 
                 controller.update(get_picture(t0 + VALID_TIME), dt)
                 self.assertEqual(n_children(controller), 0)
+
+    def test_self_destructing_shooter_is_not_revealed(self):
+        for is_blue in (True, False):
+            with self.subTest(is_blue=is_blue):
+                controller = get_controller(is_blue)
+                controller.on_event(
+                    get_direct_shot(own_party(is_blue), self_destructs=True)
+                )
+                self.assertEqual(n_children(controller), 0)
+
+    def test_shots_of_interceptors_and_one_way_drones_are_not_revealed(self):
+        for is_blue in (True, False):
+            for name, carrier in (
+                ("interceptor", get_interceptor(enemy_party(is_blue))),
+                ("one-way drone", get_one_way_drone(enemy_party(is_blue))),
+            ):
+                with self.subTest(is_blue=is_blue, carrier=name):
+                    controller = get_controller(is_blue)
+                    shot = carrier.effector.fire(get_target(own_party(is_blue)), t0)
+                    controller.on_event(shot.model_copy(update={"time": t0}))
+                    self.assertEqual(n_children(controller), 0)
 
     def test_repeated_shots_spawn_one_child_each(self):
         controller = get_controller(True)

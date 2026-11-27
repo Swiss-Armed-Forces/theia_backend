@@ -1694,6 +1694,12 @@ class AbstractEffector:
     cadence: float
     """Number of attacks per second"""
     time_of_last_shot: datetime.datetime | None = field(default=None, kw_only=True)
+    self_destructs: bool = field(default=False, kw_only=True)
+    """
+    Whether the effector's carrier is destroyed by its own shot (e. g.
+    interceptors, one-way drones). Set by the controller that implements the
+    self-destruction.
+    """
 
     def __post_init__(self):
         super().__init__()

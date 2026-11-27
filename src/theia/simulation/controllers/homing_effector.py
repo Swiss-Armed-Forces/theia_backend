@@ -1,6 +1,7 @@
 import datetime
 import math
 
+import pydantic
 from scipy.optimize import minimize
 
 from theia.config import UNKNOWN_ID
@@ -84,6 +85,12 @@ class HomingSystem(Controller):
     name: str = ""
     travelled_dist: float = 0
     """Distance travelled so far [m]"""
+
+    @pydantic.model_validator(mode="after")
+    def _mark_effector_self_destructing(self) -> "HomingSystem":
+        # The system destroys itself with its shot (see on_event).
+        self.effector.self_destructs = True
+        return self
 
     def on_event(self, event):
         if isinstance(event, Shot) and event.shooter.id == self.effector.id:
