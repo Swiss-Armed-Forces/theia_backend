@@ -162,7 +162,7 @@ COVERAGE_SETTINGS = MonostaticCoverageCalcSettings(
 )
 
 # How long a revealed shooter stays known after its shot [s]
-SHOOTER_REVEAL_SECONDS_VALID = 300.0
+SHOOTER_REVEAL_SECONDS_VALID = 30 * 60.0
 
 CAMP_SITE_RCS = 10.0
 LAUNCH_LOCATIONS = {
