@@ -522,6 +522,15 @@ if __name__ == "__main__":
         SEED,
         build_blue_orbat(terrain),
         build_red_orbat(terrain),
+        t_min=datetime.datetime(
+            year=2040,
+            month=1,
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            tzinfo=datetime.UTC,
+        ),
     )
     add_coverages(scenario.blue_orbat, terrain)
     add_coverages(scenario.red_orbat, terrain)

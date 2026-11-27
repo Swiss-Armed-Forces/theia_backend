@@ -1160,6 +1160,29 @@ class TerminationTest(unittest.TestCase):
         )
         self.assertEqual(scenario.termination, NeverTermination())
 
+    def test_build_game_scenario_with_start_time(self):
+        start = datetime.datetime(2040, 1, 1, tzinfo=datetime.UTC)
+        scenario = build_scenario(
+            "game",
+            TerrainFactory(terrain_name="SRTM"),
+            0,
+            get_game_orbat(),
+            get_order_of_battle([]),
+            t_min=start,
+        )
+        self.assertEqual(scenario.start_time, start)
+        self.assertEqual(scenario.termination, NeverTermination())
+
+    def test_start_time_before_mobile_parts(self):
+        # The missile starts at 2024-01-01.
+        start = datetime.datetime(2023, 12, 31, tzinfo=datetime.UTC)
+        scenario = self.get_scenario(t_min=start)
+        self.assertEqual(scenario.start_time, start)
+
+    def test_start_time_after_first_mobile_part_raises(self):
+        with self.assertRaises(ValueError):
+            self.get_scenario(t_min=datetime.datetime(2040, 1, 1, tzinfo=datetime.UTC))
+
     def test_build_without_mobile_parts_still_raises(self):
         with self.assertRaises(ValueError):
             build_scenario(

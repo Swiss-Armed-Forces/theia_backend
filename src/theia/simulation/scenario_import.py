@@ -1464,26 +1464,40 @@ def build_scenario(
     seed: int,
     orbat_blue: OrderOfBattle,
     orbat_red: OrderOfBattle,
+    t_min: datetime.datetime | None = None,
 ) -> ScenarioFactory:
+    """
+    ``t_min`` is the start time. Default: the start of the first scripted
+    mobile part, or now for a game without any.
+    """
     id_provider = IdProvider()
     orbat_blue.update_id_provider(id_provider)
     orbat_red.reindex(id_provider)
 
-    t_min = None
+    # Time span of the scripted mobile parts
+    parts_min = None
     t_max = None
-    if orbat_blue.t_min is not None:
-        t_min = orbat_blue.t_min
-        t_max = orbat_blue.t_max
-    if orbat_red.t_min is not None:
-        t_min = orbat_red.t_min if t_min is None else min(t_min, orbat_red.t_min)
-        t_max = orbat_red.t_max if t_max is None else max(t_max, orbat_red.t_max)
+    for orbat in (orbat_blue, orbat_red):
+        if orbat.t_min is not None:
+            parts_min = orbat.t_min if parts_min is None else min(parts_min, orbat.t_min)
+            t_max = orbat.t_max if t_max is None else max(t_max, orbat.t_max)
 
     is_game = orbat_blue.is_user_controlled or orbat_red.is_user_controlled
-    if t_min is None or t_max is None:
-        if not is_game:
-            raise ValueError("No mobile parts in the simulation!")
+    if parts_min is None and not is_game:
+        raise ValueError("No mobile parts in the simulation!")
+
+    if t_min is None:
         # A game needs no scripted mobile parts: the players launch them.
-        t_min = datetime.datetime.now(datetime.UTC).replace(microsecond=0)
+        t_min = (
+            parts_min
+            if parts_min is not None
+            else datetime.datetime.now(datetime.UTC).replace(microsecond=0)
+        )
+    elif parts_min is not None and parts_min < t_min:
+        raise ValueError(
+            f"The start time {t_min} is after the first mobile part ({parts_min})"
+        )
+    if t_max is None:
         # Unused for termination: a game never terminates by itself.
         t_max = t_min
 
